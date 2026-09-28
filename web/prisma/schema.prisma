@@ -1,0 +1,133 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ==========================================
+// ENUMS
+// ==========================================
+
+enum Role {
+  SUPERADMIN
+  ADMIN_MADRASAH
+  TEACHER
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  PERMIT
+  SICK
+  ABSENT
+}
+
+// ==========================================
+// MODELS
+// ==========================================
+
+model Madrasah {
+  id          String   @id @default(uuid())
+  nsm         String   @unique // Nomor Statistik Madrasah
+  npsn        String?  @unique // Nomor Pokok Sekolah Nasional
+  name        String
+  address     String?  @db.Text
+  phone       String?
+  email       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  settings        MadrasahSetting?
+  users           User[]
+  attendanceLogs  AttendanceLog[]
+
+  @@map("madrasahs")
+}
+
+model MadrasahSetting {
+  id              String   @id @default(uuid())
+  madrasahId      String   @unique @map("madrasah_id")
+  
+  // Geofencing Coordinates
+  latitude        Float
+  longitude       Float
+  radiusMeters    Float    @default(50.0) @map("radius_meters") // Default radius 50m
+
+  // Attendance Work Hours (HH:mm format)
+  workStartTime   String   @default("07:00") @map("work_start_time")
+  lateThreshold   String   @default("07:15") @map("late_threshold")
+  workEndTime     String   @default("14:00") @map("work_end_time")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  madrasah        Madrasah @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+
+  @@map("madrasah_settings")
+}
+
+model User {
+  id              String    @id @default(uuid())
+  madrasahId      String?   @map("madrasah_id") // Nullable ONLY for SUPERADMIN
+  name            String
+  email           String    @unique
+  nip             String?   // Nomor Induk Pegawai / NIK
+  passwordHash    String    @map("password_hash")
+  role            Role      @default(TEACHER)
+  phone           String?
+  avatarUrl       String?   @map("avatar_url")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  madrasah        Madrasah?       @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  attendanceLogs  AttendanceLog[]
+
+  @@index([madrasahId])
+  @@index([role])
+  @@map("users")
+}
+
+model AttendanceLog {
+  id                String           @id @default(uuid())
+  madrasahId        String           @map("madrasah_id") // Multi-tenant strict isolation
+  userId            String           @map("user_id")
+  date              DateTime         @db.Date // YYYY-MM-DD for single check per day constraint
+
+  // Clock-in Details
+  checkInTime       DateTime?        @map("check_in_time")
+  checkInLat        Float?           @map("check_in_lat")
+  checkInLng        Float?           @map("check_in_lng")
+  checkInDistance   Float?           @map("check_in_distance") // Distance in meters from center
+  checkInPhotoUrl   String?          @map("check_in_photo_url")
+
+  // Clock-out Details
+  checkOutTime      DateTime?        @map("check_out_time")
+  checkOutLat       Float?           @map("check_out_lat")
+  checkOutLng       Float?           @map("check_out_lng")
+  checkOutDistance  Float?           @map("check_out_distance")
+  checkOutPhotoUrl  String?          @map("check_out_photo_url")
+
+  status            AttendanceStatus @default(PRESENT)
+  notes             String?          @db.Text
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  madrasah          Madrasah         @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  user              User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date]) // 1 user has at most 1 attendance record per calendar date
+  @@index([madrasahId])
+  @@index([madrasahId, date])
+  @@index([userId])
+  @@map("attendance_logs")
+}
