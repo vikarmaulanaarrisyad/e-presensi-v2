@@ -207,7 +207,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full select-none">
       {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-[#042817] via-[#0A5C36] to-[#04331d] text-white shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-sm border border-slate-700/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">

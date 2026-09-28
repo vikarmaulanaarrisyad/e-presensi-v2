@@ -1,5 +1,4 @@
 import React from "react";
-import { HeaderNavbar } from "@/components/organisms/header-navbar";
 import { TeacherManagementView } from "@/features/teachers/components/teacher-management-view";
 import { fetchTeachersData } from "@/server/actions/teacher.actions";
 
@@ -28,17 +27,5 @@ export default async function TeachersPage() {
     })),
   };
 
-  return (
-    <div className="flex-1 flex flex-col min-h-screen bg-muted/20">
-      <HeaderNavbar
-        madrasahName={initialData.madrasahName}
-        nsm={initialData.nsm}
-        radiusMeters={initialData.radiusMeters}
-      />
-
-      <main className="flex-1 p-6 xl:p-8 flex flex-col gap-6 max-w-7xl w-full mx-auto">
-        <TeacherManagementView initialData={initialData} />
-      </main>
-    </div>
-  );
+  return <TeacherManagementView initialData={initialData} />;
 }

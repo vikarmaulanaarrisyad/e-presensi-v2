@@ -352,7 +352,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full select-none">
       {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-[#042817] via-[#0A5C36] to-[#04331d] text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-sm border border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
@@ -623,7 +623,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
       {activeTab === "holidays" && (
         <div className="flex flex-col gap-6">
           {/* SYNC BANNER: Kemenag & National Holidays */}
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-950 via-emerald-900 to-teal-950 border border-emerald-800/40 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 border border-slate-700/60 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
               <div className="size-11 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center text-accent shrink-0 mt-0.5">
                 <Landmark className="size-6" />
