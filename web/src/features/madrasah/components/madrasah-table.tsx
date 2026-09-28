@@ -23,6 +23,13 @@ import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
 import { FormInput } from "@/components/molecules/form-field";
 import { toggleMadrasahAction, createMadrasahAction } from "@/server/actions/madrasah.actions";
+import { 
+  swalLoading, 
+  swalSuccess, 
+  swalError, 
+  swalClose, 
+  swalConfirm 
+} from "@/lib/swal";
 
 export interface MadrasahRow {
   id: string;
@@ -89,16 +96,31 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
 
   // Handle Toggle Active/Inactive Status
   const handleToggleStatus = async (item: MadrasahRow) => {
+    const isConfirmed = await swalConfirm(
+      item.isActive ? "Nonaktifkan Madrasah?" : "Aktifkan Madrasah?",
+      `Apakah Anda yakin ingin ${item.isActive ? "menonaktifkan" : "mengaktifkan"} akses operasional untuk ${item.name}?`,
+      item.isActive ? "Ya, Nonaktifkan" : "Ya, Aktifkan"
+    );
+
+    if (!isConfirmed) return;
+
     setTogglingId(item.id);
+    swalLoading("Mengubah Status...", "Sedang memperbarui status madrasah di database...");
+
     const res = await toggleMadrasahAction(item.id, item.isActive);
+    setTogglingId(null);
+    swalClose();
+
     if (res?.success) {
       setData((prev) =>
         prev.map((m) =>
           m.id === item.id ? { ...m, isActive: !item.isActive } : m
         )
       );
+      swalSuccess("Status Diperbarui!", `Madrasah ${item.name} berhasil ${!item.isActive ? "diaktifkan" : "dinonaktifkan"}.`);
+    } else {
+      swalError("Gagal Mengubah Status", res?.error || "Terjadi kesalahan sistem.");
     }
-    setTogglingId(null);
   };
 
   // Handle Form Submission
@@ -107,11 +129,13 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
     setFormError(null);
 
     if (!formData.name.trim() || !formData.nsm.trim()) {
+      swalError("Form Belum Lengkap", "Nama Madrasah dan NSM wajib diisi.");
       setFormError("Nama Madrasah dan NSM wajib diisi.");
       return;
     }
 
     setIsSubmitting(true);
+    swalLoading("Mendaftarkan Madrasah...", "Sedang menyimpan data dan konfigurasi radius geofence ke server...");
 
     try {
       const res = await createMadrasahAction({
@@ -126,9 +150,12 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
         radiusMeters: parseFloat(formData.radiusMeters) || 50,
       });
 
+      setIsSubmitting(false);
+      swalClose();
+
       if (res?.error) {
+        swalError("Pendaftaran Gagal", res.error);
         setFormError(res.error);
-        setIsSubmitting(false);
         return;
       }
 
@@ -140,6 +167,7 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
           } as unknown as MadrasahRow,
           ...prev,
         ]);
+        swalSuccess("Madrasah Berhasil Didaftarkan!", `Entitas ${res.data.name} kini terdaftar aktif di sistem.`);
       }
 
       setIsModalOpen(false);
@@ -155,9 +183,10 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
         radiusMeters: "50",
       });
     } catch {
-      setFormError("Terjadi kesalahan sistem saat menyimpan madrasah.");
-    } finally {
       setIsSubmitting(false);
+      swalClose();
+      swalError("Terjadi Kesalahan", "Gagal menyimpan madrasah baru. Silakan coba lagi.");
+      setFormError("Terjadi kesalahan sistem saat menyimpan madrasah.");
     }
   };
 

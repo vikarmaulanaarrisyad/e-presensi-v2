@@ -26,6 +26,13 @@ import {
   addHolidayAction, 
   deleteHolidayAction 
 } from "@/server/actions/settings.actions";
+import { 
+  swalLoading, 
+  swalSuccess, 
+  swalError, 
+  swalClose, 
+  swalConfirm 
+} from "@/lib/swal";
 
 interface SettingsData {
   madrasahId: string;
@@ -102,6 +109,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
     setIsSaving(true);
     setSuccessMessage(null);
     setErrorMessage(null);
+    swalLoading("Menyimpan Pengaturan...", "Sedang memperbarui jam kerja dan parameter geofence di database...");
 
     const res = await saveAttendanceSettingsAction(initialData.madrasahId, {
       workStartTime,
@@ -115,10 +123,13 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
     });
 
     setIsSaving(false);
+    swalClose();
 
     if (res?.error) {
+      swalError("Gagal Menyimpan", res.error);
       setErrorMessage(res.error);
     } else {
+      swalSuccess("Berhasil Disimpan!", "Pengaturan jam kerja dan radius geofence telah diperbarui.");
       setSuccessMessage("Pengaturan jam kerja dan geofence berhasil disimpan.");
       setTimeout(() => setSuccessMessage(null), 4000);
     }
@@ -128,38 +139,57 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
   const handleAddHoliday = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newHolidayName.trim() || !newHolidayDate) {
-      alert("Nama libur dan tanggal wajib diisi.");
+      swalError("Form Belum Lengkap", "Silakan masukkan nama hari libur dan tanggal.");
       return;
     }
 
     setIsAddingHoliday(true);
+    swalLoading("Menambahkan Hari Libur...", "Sedang mendaftarkan tanggal libur ke kalender akademik...");
+
     const res = await addHolidayAction(initialData.madrasahId, {
       name: newHolidayName,
       date: newHolidayDate,
       description: newHolidayDesc,
     });
     setIsAddingHoliday(false);
+    swalClose();
 
     if (res?.success && res.data) {
       setHolidays([...holidays, res.data as any]);
       setNewHolidayName("");
       setNewHolidayDate("");
       setNewHolidayDesc("");
+      swalSuccess("Hari Libur Ditambahkan!", "Guru ditiadakan dari kewajiban presensi pada tanggal tersebut.");
       setSuccessMessage("Hari libur baru berhasil ditambahkan.");
       setTimeout(() => setSuccessMessage(null), 4000);
     } else {
-      alert("Gagal menambahkan hari libur.");
+      swalError("Gagal Menambahkan", res?.error || "Terjadi kesalahan saat menambahkan hari libur.");
     }
   };
 
-  // Delete Holiday
-  const handleDeleteHoliday = async (id: string) => {
-    if (!confirm("Apakah Anda yakin ingin menghapus hari libur ini?")) return;
+  // Delete Holiday with Confirmation
+  const handleDeleteHoliday = async (id: string, name: string) => {
+    const isConfirmed = await swalConfirm(
+      "Hapus Hari Libur?",
+      `Apakah Anda yakin ingin menghapus "${name}" dari kalender libur madrasah?`,
+      "Ya, Hapus Libur",
+      "Batal"
+    );
+
+    if (!isConfirmed) return;
+
     setDeletingHolidayId(id);
+    swalLoading("Menghapus...", "Sedang menghapus hari libur dari database...");
+
     const res = await deleteHolidayAction(id);
     setDeletingHolidayId(null);
+    swalClose();
+
     if (res?.success) {
       setHolidays(holidays.filter((h) => h.id !== id));
+      swalSuccess("Dihapus!", "Hari libur telah dihapus dari kalender.");
+    } else {
+      swalError("Gagal Menghapus", res?.error || "Gagal menghapus hari libur.");
     }
   };
 
@@ -478,7 +508,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
                         size="sm"
                         variant="destructive"
                         isLoading={deletingHolidayId === h.id}
-                        onClick={() => handleDeleteHoliday(h.id)}
+                        onClick={() => handleDeleteHoliday(h.id, h.name)}
                         className="text-xs"
                         leftIcon={<Trash2 className="size-3.5" />}
                       >

@@ -25,6 +25,7 @@ import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
 import { Badge } from "@/components/atoms/badge";
 import { loginWithCredentials } from "@/server/actions/auth.actions";
+import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
 
 export function LoginView() {
   const router = useRouter();
@@ -99,16 +100,21 @@ export function LoginView() {
     }
 
     setIsLoading(true);
+    swalLoading("Memverifikasi Akun...", "Sedang memeriksa kredensial pada server database...");
 
     try {
       const res = await loginWithCredentials({ email, password });
 
       if (res?.error) {
+        swalClose();
+        swalError("Gagal Masuk", res.error);
         setErrorMessage(res.error);
         setIsLoading(false);
         return;
       }
 
+      swalClose();
+      swalSuccess("Autentikasi Berhasil!", "Selamat datang kembali. Mengarahkan ke panel dashboard...", 1800);
       setSuccessMessage("Autentikasi berhasil! Mengarahkan ke panel dashboard...");
       
       setTimeout(() => {
@@ -120,6 +126,8 @@ export function LoginView() {
         router.refresh();
       }, 700);
     } catch {
+      swalClose();
+      swalError("Koneksi Gagal", "Gagal menghubungkan ke server. Silakan coba beberapa saat lagi.");
       setErrorMessage("Gagal menghubungkan ke server. Silakan coba beberapa saat lagi.");
       setIsLoading(false);
     }
