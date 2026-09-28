@@ -206,15 +206,30 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const startDateObj = new Date(year, month - 1, 1, 0, 0, 0);
     const endDateObj = new Date(year, month - 1, daysInMonth, 23, 59, 59);
 
-    // Fetch Holidays from DB
+    // Fetch Holidays from DB (supporting single days and multi-day semester breaks)
     const holidays = targetMadrasahId
       ? await prisma.holiday.findMany({
           where: {
             madrasahId: targetMadrasahId,
-            date: {
-              gte: startDateObj,
-              lte: endDateObj,
-            },
+            OR: [
+              // 1. Single day holiday inside month
+              {
+                endDate: null,
+                date: {
+                  gte: startDateObj,
+                  lte: endDateObj,
+                },
+              },
+              // 2. Multi-day holiday range (e.g. Libur Semester) overlapping this month
+              {
+                date: {
+                  lte: endDateObj,
+                },
+                endDate: {
+                  gte: startDateObj,
+                },
+              },
+            ],
           },
         })
       : [];
@@ -240,14 +255,22 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       logMap.set(dStr, log);
     }
 
-    // Map holidays by date
+    // Map holidays by day using exact date range matching (handles semester breaks across months)
     const holidayMap = new Map<number, string>();
-    for (const h of holidays) {
-      const hDate = new Date(h.date);
-      const startDay = hDate.getDate();
-      const endDay = h.endDate ? new Date(h.endDate).getDate() : startDay;
-      for (let d = startDay; d <= endDay; d++) {
-        holidayMap.set(d, h.name);
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0);
+      const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999);
+
+      for (const h of holidays) {
+        const hStart = new Date(h.date);
+        hStart.setHours(0, 0, 0, 0);
+        const hEnd = h.endDate ? new Date(h.endDate) : new Date(h.date);
+        hEnd.setHours(23, 59, 59, 999);
+
+        if (dayStart <= hEnd && dayEnd >= hStart) {
+          holidayMap.set(day, h.name);
+          break;
+        }
       }
     }
 
@@ -553,3 +576,33 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     return { error: error.message || "Gagal memproses laporan presensi." };
   }
 }
+
+/**
+ * Quick Action to Register Semester Holiday Range (Libur Semester Ganjil / Genap)
+ */
+export async function saveSemesterHolidayAction(params: {
+  madrasahId: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  description?: string;
+}) {
+  try {
+    const holiday = await prisma.holiday.create({
+      data: {
+        madrasahId: params.madrasahId,
+        name: params.name.trim(),
+        date: new Date(params.startDate),
+        endDate: new Date(params.endDate),
+        isNational: false,
+        description: params.description || "Libur Semester Kalender Pendidikan Madrasah",
+      },
+    });
+
+    return { success: true, data: holiday };
+  } catch (error: any) {
+    console.error("Gagal menyimpan libur semester:", error);
+    return { error: error.message || "Gagal menyimpan jadwal libur semester." };
+  }
+}
+

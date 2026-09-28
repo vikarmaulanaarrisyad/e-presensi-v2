@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { 
   Printer, 
   FileDown, 
@@ -17,13 +17,17 @@ import {
   CheckCircle2,
   FileText,
   Building2,
-  Clock
+  Clock,
+  CalendarPlus,
+  Palmtree,
+  X
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
 import { AttendancePrintSheet } from "./attendance-print-sheet";
 import { 
   fetchAttendanceReportData, 
+  saveSemesterHolidayAction,
   type AttendanceReportData 
 } from "@/server/actions/report.actions";
 import { exportReportToPdf } from "../utils/export-pdf";
@@ -75,6 +79,14 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   const [selectedYear, setSelectedYear] = useState<number>(2025); // Default 2025 to match sample
   const [filterType, setFilterType] = useState<string>("all");
   const [dateLanguage, setDateLanguage] = useState<"en" | "id">("en");
+
+  // Semester break modal state
+  const [isSemesterModalOpen, setIsSemesterModalOpen] = useState<boolean>(false);
+  const [semesterHolidayName, setSemesterHolidayName] = useState<string>("Libur Akhir Semester Ganjil");
+  const [semesterStartDate, setSemesterStartDate] = useState<string>("");
+  const [semesterEndDate, setSemesterEndDate] = useState<string>("");
+  const [semesterDesc, setSemesterDesc] = useState<string>("Libur Semester Kalender Pendidikan Madrasah");
+  const [isSavingSemester, setIsSavingSemester] = useState<boolean>(false);
 
   // Loading & data state
   const [reportData, setReportData] = useState<AttendanceReportData | null>(null);
@@ -151,6 +163,66 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     }
   };
 
+  // Detect if current viewed report has semester holiday ranges
+  const detectedSemesterBreaks = useMemo(() => {
+    if (!reportData) return [];
+    const holidayNames = new Set<string>();
+    reportData.rows.forEach((r) => {
+      if (
+        r.isHoliday &&
+        r.keterangan &&
+        !r.keterangan.includes("rutin") &&
+        (r.keterangan.toLowerCase().includes("semester") ||
+          r.keterangan.toLowerCase().includes("kenaikan") ||
+          r.keterangan.toLowerCase().includes("ajaran") ||
+          r.keterangan.toLowerCase().includes("ramadhan") ||
+          r.keterangan.toLowerCase().includes("lebaran"))
+      ) {
+        holidayNames.add(r.keterangan);
+      }
+    });
+    return Array.from(holidayNames);
+  }, [reportData]);
+
+  // Handle Save Semester Holiday
+  const handleSaveSemesterBreak = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!semesterHolidayName.trim() || !semesterStartDate || !semesterEndDate) {
+      swalError("Form Belum Lengkap", "Silakan masukkan nama libur semester, tanggal mulai, dan tanggal selesai.");
+      return;
+    }
+
+    if (semesterEndDate < semesterStartDate) {
+      swalError("Tanggal Tidak Valid", "Tanggal selesai tidak boleh lebih awal dari tanggal mulai.");
+      return;
+    }
+
+    setIsSavingSemester(true);
+    swalLoading("Menyimpan Libur Semester...", "Mendaftarkan jadwal libur ke database madrasah...");
+
+    const res = await saveSemesterHolidayAction({
+      madrasahId: initialData.madrasah.id,
+      name: semesterHolidayName,
+      startDate: semesterStartDate,
+      endDate: semesterEndDate,
+      description: semesterDesc,
+    });
+
+    setIsSavingSemester(false);
+    swalClose();
+
+    if (res?.success) {
+      setIsSemesterModalOpen(false);
+      swalSuccess(
+        "Libur Semester Diterapkan!",
+        "Seluruh tanggal dalam rentang libur semester otomatis berwarna kuning dan dikecualikan dari hari kerja KBM."
+      );
+      loadReport();
+    } else {
+      swalError("Gagal Menyimpan", res?.error || "Terjadi kesalahan.");
+    }
+  };
+
   // Reset to default sample
   const handleResetSample = () => {
     setSelectedTeacherId("sample-wariah");
@@ -217,8 +289,8 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
 
       {/* 2. Control Toolbar / Filter Bar (Hidden when printing) */}
       <div className="no-print p-4 sm:p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
-        {/* Toolbar Header with Quick Preset */}
-        <div className="flex items-center justify-between pb-3 border-b border-border/60">
+        {/* Toolbar Header with Quick Actions */}
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/60">
           <div className="flex items-center gap-2">
             <SlidersHorizontal className="size-4 text-primary" />
             <span className="text-xs font-bold uppercase tracking-wider text-foreground">
@@ -226,16 +298,46 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
             </span>
           </div>
 
-          <button
-            type="button"
-            onClick={handleResetSample}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all cursor-pointer shadow-2xs"
-            title="Muat data contoh persis seperti pada gambar (WARIAH - MI IKHSANIYAH LEBETENG)"
-          >
-            <RotateCcw className="size-3.5 text-amber-600 dark:text-amber-400" />
-            <span>Muat Contoh Gambar (WARIAH)</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                const y = selectedYear;
+                const m = selectedMonth.toString().padStart(2, "0");
+                setSemesterStartDate(`${y}-${m}-20`);
+                setSemesterEndDate(`${y}-${m}-31`);
+                setIsSemesterModalOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30 transition-all cursor-pointer shadow-2xs"
+              title="Atur libur semester ganjil atau genap / kenaikan kelas"
+            >
+              <CalendarPlus className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span>Atur Libur Semester</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={handleResetSample}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all cursor-pointer shadow-2xs"
+              title="Muat data contoh persis seperti pada gambar (WARIAH - MI IKHSANIYAH LEBETENG)"
+            >
+              <RotateCcw className="size-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Muat Contoh Gambar (WARIAH)</span>
+            </button>
+          </div>
         </div>
+
+        {/* Semester Break Alert Banner if detected */}
+        {detectedSemesterBreaks.length > 0 && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200">
+            <div className="flex items-center gap-2">
+              <Palmtree className="size-4 text-amber-600 shrink-0" />
+              <span>
+                <strong>Libur Semester Terdeteksi:</strong> {detectedSemesterBreaks.join(", ")}. Seluruh tanggal dalam rentang ini otomatis berwarna kuning dan dikecualikan dari kewajiban presensi (tidak dihitung alpa).
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* 4-Column Balanced Input Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 w-full">
@@ -422,6 +524,160 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
           </div>
         )}
       </div>
+
+      {/* 4. Semester Break Modal */}
+      {isSemesterModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-5 border-b border-border/80 bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-xl bg-primary/10 text-primary flex items-center justify-center">
+                  <Palmtree className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">
+                    Atur Jadwal Libur Semester
+                  </h3>
+                  <p className="text-xs text-muted-foreground">
+                    Daftarkan rentang libur semester ke kalender akademik madrasah.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSemesterModalOpen(false)}
+                className="size-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            {/* Modal Body Form */}
+            <form onSubmit={handleSaveSemesterBreak} className="p-5 flex flex-col gap-4">
+              {/* Quick Presets */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Pilih Contoh Preset:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSemesterHolidayName("Libur Akhir Semester Ganjil");
+                      setSemesterStartDate(`${selectedYear}-12-22`);
+                      setSemesterEndDate(`${selectedYear + 1}-01-03`);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors cursor-pointer"
+                  >
+                    Semester Ganjil (Des - Jan)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSemesterHolidayName("Libur Akhir Tahun Ajaran / Kenaikan Kelas");
+                      setSemesterStartDate(`${selectedYear}-06-23`);
+                      setSemesterEndDate(`${selectedYear}-07-12`);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors cursor-pointer"
+                  >
+                    Semester Genap (Jun - Jul)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSemesterHolidayName("Libur Awal Ramadhan & Idul Fitri");
+                      setSemesterStartDate(`${selectedYear}-03-24`);
+                      setSemesterEndDate(`${selectedYear}-04-07`);
+                    }}
+                    className="px-2.5 py-1 rounded-lg text-xs font-medium bg-muted hover:bg-muted/80 text-foreground border border-border transition-colors cursor-pointer"
+                  >
+                    Ramadhan / Idul Fitri
+                  </button>
+                </div>
+              </div>
+
+              {/* Nama Libur */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-foreground">
+                  Nama Libur Semester / Keterangan
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={semesterHolidayName}
+                  onChange={(e) => setSemesterHolidayName(e.target.value)}
+                  placeholder="Contoh: Libur Akhir Semester Ganjil"
+                  className="h-10 px-3 rounded-xl bg-background border border-border text-xs focus:ring-2 focus:ring-primary focus:outline-none"
+                />
+              </div>
+
+              {/* Tanggal Mulai & Tanggal Selesai */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-foreground">
+                    Tanggal Mulai
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={semesterStartDate}
+                    onChange={(e) => setSemesterStartDate(e.target.value)}
+                    className="h-10 px-3 rounded-xl bg-background border border-border text-xs focus:ring-2 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-xs font-semibold text-foreground">
+                    Tanggal Selesai
+                  </label>
+                  <input
+                    type="date"
+                    required
+                    value={semesterEndDate}
+                    onChange={(e) => setSemesterEndDate(e.target.value)}
+                    className="h-10 px-3 rounded-xl bg-background border border-border text-xs focus:ring-2 focus:ring-primary focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Catatan Info */}
+              <div className="p-3 rounded-xl bg-muted/50 border border-border/80 text-xs text-muted-foreground">
+                <p>
+                  💡 <strong>Keterangan Sistem:</strong> Seluruh tanggal dalam rentang libur semester akan otomatis:
+                </p>
+                <ul className="list-disc list-inside mt-1 space-y-0.5">
+                  <li>Disorot dengan warna kuning terang (#FFFF00)</li>
+                  <li>Diberi keterangan nama libur semester & shift &quot;Libur&quot;</li>
+                  <li>Dikecualikan dari hari kerja efektif (tidak dianggap alpa)</li>
+                </ul>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/80">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsSemesterModalOpen(false)}
+                  disabled={isSavingSemester}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="sm"
+                  disabled={isSavingSemester}
+                  leftIcon={<CheckCircle2 className="size-4" />}
+                >
+                  {isSavingSemester ? "Menyimpan..." : "Terapkan Libur Semester"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
