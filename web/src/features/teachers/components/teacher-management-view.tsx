@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { 
   Users, 
   Search, 
@@ -22,7 +23,8 @@ import {
   FileCheck,
   ShieldAlert,
   ArrowUpDown,
-  Filter
+  Filter,
+  Printer
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -221,6 +223,18 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
+          <Link href="/admin/reports">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              leftIcon={<Printer className="size-4 text-emerald-600" />}
+              className="text-xs font-semibold text-foreground hover:bg-muted"
+            >
+              Cetak Presensi F4
+            </Button>
+          </Link>
+
           <Button
             type="button"
             variant="outline"
@@ -540,6 +554,14 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                       {/* Actions */}
                       <td className="py-3.5 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <Link
+                            href={`/admin/reports?teacherId=${teacher.id}`}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
+                            title="Cetak Lembar Presensi F4 Guru Ini"
+                          >
+                            <Printer className="size-3.5" />
+                          </Link>
+
                           <button
                             type="button"
                             onClick={() => handleResetPassword(teacher)}

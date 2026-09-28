@@ -104,6 +104,7 @@ export function Sidebar({
               title: "Laporan & Rekap",
               href: "/admin/reports",
               icon: FileText,
+              badge: "Cetak F4",
             },
           ],
         },
