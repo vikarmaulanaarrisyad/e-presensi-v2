@@ -1,6 +1,7 @@
 "use client";
 
 import React from "react";
+import Link from "next/link";
 import { 
   Building2, 
   MapPin, 
@@ -41,12 +42,11 @@ export default function Home() {
             <Badge variant="gold" icon={<ShieldCheck className="size-3" />}>
               Multi-Tenant SaaS
             </Badge>
-            <Button size="sm" variant="outline">
-              Dokumentasi
-            </Button>
-            <Button size="sm" variant="default" rightIcon={<ArrowRight className="size-3.5" />}>
-              Masuk Sistem
-            </Button>
+            <Link href="/login">
+              <Button size="sm" variant="default" rightIcon={<ArrowRight className="size-3.5" />}>
+                Masuk Sistem
+              </Button>
+            </Link>
           </div>
         </div>
       </header>
