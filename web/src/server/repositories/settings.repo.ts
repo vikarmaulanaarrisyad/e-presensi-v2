@@ -5,6 +5,7 @@ export interface AttendanceSettingsInput {
   lateThreshold: string;
   workEndTime: string;
   workDays: string;
+  dailySchedules?: string;
   requireSelfie: boolean;
   latitude: number;
   longitude: number;
@@ -46,6 +47,7 @@ export async function updateMadrasahSettings(
       lateThreshold: input.lateThreshold,
       workEndTime: input.workEndTime,
       workDays: input.workDays,
+      dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
       latitude: input.latitude,
       longitude: input.longitude,
@@ -57,6 +59,7 @@ export async function updateMadrasahSettings(
       lateThreshold: input.lateThreshold,
       workEndTime: input.workEndTime,
       workDays: input.workDays,
+      dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
       latitude: input.latitude,
       longitude: input.longitude,

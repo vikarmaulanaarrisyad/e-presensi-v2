@@ -18,6 +18,7 @@ export default async function SettingsPage() {
     lateThreshold: settings?.lateThreshold || "07:15",
     workEndTime: settings?.workEndTime || "14:00",
     workDays: settings?.workDays || "1,2,3,4,5",
+    dailySchedules: (settings as any)?.dailySchedules || null,
     requireSelfie: settings?.requireSelfie ?? true,
     latitude: settings?.latitude || -6.2615,
     longitude: settings?.longitude || 106.8106,

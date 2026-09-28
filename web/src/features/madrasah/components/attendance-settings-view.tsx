@@ -15,7 +15,12 @@ import {
   CalendarDays,
   Sparkles,
   Sliders,
-  Info
+  Info,
+  RotateCcw,
+  Sun,
+  Moon,
+  Coffee,
+  Check
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -34,6 +39,26 @@ import {
   swalConfirm 
 } from "@/lib/swal";
 
+export interface DaySchedule {
+  day: number; // 1: Senin, 7: Minggu
+  dayName: string;
+  isActive: boolean;
+  startTime: string;
+  lateThreshold: string;
+  endTime: string;
+  notes?: string;
+}
+
+const defaultSchedules: DaySchedule[] = [
+  { day: 1, dayName: "Senin", isActive: true, startTime: "06:45", lateThreshold: "07:00", endTime: "14:00", notes: "Upacara Bendera" },
+  { day: 2, dayName: "Selasa", isActive: true, startTime: "07:00", lateThreshold: "07:15", endTime: "14:00", notes: "KBM Reguler" },
+  { day: 3, dayName: "Rabu", isActive: true, startTime: "07:00", lateThreshold: "07:15", endTime: "14:00", notes: "KBM Reguler" },
+  { day: 4, dayName: "Kamis", isActive: true, startTime: "07:00", lateThreshold: "07:15", endTime: "14:00", notes: "KBM Reguler" },
+  { day: 5, dayName: "Jumat", isActive: true, startTime: "07:00", lateThreshold: "07:15", endTime: "11:30", notes: "Sholat Jumat" },
+  { day: 6, dayName: "Sabtu", isActive: false, startTime: "07:00", lateThreshold: "07:15", endTime: "12:30", notes: "Libur Rutin / Ekstra" },
+  { day: 7, dayName: "Minggu", isActive: false, startTime: "07:00", lateThreshold: "07:15", endTime: "12:00", notes: "Libur Rutin" },
+];
+
 interface SettingsData {
   madrasahId: string;
   madrasahName: string;
@@ -42,6 +67,7 @@ interface SettingsData {
   lateThreshold: string;
   workEndTime: string;
   workDays: string;
+  dailySchedules?: string | null;
   requireSelfie: boolean;
   latitude: number;
   longitude: number;
@@ -57,18 +83,29 @@ interface SettingsData {
 export function AttendanceSettingsView({ initialData }: { initialData: SettingsData }) {
   const [activeTab, setActiveTab] = useState<"hours" | "holidays" | "geofence">("hours");
 
-  // Form State: Work Hours & Geofence
-  const [workStartTime, setWorkStartTime] = useState(initialData.workStartTime || "07:00");
-  const [lateThreshold, setLateThreshold] = useState(initialData.lateThreshold || "07:15");
-  const [workEndTime, setWorkEndTime] = useState(initialData.workEndTime || "14:00");
+  // Parse Initial Daily Schedules
+  const parsedDailySchedules = React.useMemo<DaySchedule[]>(() => {
+    if (initialData.dailySchedules) {
+      try {
+        const parsed = JSON.parse(initialData.dailySchedules);
+        if (Array.isArray(parsed) && parsed.length === 7) {
+          return parsed;
+        }
+      } catch (e) {
+        console.error("Gagal parse dailySchedules:", e);
+      }
+    }
+    return defaultSchedules;
+  }, [initialData.dailySchedules]);
+
+  // State: Daily Schedules (Senin - Minggu)
+  const [dailySchedules, setDailySchedules] = useState<DaySchedule[]>(parsedDailySchedules);
+
+  // Other Settings State
   const [requireSelfie, setRequireSelfie] = useState(initialData.requireSelfie ?? true);
   const [latitude, setLatitude] = useState(String(initialData.latitude || -6.2615));
   const [longitude, setLongitude] = useState(String(initialData.longitude || 106.8106));
   const [radiusMeters, setRadiusMeters] = useState(String(initialData.radiusMeters || 50));
-
-  // Work Days Selection (1=Senin, 5=Jumat, 6=Sabtu)
-  const currentWorkDaysArray = (initialData.workDays || "1,2,3,4,5").split(",");
-  const [selectedDays, setSelectedDays] = useState<string[]>(currentWorkDaysArray);
 
   // Holidays State
   const [holidays, setHolidays] = useState(initialData.holidays || []);
@@ -76,46 +113,68 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
   const [newHolidayDate, setNewHolidayDate] = useState("");
   const [newHolidayDesc, setNewHolidayDesc] = useState("");
 
-  // Loading & Feedback States
+  // Loading States
   const [isSaving, setIsSaving] = useState(false);
   const [isAddingHoliday, setIsAddingHoliday] = useState(false);
   const [deletingHolidayId, setDeletingHolidayId] = useState<string | null>(null);
-  const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const daysOfWeek = [
-    { id: "1", name: "Senin" },
-    { id: "2", name: "Selasa" },
-    { id: "3", name: "Rabu" },
-    { id: "4", name: "Kamis" },
-    { id: "5", name: "Jumat" },
-    { id: "6", name: "Sabtu" },
-    { id: "7", name: "Minggu" },
-  ];
+  // Handler to update a specific day's schedule
+  const handleUpdateDay = (dayIndex: number, field: keyof DaySchedule, value: string | boolean) => {
+    setDailySchedules((prev) => {
+      const updated = [...prev];
+      updated[dayIndex] = {
+        ...updated[dayIndex],
+        [field]: value,
+      };
+      return updated;
+    });
+  };
 
-  const toggleDay = (dayId: string) => {
-    if (selectedDays.includes(dayId)) {
-      if (selectedDays.length > 1) {
-        setSelectedDays(selectedDays.filter((d) => d !== dayId));
-      }
-    } else {
-      setSelectedDays([...selectedDays, dayId].sort());
+  // Quick Preset Presets
+  const applyPreset = (presetType: "kemenag_standard" | "uniform" | "six_days") => {
+    if (presetType === "kemenag_standard") {
+      setDailySchedules(defaultSchedules);
+    } else if (presetType === "uniform") {
+      setDailySchedules(
+        dailySchedules.map((d) => ({
+          ...d,
+          isActive: d.day <= 5,
+          startTime: "07:00",
+          lateThreshold: "07:15",
+          endTime: "14:00",
+          notes: d.day <= 5 ? "KBM Reguler" : "Libur Rutin",
+        }))
+      );
+    } else if (presetType === "six_days") {
+      setDailySchedules(
+        dailySchedules.map((d) => ({
+          ...d,
+          isActive: d.day <= 6,
+          startTime: d.day === 1 ? "06:45" : "07:00",
+          lateThreshold: d.day === 1 ? "07:00" : "07:15",
+          endTime: d.day === 5 ? "11:30" : d.day === 6 ? "12:30" : "14:00",
+          notes: d.day === 1 ? "Upacara" : d.day === 5 ? "Jumat" : d.day === 6 ? "Ekstrakulikuler" : "KBM Reguler",
+        }))
+      );
     }
+    swalSuccess("Preset Diterapkan!", "Format jadwal harian telah diperbarui.");
   };
 
   // Save Settings
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
-    setSuccessMessage(null);
-    setErrorMessage(null);
-    swalLoading("Menyimpan Pengaturan...", "Sedang memperbarui jam kerja dan parameter geofence di database...");
+    swalLoading("Menyimpan Pengaturan...", "Sedang memperbarui jam kerja tiap hari dan geofence di database...");
+
+    const activeDaysList = dailySchedules.filter((d) => d.isActive).map((d) => d.day).join(",");
+    const primaryDay = dailySchedules.find((d) => d.day === 2) || dailySchedules[0];
 
     const res = await saveAttendanceSettingsAction(initialData.madrasahId, {
-      workStartTime,
-      lateThreshold,
-      workEndTime,
-      workDays: selectedDays.join(","),
+      workStartTime: primaryDay.startTime,
+      lateThreshold: primaryDay.lateThreshold,
+      workEndTime: primaryDay.endTime,
+      workDays: activeDaysList || "1,2,3,4,5",
+      dailySchedules: JSON.stringify(dailySchedules),
       requireSelfie,
       latitude: parseFloat(latitude) || -6.2615,
       longitude: parseFloat(longitude) || 106.8106,
@@ -127,11 +186,8 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
 
     if (res?.error) {
       swalError("Gagal Menyimpan", res.error);
-      setErrorMessage(res.error);
     } else {
-      swalSuccess("Berhasil Disimpan!", "Pengaturan jam kerja dan radius geofence telah diperbarui.");
-      setSuccessMessage("Pengaturan jam kerja dan geofence berhasil disimpan.");
-      setTimeout(() => setSuccessMessage(null), 4000);
+      swalSuccess("Berhasil Disimpan!", "Pengaturan jam kerja per hari dan parameter geofence berhasil diperbarui.");
     }
   };
 
@@ -160,14 +216,12 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
       setNewHolidayDate("");
       setNewHolidayDesc("");
       swalSuccess("Hari Libur Ditambahkan!", "Guru ditiadakan dari kewajiban presensi pada tanggal tersebut.");
-      setSuccessMessage("Hari libur baru berhasil ditambahkan.");
-      setTimeout(() => setSuccessMessage(null), 4000);
     } else {
       swalError("Gagal Menambahkan", res?.error || "Terjadi kesalahan saat menambahkan hari libur.");
     }
   };
 
-  // Delete Holiday with Confirmation
+  // Delete Holiday
   const handleDeleteHoliday = async (id: string, name: string) => {
     const isConfirmed = await swalConfirm(
       "Hapus Hari Libur?",
@@ -194,7 +248,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full">
+    <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full select-none">
       {/* Top Banner */}
       <div className="p-6 rounded-2xl bg-gradient-to-r from-[#042817] via-[#0A5C36] to-[#04331d] text-white shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -202,10 +256,10 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
             <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
               Pengaturan Kehadiran & Kalender Akademik
             </h1>
-            <Badge variant="gold">Kebijakan MI</Badge>
+            <Badge variant="gold">Jadwal Per Hari</Badge>
           </div>
           <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
-            Konfigurasi jam masuk, batas toleransi keterlambatan, hari libur madrasah, dan parameter radius geofencing.
+            Konfigurasi jam masuk & jam pulang fleksibel tiap hari (Senin s/d Minggu), hari libur madrasah, dan radius geofence.
           </p>
         </div>
 
@@ -227,7 +281,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
           }`}
         >
           <Clock className="size-4" />
-          <span>Jam Kerja & Hari Aktif</span>
+          <span>Jadwal Jam Masuk & Pulang Harian</span>
         </button>
 
         <button
@@ -257,103 +311,168 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
         </button>
       </div>
 
-      {/* Notifications */}
-      {successMessage && (
-        <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-400 text-xs flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="size-4 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
-      {errorMessage && (
-        <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-xs flex items-center gap-2 animate-in fade-in">
-          <AlertCircle className="size-4 shrink-0" />
-          <span>{errorMessage}</span>
-        </div>
-      )}
-
-      {/* TAB 1: Jam Operasional & Hari Aktif */}
+      {/* TAB 1: Jadwal Jam Masuk & Pulang Harian (Senin - Minggu) */}
       {activeTab === "hours" && (
         <form onSubmit={handleSaveSettings} className="flex flex-col gap-6">
           <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-6">
-            <div className="border-b border-border/60 pb-3">
-              <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-                <Clock className="size-4.5 text-primary" />
-                <span>Jam Kerja & Toleransi Presensi Harian</span>
-              </h3>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                Jam masuk resmi, batas toleransi sebelum ditandai terlambat, dan jam kepulangan guru.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  Jam Masuk Resmi
-                </label>
-                <Input
-                  type="time"
-                  required
-                  value={workStartTime}
-                  onChange={(e) => setWorkStartTime(e.target.value)}
-                />
-                <span className="text-[11px] text-muted-foreground">Default: 07:00 WIB</span>
+            {/* Header with Quick Presets */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/60 pb-4">
+              <div>
+                <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                  <Clock className="size-4.5 text-primary" />
+                  <span>Pengaturan Jam Kerja Berbeda Tiap Hari</span>
+                </h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Atur jam masuk lebih pagi (misal upacara hari Senin) dan jam pulang lebih cepat (misal hari Jumat).
+                </p>
               </div>
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase tracking-wider text-amber-600 dark:text-amber-400">
-                  Batas Toleransi Terlambat
-                </label>
-                <Input
-                  type="time"
-                  required
-                  value={lateThreshold}
-                  onChange={(e) => setLateThreshold(e.target.value)}
-                />
-                <span className="text-[11px] text-muted-foreground">Lewat jam ini = Status Terlambat</span>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  Jam Pulang Guru
-                </label>
-                <Input
-                  type="time"
-                  required
-                  value={workEndTime}
-                  onChange={(e) => setWorkEndTime(e.target.value)}
-                />
-                <span className="text-[11px] text-muted-foreground">Presensi kepulangan dibuka</span>
-              </div>
-            </div>
-
-            {/* Work Days Selector */}
-            <div className="pt-4 border-t border-border/60 flex flex-col gap-3">
-              <label className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                Hari Kerja Aktif Madrasah (Guru Wajib Absen)
-              </label>
+              {/* Quick Presets Buttons */}
               <div className="flex flex-wrap items-center gap-2">
-                {daysOfWeek.map((day) => {
-                  const isSelected = selectedDays.includes(day.id);
-                  return (
-                    <button
-                      key={day.id}
-                      type="button"
-                      onClick={() => toggleDay(day.id)}
-                      className={`py-2 px-3.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer ${
-                        isSelected
-                          ? "bg-primary text-primary-foreground border-primary shadow-sm"
-                          : "bg-muted/40 text-muted-foreground border-border hover:bg-muted"
-                      }`}
-                    >
-                      {day.name} {isSelected ? "✓" : ""}
-                    </button>
-                  );
-                })}
+                <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                  Preset Cepat:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("kemenag_standard")}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-muted/40 hover:bg-muted text-foreground transition-colors"
+                >
+                  ⚡ Standar MI (Jumat 11:30)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("six_days")}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-muted/40 hover:bg-muted text-foreground transition-colors"
+                >
+                  ⚡ 6 Hari (Senin-Sabtu)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => applyPreset("uniform")}
+                  className="px-2.5 py-1 rounded-lg text-xs font-medium border border-border bg-muted/40 hover:bg-muted text-foreground transition-colors"
+                >
+                  Seragam (07:00 - 14:00)
+                </button>
               </div>
-              <span className="text-[11px] text-muted-foreground">
-                Hari yang tidak dicentang otomatis dianggap libur mingguan (Guru tidak wajib presensi).
-              </span>
+            </div>
+
+            {/* Daily Schedules Table / Card List */}
+            <div className="flex flex-col gap-3">
+              {dailySchedules.map((schedule, idx) => {
+                const isWork = schedule.isActive;
+
+                return (
+                  <div
+                    key={schedule.day}
+                    className={`p-4 rounded-xl border transition-all flex flex-col lg:flex-row lg:items-center justify-between gap-4 ${
+                      isWork
+                        ? "bg-card border-border/80 shadow-sm"
+                        : "bg-muted/30 border-border/40 opacity-75"
+                    }`}
+                  >
+                    {/* Day Name & Toggle */}
+                    <div className="flex items-center gap-3 w-48 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateDay(idx, "isActive", !isWork)}
+                        className={`size-6 rounded-lg flex items-center justify-center border text-xs font-bold transition-all ${
+                          isWork
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-background text-transparent border-border"
+                        }`}
+                      >
+                        ✓
+                      </button>
+
+                      <div className="flex flex-col">
+                        <span className="font-extrabold text-sm text-foreground flex items-center gap-1.5">
+                          {schedule.dayName}
+                          {schedule.day === 1 && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-amber-500/15 text-amber-700 dark:text-amber-400 font-semibold">
+                              Upacara
+                            </span>
+                          )}
+                          {schedule.day === 5 && (
+                            <span className="text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 font-semibold">
+                              Jumat
+                            </span>
+                          )}
+                        </span>
+                        <span className="text-[11px] text-muted-foreground">
+                          {isWork ? "Hari Kerja Aktif" : "Libur Rutin Mingguan"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Time Inputs */}
+                    {isWork ? (
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 flex-1">
+                        {/* Jam Masuk */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-foreground uppercase tracking-wider flex items-center gap-1">
+                            <Sun className="size-3 text-emerald-600" />
+                            <span>Jam Masuk</span>
+                          </label>
+                          <Input
+                            type="time"
+                            required
+                            value={schedule.startTime}
+                            onChange={(e) => handleUpdateDay(idx, "startTime", e.target.value)}
+                            className="h-9 text-xs font-mono font-semibold"
+                          />
+                        </div>
+
+                        {/* Toleransi Terlambat */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 uppercase tracking-wider flex items-center gap-1">
+                            <Clock className="size-3 text-amber-500" />
+                            <span>Batas Terlambat</span>
+                          </label>
+                          <Input
+                            type="time"
+                            required
+                            value={schedule.lateThreshold}
+                            onChange={(e) => handleUpdateDay(idx, "lateThreshold", e.target.value)}
+                            className="h-9 text-xs font-mono font-semibold border-amber-500/30"
+                          />
+                        </div>
+
+                        {/* Jam Pulang */}
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[11px] font-semibold text-foreground uppercase tracking-wider flex items-center gap-1">
+                            <Moon className="size-3 text-indigo-500" />
+                            <span>Jam Pulang (Clock-Out)</span>
+                          </label>
+                          <Input
+                            type="time"
+                            required
+                            value={schedule.endTime}
+                            onChange={(e) => handleUpdateDay(idx, "endTime", e.target.value)}
+                            className="h-9 text-xs font-mono font-semibold"
+                          />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex-1 flex items-center gap-2 text-xs text-muted-foreground py-2 italic">
+                        <Coffee className="size-4 text-muted-foreground" />
+                        <span>Libur rutin mingguan. Guru tidak diwajibkan melakukan presensi dan tidak dihitung alpa.</span>
+                      </div>
+                    )}
+
+                    {/* Catatan / Keterangan Hari */}
+                    {isWork && (
+                      <div className="w-full lg:w-44 shrink-0">
+                        <Input
+                          placeholder="Catatan (opsional)"
+                          value={schedule.notes || ""}
+                          onChange={(e) => handleUpdateDay(idx, "notes", e.target.value)}
+                          className="h-9 text-xs"
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Selfie Verification Toggle */}
@@ -392,7 +511,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
               isLoading={isSaving}
               leftIcon={<Save className="size-4" />}
             >
-              Simpan Pengaturan Jam & Hari Kerja
+              Simpan Jadwal Harian & Pengaturan Jam
             </Button>
           </div>
         </form>

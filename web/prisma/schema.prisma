@@ -65,8 +65,9 @@ model MadrasahSetting {
   lateThreshold   String   @default("07:15") @map("late_threshold")
   workEndTime     String   @default("14:00") @map("work_end_time")
 
-  // Work Days (1: Senin, 2: Selasa, 3: Rabu, 4: Kamis, 5: Jumat, 6: Sabtu, 7: Minggu)
+  // Work Days & Daily Specific Hours (JSON String for Monday to Sunday)
   workDays        String   @default("1,2,3,4,5") @map("work_days")
+  dailySchedules  String?  @db.Text @map("daily_schedules")
   requireSelfie   Boolean  @default(true) @map("require_selfie")
 
   createdAt       DateTime @default(now()) @map("created_at")
