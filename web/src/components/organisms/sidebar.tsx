@@ -11,8 +11,10 @@ import {
   FileText, 
   LogOut, 
   ShieldCheck,
-  ChevronRight,
-  Sparkles
+  Building2,
+  BarChart3,
+  Settings,
+  UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -24,36 +26,61 @@ interface SidebarProps {
 }
 
 export function Sidebar({
-  madrasahName = "MIN 1 Jakarta Selatan",
-  userName = "Operator Madrasah",
-  userRole = "ADMIN_MADRASAH",
+  madrasahName,
+  userName,
+  userRole,
 }: SidebarProps) {
   const pathname = usePathname();
+  const isSuperadmin = pathname.startsWith("/superadmin");
 
-  const navItems = [
-    {
-      title: "Dashboard Presensi",
-      href: "/admin",
-      icon: LayoutDashboard,
-      badge: "Hari Ini",
-    },
-    {
-      title: "Kelola Data Guru",
-      href: "/admin/teachers",
-      icon: Users,
-    },
-    {
-      title: "Koordinat & Geofence",
-      href: "/admin/geofence",
-      icon: MapPin,
-      badge: "Radius 50m",
-    },
-    {
-      title: "Laporan & Rekap",
-      href: "/admin/reports",
-      icon: FileText,
-    },
-  ];
+  const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Kemenag RI Pusat" : "MIN 1 Jakarta Selatan");
+  const effectiveUserName = userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah");
+  const effectiveUserRole = userRole || (isSuperadmin ? "SUPERADMIN" : "ADMIN_MADRASAH");
+
+  // Dynamic Navigation based on Route / Role
+  const navItems = isSuperadmin
+    ? [
+        {
+          title: "Manajemen Madrasah",
+          href: "/superadmin",
+          icon: Building2,
+          badge: "CRUD",
+        },
+        {
+          title: "Statistik Nasional",
+          href: "/superadmin/analytics",
+          icon: BarChart3,
+        },
+        {
+          title: "Semua Akun Guru",
+          href: "/superadmin/users",
+          icon: Users,
+        },
+      ]
+    : [
+        {
+          title: "Dashboard Presensi",
+          href: "/admin",
+          icon: LayoutDashboard,
+          badge: "Hari Ini",
+        },
+        {
+          title: "Kelola Data Guru",
+          href: "/admin/teachers",
+          icon: Users,
+        },
+        {
+          title: "Koordinat & Geofence",
+          href: "/admin/geofence",
+          icon: MapPin,
+          badge: "Radius 50m",
+        },
+        {
+          title: "Laporan & Rekap",
+          href: "/admin/reports",
+          icon: FileText,
+        },
+      ];
 
   return (
     <aside className="w-64 xl:w-72 bg-[#042817] text-white flex flex-col justify-between shrink-0 h-screen sticky top-0 border-r border-white/10 select-none z-40">
@@ -72,11 +99,11 @@ export function Sidebar({
                 E-Presensi
               </span>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded bg-[#D4AF37]/20 text-[#F3E3AC] border border-[#D4AF37]/40">
-                MI
+                {isSuperadmin ? "PUSAT" : "MI"}
               </span>
             </div>
             <span className="text-xs text-emerald-200/80 truncate font-medium">
-              {madrasahName}
+              {effectiveMadrasahName}
             </span>
           </div>
         </div>
@@ -87,7 +114,7 @@ export function Sidebar({
             <span className="size-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             <div className="flex flex-col min-w-0">
               <span className="text-[11px] font-bold text-white uppercase tracking-wider truncate">
-                {userRole === "SUPERADMIN" ? "Superadmin Kemenag" : "Operator Madrasah"}
+                {isSuperadmin ? "Superadmin Kemenag" : "Operator Madrasah"}
               </span>
               <span className="text-[10px] text-emerald-200/70 truncate">Sesi Aktif</span>
             </div>
@@ -98,7 +125,7 @@ export function Sidebar({
         {/* Navigation Items */}
         <nav className="p-4 flex flex-col gap-1.5 mt-2">
           <span className="px-3 pb-2 text-[10px] font-semibold text-emerald-200/60 uppercase tracking-wider">
-            Menu Utama
+            {isSuperadmin ? "Menu Superadmin" : "Menu Operator"}
           </span>
 
           {navItems.map((item) => {
@@ -150,14 +177,14 @@ export function Sidebar({
       <div className="p-4 border-t border-white/10 flex flex-col gap-3">
         <div className="flex items-center gap-3 p-2 rounded-xl bg-white/5 border border-white/10">
           <div className="size-9 rounded-lg bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 font-bold text-sm">
-            {userName.charAt(0)}
+            {effectiveUserName.charAt(0)}
           </div>
           <div className="flex flex-col min-w-0 flex-1">
             <span className="text-xs font-semibold text-white truncate">
-              {userName}
+              {effectiveUserName}
             </span>
             <span className="text-[10px] text-emerald-200/70 truncate">
-              admin@min1jaksel.sch.id
+              {isSuperadmin ? "superadmin@kemenag.go.id" : "admin@min1jaksel.sch.id"}
             </span>
           </div>
         </div>
@@ -165,7 +192,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={() => signOut({ callbackUrl: "/login" })}
-          className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-destructive/15 border border-destructive/25 text-red-200 hover:bg-destructive/25 text-xs font-medium transition-colors"
+          className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-destructive/15 border border-destructive/25 text-red-200 hover:bg-destructive/25 text-xs font-medium transition-colors cursor-pointer"
         >
           <LogOut className="size-3.5" />
           <span>Keluar Sesi</span>
