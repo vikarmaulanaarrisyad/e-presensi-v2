@@ -14,7 +14,8 @@ import {
   Building2,
   BarChart3,
   Settings,
-  UserCheck
+  UserCheck,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -68,6 +69,12 @@ export function Sidebar({
           title: "Kelola Data Guru",
           href: "/admin/teachers",
           icon: Users,
+        },
+        {
+          title: "Jam Kerja & Hari Libur",
+          href: "/admin/settings",
+          icon: Clock,
+          badge: "Kebijakan",
         },
         {
           title: "Koordinat & Geofence",

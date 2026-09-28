@@ -183,7 +183,41 @@ async function main() {
     });
   }
 
-  console.log(`✓ 5 Guru & Log Presensi hari ini berhasil disiapkan untuk ${madrasah.name}`);
+  // 6. Buat Hari Libur Contoh
+  const holidays = [
+    {
+      name: "Hari Santri Nasional",
+      date: new Date("2026-10-22"),
+      description: "Peringatan Hari Santri Nasional Kementerian Agama RI",
+    },
+    {
+      name: "Hari Guru Nasional",
+      date: new Date("2026-11-25"),
+      description: "Apresiasi Guru & Tenaga Kependidikan Madrasah Ibtidaiyah",
+    },
+    {
+      name: "Cuti Bersama Akhir Semester Ganjil",
+      date: new Date("2026-12-24"),
+      description: "Libur Pembagian Rapor & Evaluasi Pembelajaran",
+    },
+  ];
+
+  for (const h of holidays) {
+    const existing = await prisma.holiday.findFirst({
+      where: { madrasahId: madrasah.id, name: h.name },
+    });
+    if (!existing) {
+      await prisma.holiday.create({
+        data: {
+          madrasahId: madrasah.id,
+          name: h.name,
+          date: h.date,
+          description: h.description,
+        },
+      });
+    }
+  }
+  console.log(`✓ 3 Hari Libur Resmi Madrasah berhasil disiapkan`);
 
   console.log("\n🎉 Seeding selesai dengan sukses!");
   console.log("Kredensial Default Login (Password: Password123!):");
