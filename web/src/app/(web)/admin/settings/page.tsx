@@ -27,6 +27,8 @@ export default async function SettingsPage() {
       id: h.id,
       name: h.name,
       date: h.date,
+      endDate: (h as any).endDate || null,
+      isNational: (h as any).isNational ?? false,
       description: h.description,
     })),
   };

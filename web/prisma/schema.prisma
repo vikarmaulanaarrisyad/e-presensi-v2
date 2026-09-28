@@ -80,15 +80,17 @@ model MadrasahSetting {
 }
 
 model Holiday {
-  id          String   @id @default(uuid())
-  madrasahId  String   @map("madrasah_id")
+  id          String    @id @default(uuid())
+  madrasahId  String    @map("madrasah_id")
   name        String
-  date        DateTime @db.Date
-  description String?  @db.Text
-  createdAt   DateTime @default(now()) @map("created_at")
+  date        DateTime  @db.Date
+  endDate     DateTime? @db.Date @map("end_date") // Optional for multi-day long vacations
+  isNational  Boolean   @default(false) @map("is_national")
+  description String?   @db.Text
+  createdAt   DateTime  @default(now()) @map("created_at")
 
   // Relations
-  madrasah    Madrasah @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  madrasah    Madrasah  @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
 
   @@index([madrasahId])
   @@index([madrasahId, date])

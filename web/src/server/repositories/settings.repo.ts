@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { getKemenagHolidaysByYear } from "@/lib/kemenag-holidays";
 
 export interface AttendanceSettingsInput {
   workStartTime: string;
@@ -15,7 +16,9 @@ export interface AttendanceSettingsInput {
 export interface HolidayInput {
   name: string;
   date: string | Date;
-  description?: string;
+  endDate?: string | Date | null;
+  isNational?: boolean;
+  description?: string | null;
 }
 
 export async function getMadrasahSettingsAndHolidays(madrasahId: string) {
@@ -74,9 +77,61 @@ export async function createHoliday(madrasahId: string, input: HolidayInput) {
       madrasahId,
       name: input.name,
       date: new Date(input.date),
+      endDate: input.endDate ? new Date(input.endDate) : null,
+      isNational: input.isNational ?? false,
       description: input.description || null,
     },
   });
+}
+
+export async function syncKemenagHolidays(madrasahId: string, year: number | "all" = "all") {
+  const presets = getKemenagHolidaysByYear(year);
+
+  // Fetch existing holidays for this madrasah to prevent duplicates
+  const existingHolidays = await prisma.holiday.findMany({
+    where: { madrasahId },
+    select: { name: true, date: true },
+  });
+
+  const existingKeys = new Set(
+    existingHolidays.map(
+      (h) => `${h.name.trim().toLowerCase()}_${new Date(h.date).toISOString().split("T")[0]}`
+    )
+  );
+
+  const toInsert = presets.filter((p) => {
+    const key = `${p.name.trim().toLowerCase()}_${p.date}`;
+    return !existingKeys.has(key);
+  });
+
+  if (toInsert.length === 0) {
+    return {
+      addedCount: 0,
+      totalPresets: presets.length,
+      message: "Semua hari libur Kemenag & Nasional untuk periode ini sudah tersinkronisasi.",
+    };
+  }
+
+  const created = await prisma.$transaction(
+    toInsert.map((item) =>
+      prisma.holiday.create({
+        data: {
+          madrasahId,
+          name: item.name,
+          date: new Date(item.date),
+          endDate: item.endDate ? new Date(item.endDate) : null,
+          isNational: item.isNational,
+          description: item.description,
+        },
+      })
+    )
+  );
+
+  return {
+    addedCount: created.length,
+    totalPresets: presets.length,
+    message: `Berhasil menyinkronkan ${created.length} hari libur Kemenag & Nasional!`,
+  };
 }
 
 export async function removeHoliday(holidayId: string) {
@@ -84,3 +139,4 @@ export async function removeHoliday(holidayId: string) {
     where: { id: holidayId },
   });
 }
+

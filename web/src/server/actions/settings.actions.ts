@@ -5,6 +5,7 @@ import {
   updateMadrasahSettings, 
   createHoliday, 
   removeHoliday,
+  syncKemenagHolidays,
   type AttendanceSettingsInput,
   type HolidayInput
 } from "@/server/repositories/settings.repo";
@@ -60,6 +61,21 @@ export async function addHolidayAction(madrasahId: string, input: HolidayInput) 
   } catch (error) {
     console.error("Gagal menambahkan hari libur:", error);
     return { error: "Gagal menambahkan hari libur baru." };
+  }
+}
+
+export async function syncKemenagHolidaysAction(
+  madrasahId: string,
+  year: number | "all" = "all"
+) {
+  try {
+    const res = await syncKemenagHolidays(madrasahId, year);
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin");
+    return { success: true as const, ...res };
+  } catch (error) {
+    console.error("Gagal sinkronisasi hari libur Kemenag:", error);
+    return { success: false as const, error: "Gagal menyinkronkan kalender hari libur Kemenag & Nasional." };
   }
 }
 
