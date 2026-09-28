@@ -126,12 +126,12 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
       const sanitizedName = reportData.employee.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = `Laporan_Rincian_Harian_${sanitizedName}_${reportData.period.month}_${reportData.period.year}.pdf`;
 
-      await exportReportToPdf("printable-attendance-sheet", filename);
+      exportReportToPdf(reportData, filename, dateLanguage);
       swalClose();
       swalSuccess("PDF Berhasil Diunduh", `File ${filename} telah tersimpan di komputer Anda.`);
     } catch (err: any) {
       swalClose();
-      swalError("Gagal Mengunduh PDF", err?.message || "Terjadi kesalahan saat merender PDF.");
+      swalError("Gagal Mengunduh PDF", err?.message || "Terjadi kesalahan saat membuat PDF.");
     } finally {
       setIsExportingPdf(false);
     }
