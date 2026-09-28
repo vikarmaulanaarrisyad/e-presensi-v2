@@ -125,58 +125,58 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           >
             <thead>
               <tr className="bg-slate-50 font-bold text-center text-black">
-                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[110px]">
+                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[105px]">
                   Tanggal
                 </th>
-                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[110px]">
+                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[105px]">
                   Nama Shift
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
-                  Jam Masuk
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px] leading-tight">
+                  Jam<br />Masuk
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
-                  Scan Masuk
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px] leading-tight">
+                  Scan<br />Masuk
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[48px]">
-                  Terlambat (Menit)
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[46px] leading-tight">
+                  Terlambat<br />(Menit)
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
-                  Jam Keluar
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px] leading-tight">
+                  Jam<br />Keluar
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
-                  Scan Keluar
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px] leading-tight">
+                  Scan<br />Keluar
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[48px]">
-                  P. Cepat (Menit)
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[46px] leading-tight">
+                  P. Cepat<br />(Menit)
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
+                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px]">
                   Durasi
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[38px]">
-                  Lembur Awal
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[36px] leading-tight">
+                  Lembur<br />Awal
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[38px]">
-                  Lembur Akhir
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[36px] leading-tight">
+                  Lembur<br />Akhir
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[42px]">
-                  Lembur Akhir 2
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[40px] leading-tight">
+                  Lembur<br />Akhir 2
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px]">
-                  Shift Lembur
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[38px] leading-tight">
+                  Shift<br />Lembur
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[38px]">
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[36px]">
                   Istirahat
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[45px]">
-                  Istirahat Lebih
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[42px] leading-tight">
+                  Istirahat<br />Lebih
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[40px]">
-                  Istirahat 2
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[38px] leading-tight">
+                  Istirahat<br />2
                 </th>
-                <th className="border border-black px-1 py-1 text-center whitespace-nowrap min-w-[45px]">
-                  Istirahat Lebih 2
+                <th className="border border-black px-0.5 py-1 text-center whitespace-nowrap min-w-[42px] leading-tight">
+                  Istirahat<br />Lebih 2
                 </th>
-                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[80px]">
+                <th className="border border-black px-1.5 py-1 text-center whitespace-nowrap min-w-[75px]">
                   Keterangan
                 </th>
               </tr>
@@ -199,92 +199,92 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
                     }}
                   >
                     {/* Tanggal */}
-                    <td className="border border-black px-1.5 py-0.5 whitespace-nowrap text-left font-medium">
+                    <td className="border border-black px-1.5 py-1 print:py-[3.5px] whitespace-nowrap text-left font-medium">
                       {formattedDateString}
                     </td>
 
                     {/* Nama Shift */}
-                    <td className="border border-black px-1.5 py-0.5 whitespace-nowrap text-left">
+                    <td className="border border-black px-1.5 py-1 print:py-[3.5px] whitespace-nowrap text-left">
                       {row.shiftName}
                     </td>
 
                     {/* Jam Masuk */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.jamMasuk}
                     </td>
 
                     {/* Scan Masuk */}
-                    <td className="border border-black px-1 py-0.5 text-center font-mono">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono">
                       {row.scanMasuk}
                     </td>
 
                     {/* Terlambat (Menit) */}
-                    <td className="border border-black px-1 py-0.5 text-center text-red-600 font-semibold">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center text-red-600 font-semibold">
                       {row.terlambatMenit}
                     </td>
 
                     {/* Jam Keluar */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.jamKeluar}
                     </td>
 
                     {/* Scan Keluar */}
-                    <td className="border border-black px-1 py-0.5 text-center font-mono">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono">
                       {row.scanKeluar}
                     </td>
 
                     {/* Pulang Cepat (Menit) */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.pulangCepatMenit}
                     </td>
 
                     {/* Durasi */}
-                    <td className="border border-black px-1 py-0.5 text-center font-mono font-medium">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono font-medium">
                       {row.durasi}
                     </td>
 
                     {/* Lembur Awal */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.lemburAwal}
                     </td>
 
                     {/* Lembur Akhir */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.lemburAkhir}
                     </td>
 
                     {/* Lembur Akhir 2 */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.lemburAkhir2}
                     </td>
 
                     {/* Shift Lembur */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.shiftLembur}
                     </td>
 
                     {/* Istirahat */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.istirahat}
                     </td>
 
                     {/* Istirahat Lebih */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.istirahatLebih}
                     </td>
 
                     {/* Istirahat 2 */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.istirahat2}
                     </td>
 
                     {/* Istirahat Lebih 2 */}
-                    <td className="border border-black px-1 py-0.5 text-center">
+                    <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
                       {row.istirahatLebih2}
                     </td>
 
                     {/* Keterangan */}
-                    <td className="border border-black px-1.5 py-0.5 text-left whitespace-nowrap">
+                    <td className="border border-black px-1.5 py-1 print:py-[3.5px] text-left whitespace-nowrap">
                       {row.keterangan}
                     </td>
                   </tr>

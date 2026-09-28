@@ -16,14 +16,15 @@ export function exportReportToPdf(
 
   const pageWidth = 330;
   const pageHeight = 215;
-  const margin = 15; // 1.5 cm margin
+  const margin = 15; // 1.5 cm (15 mm) margin on all sides
   const contentWidth = pageWidth - margin * 2; // 300 mm
+  const targetBottomY = pageHeight - margin; // 200 mm
 
   // ==========================================
   // 1. Header Box (Bordered Rectangle)
   // ==========================================
-  const headerBoxY = margin;
-  const headerBoxHeight = 11;
+  const headerBoxY = margin; // 15 mm
+  const headerBoxHeight = 12;
 
   doc.setDrawColor(0, 0, 0);
   doc.setLineWidth(0.3);
@@ -31,22 +32,22 @@ export function exportReportToPdf(
 
   // Centered Title
   doc.setFont("helvetica", "bold");
-  doc.setFontSize(9.5);
-  doc.text("LAPORAN RINCIAN HARIAN", pageWidth / 2, headerBoxY + 4, { align: "center" });
+  doc.setFontSize(10);
+  doc.text("LAPORAN RINCIAN HARIAN", pageWidth / 2, headerBoxY + 4.5, { align: "center" });
 
   // Divider line under title
   doc.setLineWidth(0.2);
-  doc.line(margin, headerBoxY + 5.5, margin + contentWidth, headerBoxY + 5.5);
+  doc.line(margin, headerBoxY + 6.5, margin + contentWidth, headerBoxY + 6.5);
 
   // Sub-info inside header box
   doc.setFont("helvetica", "normal");
-  doc.setFontSize(7);
-  doc.text(`Nama Perusahaan : ${data.madrasah.name}`, margin + 2, headerBoxY + 9);
-  doc.text(`Filter Jenis : ${data.period.filterJenis}`, margin + contentWidth * 0.42, headerBoxY + 9);
+  doc.setFontSize(7.5);
+  doc.text(`Nama Perusahaan : ${data.madrasah.name}`, margin + 2, headerBoxY + 10);
+  doc.text(`Filter Jenis : ${data.period.filterJenis}`, margin + contentWidth * 0.42, headerBoxY + 10);
   doc.text(
     `Tgl. Periode : ${data.period.startDate} s/d ${data.period.endDate}`,
     margin + contentWidth - 2,
-    headerBoxY + 9,
+    headerBoxY + 10,
     { align: "right" }
   );
 
@@ -56,40 +57,50 @@ export function exportReportToPdf(
   const empY = headerBoxY + headerBoxHeight + 1.5;
   doc.line(margin, empY, margin + contentWidth, empY);
 
-  doc.setFontSize(7);
+  doc.setFontSize(7.5);
   // Row 1
-  doc.text(`PIN : ${data.employee.pin}`, margin + 2, empY + 3.2);
-  doc.text(`Nama Karyawan : ${data.employee.name}`, margin + 45, empY + 3.2);
-  doc.text(`Jabatan : ${data.employee.jabatan}`, margin + 180, empY + 3.2);
+  doc.text(`PIN : ${data.employee.pin}`, margin + 2, empY + 3.5);
+  doc.text(`Nama Karyawan : ${data.employee.name}`, margin + 45, empY + 3.5);
+  doc.text(`Jabatan : ${data.employee.jabatan}`, margin + 180, empY + 3.5);
 
   // Row 2
-  doc.text(`NIK : ${data.employee.nik}`, margin + 2, empY + 6.5);
-  doc.text(`Departemen : ${data.employee.departemen}`, margin + 45, empY + 6.5);
-  doc.text(`Status : ${data.employee.status}`, margin + 180, empY + 6.5);
+  doc.text(`NIK : ${data.employee.nik}`, margin + 2, empY + 7);
+  doc.text(`Departemen : ${data.employee.departemen}`, margin + 45, empY + 7);
+  doc.text(`Status : ${data.employee.status}`, margin + 180, empY + 7);
 
-  doc.line(margin, empY + 8, margin + contentWidth, empY + 8);
+  doc.line(margin, empY + 8.8, margin + contentWidth, empY + 8.8);
 
   // ==========================================
-  // 3. 18-Column Main Table
+  // 3. Dynamic Height Calculation to Fill Full Page
+  // ==========================================
+  const startTableY = empY + 10;
+  const availableTableHeight = targetBottomY - startTableY - 7; // leaves 7mm for footer
+  const totalRows = data.rows.length + 2; // data rows + 1 header row + 1 foot row
+
+  // Calculate cell height so table fills the full page vertically
+  const targetRowHeight = Math.min(5.5, Math.max(4.0, availableTableHeight / totalRows));
+
+  // ==========================================
+  // 4. 18-Column Main Table
   // ==========================================
   const tableHeaders = [
     "Tanggal",
     "Nama Shift",
-    "Jam Masuk",
-    "Scan Masuk",
-    "Terlambat (Menit)",
-    "Jam Keluar",
-    "Scan Keluar",
-    "P. Cepat (Menit)",
+    "Jam\nMasuk",
+    "Scan\nMasuk",
+    "Terlambat\n(Menit)",
+    "Jam\nKeluar",
+    "Scan\nKeluar",
+    "P. Cepat\n(Menit)",
     "Durasi",
-    "Lembur Awal",
-    "Lembur Akhir",
-    "Lembur Akhir 2",
-    "Shift Lembur",
+    "Lembur\nAwal",
+    "Lembur\nAkhir",
+    "Lembur\nAkhir 2",
+    "Shift\nLembur",
     "Istirahat",
-    "Istirahat Lebih",
-    "Istirahat 2",
-    "Istirahat Lebih 2",
+    "Istirahat\nLebih",
+    "Istirahat\n2",
+    "Istirahat\nLebih 2",
     "Keterangan",
   ];
 
@@ -145,7 +156,7 @@ export function exportReportToPdf(
   ];
 
   autoTable(doc, {
-    startY: empY + 9,
+    startY: startTableY,
     head: [tableHeaders],
     body: tableBody,
     foot: tableFoot,
@@ -154,53 +165,58 @@ export function exportReportToPdf(
     tableWidth: contentWidth,
     styles: {
       font: "helvetica",
-      fontSize: 5.6,
-      cellPadding: 0.7,
+      fontSize: 6.2,
+      cellPadding: [0.9, 0.6],
+      minCellHeight: targetRowHeight,
       lineWidth: 0.1,
       lineColor: [0, 0, 0],
       textColor: [0, 0, 0],
+      valign: "middle",
       overflow: "hidden",
     },
     headStyles: {
       fontStyle: "bold",
-      fillColor: [245, 245, 245],
+      fillColor: [248, 248, 248],
       halign: "center",
       valign: "middle",
       textColor: [0, 0, 0],
       lineWidth: 0.1,
       lineColor: [0, 0, 0],
+      minCellHeight: targetRowHeight + 1,
+      fontSize: 5.8,
     },
     footStyles: {
       fillColor: [255, 255, 255],
       textColor: [0, 0, 0],
       lineWidth: 0.1,
       lineColor: [0, 0, 0],
+      minCellHeight: targetRowHeight,
     },
     columnStyles: {
-      0: { cellWidth: 32, halign: "left" }, // Tanggal
-      1: { cellWidth: 28, halign: "left" }, // Nama Shift
+      0: { cellWidth: 28, halign: "left" }, // Tanggal
+      1: { cellWidth: 27, halign: "left" }, // Nama Shift
       2: { cellWidth: 12, halign: "center" }, // Jam Masuk
       3: { cellWidth: 12, halign: "center" }, // Scan Masuk
-      4: { cellWidth: 13, halign: "center" }, // Terlambat
+      4: { cellWidth: 14, halign: "center" }, // Terlambat
       5: { cellWidth: 12, halign: "center" }, // Jam Keluar
       6: { cellWidth: 12, halign: "center" }, // Scan Keluar
-      7: { cellWidth: 13, halign: "center" }, // P. Cepat
-      8: { cellWidth: 12, halign: "center" }, // Durasi
+      7: { cellWidth: 14, halign: "center" }, // P. Cepat
+      8: { cellWidth: 13, halign: "center" }, // Durasi
       9: { cellWidth: 11, halign: "center" }, // Lembur Awal
       10: { cellWidth: 11, halign: "center" }, // Lembur Akhir
-      11: { cellWidth: 12, halign: "center" }, // Lembur Akhir 2
+      11: { cellWidth: 13, halign: "center" }, // Lembur Akhir 2
       12: { cellWidth: 12, halign: "center" }, // Shift Lembur
-      13: { cellWidth: 10, halign: "center" }, // Istirahat
-      14: { cellWidth: 12, halign: "center" }, // Istirahat Lebih
-      15: { cellWidth: 10, halign: "center" }, // Istirahat 2
-      16: { cellWidth: 12, halign: "center" }, // Istirahat Lebih 2
+      13: { cellWidth: 11, halign: "center" }, // Istirahat
+      14: { cellWidth: 13, halign: "center" }, // Istirahat Lebih
+      15: { cellWidth: 11, halign: "center" }, // Istirahat 2
+      16: { cellWidth: 13, halign: "center" }, // Istirahat Lebih 2
       17: { cellWidth: "auto", halign: "left" }, // Keterangan
     },
     didParseCell: (hookData) => {
       if (hookData.section === "body") {
         const rowIndex = hookData.row.index;
         const rowData = data.rows[rowIndex];
-        // If holiday, paint entire row yellow (#FFFF00)
+        // Highlight entire row with vivid yellow (#FFFF00) for holidays
         if (rowData?.isHoliday) {
           hookData.cell.styles.fillColor = [255, 255, 0];
         }
@@ -209,15 +225,15 @@ export function exportReportToPdf(
   });
 
   // ==========================================
-  // 4. Document Footer
+  // 5. Document Footer Locked at Bottom of Page
   // ==========================================
-  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : pageHeight - margin - 5;
-  const footerY = Math.min(finalY + 3.5, pageHeight - margin + 2);
+  const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY : targetBottomY - 5;
+  const footerY = Math.max(finalY + 2, targetBottomY - 4);
 
   doc.setLineWidth(0.2);
   doc.line(margin, footerY, margin + contentWidth, footerY);
 
-  doc.setFontSize(6.5);
+  doc.setFontSize(7);
   doc.setFont("helvetica", "normal");
   doc.text("Halaman : 1    dari : 1", margin + 2, footerY + 3.5);
   doc.text(`Tgl. Cetak : ${data.summary.printedAt}`, margin + contentWidth * 0.42, footerY + 3.5);
