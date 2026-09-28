@@ -11,23 +11,23 @@ export default async function SuperadminPage() {
 
   return (
     <div className="flex flex-col gap-6 w-full">
-      {/* Welcome Header */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-sm border border-slate-700/50">
-        <div className="flex flex-col gap-1.5">
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+      {/* Executive Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/80">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Pusat Kendali Superadmin Kemenag
             </h1>
             <Badge variant="gold">Akses Penuh</Badge>
           </div>
-          <p className="text-xs sm:text-sm text-emerald-100/85">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Kelola data seluruh institusi Madrasah Ibtidaiyah, izin operasional SaaS, dan rekapitulasi nasional.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs text-emerald-200">
-          <span className="size-2 rounded-full bg-emerald-400 animate-pulse" />
-          <span>Multi-Tenant DB Connected</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-border/80 text-xs text-foreground shadow-xs">
+          <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-semibold">Multi-Tenant Database Terhubung</span>
         </div>
       </div>
 

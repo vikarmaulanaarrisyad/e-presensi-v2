@@ -206,16 +206,16 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
 
   return (
     <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full select-none">
-      {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-sm border border-slate-700/50 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+      {/* Executive Page Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border/80">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Manajemen Data Guru & Tenaga Kependidikan
             </h1>
-            <Badge variant="gold">Modul Guru</Badge>
+            <Badge variant="default">Modul Guru</Badge>
           </div>
-          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1 max-w-2xl">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Kelola daftar pendidik, NIP/NIK, kredensial login mobile, status aktifasi, dan impor data massal dari spreadsheet Excel.
           </p>
         </div>
@@ -226,19 +226,19 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             variant="outline"
             size="sm"
             onClick={downloadTeacherTemplate}
-            leftIcon={<Download className="size-3.5" />}
-            className="border-white/20 text-white hover:bg-white/10 text-xs"
+            leftIcon={<Download className="size-3.5 text-muted-foreground" />}
+            className="text-xs font-medium"
           >
             Format Excel
           </Button>
 
           <Button
             type="button"
-            variant="gold"
+            variant="outline"
             size="sm"
             onClick={() => setIsImportModalOpen(true)}
-            leftIcon={<FileSpreadsheet className="size-4" />}
-            className="shadow-sm text-xs font-bold"
+            leftIcon={<FileSpreadsheet className="size-4 text-emerald-600" />}
+            className="text-xs font-semibold border-emerald-500/30 text-emerald-800 bg-emerald-50/50 hover:bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300"
           >
             Import Excel
           </Button>
@@ -249,7 +249,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             size="sm"
             onClick={handleCreate}
             leftIcon={<Plus className="size-4" />}
-            className="bg-white text-emerald-900 hover:bg-emerald-50 text-xs font-bold shadow-sm"
+            className="text-xs font-semibold shadow-xs"
           >
             Tambah Guru
           </Button>

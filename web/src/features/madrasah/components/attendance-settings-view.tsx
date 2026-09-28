@@ -351,23 +351,24 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
 
   return (
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full select-none">
-      {/* Top Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 text-white shadow-sm border border-slate-700/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight">
+      {/* Executive Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-border/80">
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
               Pengaturan Kehadiran & Kalender Akademik
             </h1>
-            <Badge variant="gold">Jadwal & Kalender Kemenag</Badge>
+            <Badge variant="default">Jadwal & Kalender Kemenag</Badge>
           </div>
-          <p className="text-xs sm:text-sm text-emerald-100/90 mt-1">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Konfigurasi jam masuk/pulang harian (Senin - Minggu), sinkronisasi kalender hari libur Kemenag & Nasional, serta radius geofence.
           </p>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs text-emerald-200">
-          <Clock className="size-3.5 text-accent" />
-          <span>{initialData.madrasahName} (NSM: {initialData.nsm})</span>
+        <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-card border border-border/80 text-xs text-foreground shadow-xs">
+          <Clock className="size-3.5 text-primary" />
+          <span className="font-semibold">{initialData.madrasahName}</span>
+          <span className="text-muted-foreground font-mono">(NSM: {initialData.nsm})</span>
         </div>
       </div>
 
@@ -623,19 +624,19 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
       {activeTab === "holidays" && (
         <div className="flex flex-col gap-6">
           {/* SYNC BANNER: Kemenag & National Holidays */}
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-800 to-emerald-950 border border-slate-700/60 text-white shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+          <div className="p-5 rounded-2xl bg-card border border-primary/20 shadow-xs flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
             <div className="flex items-start gap-3.5">
-              <div className="size-11 rounded-xl bg-accent/20 border border-accent/30 flex items-center justify-center text-accent shrink-0 mt-0.5">
+              <div className="size-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0 mt-0.5">
                 <Landmark className="size-6" />
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-2">
-                  <h3 className="font-extrabold text-sm sm:text-base text-white">
+                  <h3 className="font-bold text-sm sm:text-base text-foreground">
                     Sinkronisasi Kalender Kemenag & Libur Nasional
                   </h3>
-                  <Badge variant="gold" className="text-[10px]">SKB 3 Menteri</Badge>
+                  <Badge variant="gold">SKB 3 Menteri</Badge>
                 </div>
-                <p className="text-xs text-emerald-200/90 mt-0.5 max-w-2xl leading-relaxed">
+                <p className="text-xs text-muted-foreground mt-0.5 max-w-2xl leading-relaxed">
                   Impor instan hari libur resmi nasional & kalender pendidikan Kemenag (Hari Santri Nasional, HAB Kemenag, Hari Raya Idul Fitri, Cuti Bersama, dll) tahun <strong>2025 s/d 2027+</strong> tanpa perlu input satu per satu.
                 </p>
               </div>
@@ -645,22 +646,22 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
               <select
                 value={syncYear}
                 onChange={(e) => setSyncYear(e.target.value === "all" ? "all" : Number(e.target.value))}
-                className="bg-black/30 border border-emerald-700/50 rounded-lg px-3 py-2 text-xs font-semibold text-white focus:outline-none focus:ring-1 focus:ring-accent"
+                className="bg-muted/70 border border-border rounded-lg px-3 py-2 text-xs font-semibold text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
               >
-                <option value="all" className="bg-emerald-950 text-white">Semua (2025 - 2027+)</option>
-                <option value={2025} className="bg-emerald-950 text-white">Tahun 2025</option>
-                <option value={2026} className="bg-emerald-950 text-white">Tahun 2026</option>
-                <option value={2027} className="bg-emerald-950 text-white">Tahun 2027</option>
+                <option value="all">Semua (2025 - 2027+)</option>
+                <option value={2025}>Tahun 2025</option>
+                <option value={2026}>Tahun 2026</option>
+                <option value={2027}>Tahun 2027</option>
               </select>
 
               <Button
                 type="button"
-                variant="gold"
+                variant="default"
                 size="default"
                 isLoading={isSyncing}
                 onClick={handleSyncKemenag}
                 leftIcon={<DownloadCloud className="size-4" />}
-                className="shadow-md"
+                className="shadow-xs font-semibold"
               >
                 Sinkronkan Kalender
               </Button>
