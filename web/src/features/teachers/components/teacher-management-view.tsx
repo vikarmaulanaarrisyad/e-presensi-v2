@@ -25,16 +25,24 @@ import {
   ArrowUpDown,
   Filter,
   Printer,
-  Briefcase
+  Briefcase,
+  IdCard,
+  Award,
+  Calendar,
+  MapPin,
+  Eye,
+  X
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
-import { Badge } from "@/components/atoms/badge";
 import { ImportExcelModal } from "./import-excel-modal";
 import { TeacherFormModal, type TeacherData } from "./teacher-form-modal";
 import { 
   exportTeachersToExcel, 
-  downloadTeacherTemplate 
+  downloadTeacherTemplate,
+  formatTeacherName,
+  maskNik,
+  stripLeadingQuote 
 } from "@/lib/excel-helpers";
 import { 
   toggleTeacherStatusAction, 
@@ -53,8 +61,18 @@ import {
 export interface TeacherItem {
   id: string;
   name: string;
+  gelarDepan?: string | null;
+  gelarBelakang?: string | null;
   email: string;
   nip: string | null;
+  nik?: string | null;
+  pegId?: string | null;
+  nuptk?: string | null;
+  tempatLahir?: string | null;
+  tanggalLahir?: string | Date | null;
+  gender?: string | null;
+  statusKepegawaian?: string | null;
+  jenisGtk?: string | null;
   phone: string | null;
   avatarUrl: string | null;
   isActive: boolean;
@@ -93,11 +111,13 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
   const [positions, setPositions] = useState(initialData.positions || []);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [kepegawaianFilter, setKepegawaianFilter] = useState<string>("all");
 
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [teacherToEdit, setTeacherToEdit] = useState<TeacherData | null>(null);
+  const [teacherDetail, setTeacherDetail] = useState<TeacherItem | null>(null);
 
   // Reload data
   const reloadData = async () => {
@@ -114,9 +134,9 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
   const stats = useMemo(() => {
     const total = teachers.length;
     const active = teachers.filter((t) => t.isActive).length;
-    const inactive = total - active;
-    const hasNip = teachers.filter((t) => Boolean(t.nip && t.nip.trim().length > 0)).length;
-    return { total, active, inactive, hasNip };
+    const emisLinked = teachers.filter((t) => Boolean((t.pegId && t.pegId.trim()) || (t.nuptk && t.nuptk.trim()))).length;
+    const pnsCount = teachers.filter((t) => t.statusKepegawaian === "PNS" || t.statusKepegawaian === "PPPK" || Boolean(t.nip && t.nip.trim())).length;
+    return { total, active, emisLinked, pnsCount };
   }, [teachers]);
 
   // Filtered Teachers
@@ -126,24 +146,74 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
       if (statusFilter === "active" && !t.isActive) return false;
       if (statusFilter === "inactive" && t.isActive) return false;
 
+      // Kepegawaian Filter
+      if (kepegawaianFilter !== "all") {
+        if (kepegawaianFilter === "PNS" && t.statusKepegawaian !== "PNS") return false;
+        if (kepegawaianFilter === "PPPK" && t.statusKepegawaian !== "PPPK") return false;
+        if (kepegawaianFilter === "NON_PNS" && (t.statusKepegawaian === "PNS" || t.statusKepegawaian === "PPPK")) return false;
+      }
+
       // Search Query
       if (!searchQuery.trim()) return true;
       const q = searchQuery.toLowerCase();
       const matchName = t.name.toLowerCase().includes(q);
       const matchEmail = t.email.toLowerCase().includes(q);
       const matchNip = t.nip ? t.nip.toLowerCase().includes(q) : false;
+      const matchNik = t.nik ? t.nik.toLowerCase().includes(q) : false;
+      const matchPegId = t.pegId ? t.pegId.toLowerCase().includes(q) : false;
+      const matchNuptk = t.nuptk ? t.nuptk.toLowerCase().includes(q) : false;
       const matchPhone = t.phone ? t.phone.toLowerCase().includes(q) : false;
+      const matchTempatLahir = t.tempatLahir ? t.tempatLahir.toLowerCase().includes(q) : false;
 
-      return matchName || matchEmail || matchNip || matchPhone;
+      return matchName || matchEmail || matchNip || matchNik || matchPegId || matchNuptk || matchPhone || matchTempatLahir;
     });
-  }, [teachers, searchQuery, statusFilter]);
+  }, [teachers, searchQuery, statusFilter, kepegawaianFilter]);
+
+  // Handle Edit Teacher
+  const handleEdit = (teacher: TeacherItem) => {
+    setTeacherToEdit({
+      id: teacher.id,
+      name: teacher.name,
+      gelarDepan: teacher.gelarDepan,
+      gelarBelakang: teacher.gelarBelakang,
+      email: teacher.email,
+      nip: teacher.nip,
+      nik: teacher.nik,
+      pegId: teacher.pegId,
+      nuptk: teacher.nuptk,
+      tempatLahir: teacher.tempatLahir,
+      tanggalLahir: teacher.tanggalLahir,
+      gender: teacher.gender,
+      statusKepegawaian: teacher.statusKepegawaian,
+      jenisGtk: teacher.jenisGtk,
+      phone: teacher.phone,
+      isActive: teacher.isActive,
+      positionId: teacher.positionId,
+    });
+    setIsFormModalOpen(true);
+  };
+
+  // Handle Create Teacher
+  const handleCreate = () => {
+    setTeacherToEdit(null);
+    setIsFormModalOpen(true);
+  };
 
   // Toggle Active Status
   const handleToggleStatus = async (teacher: TeacherItem) => {
     const newStatus = !teacher.isActive;
-    const actionText = newStatus ? "Mengaktifkan" : "Menonaktifkan";
+    const actionLabel = newStatus ? "Mengaktifkan" : "Menonaktifkan";
 
-    swalLoading(`${actionText} Guru...`, "Memperbarui izin akses di sistem...");
+    const confirmed = await swalConfirm(
+      `${actionLabel} Guru?`,
+      `Apakah Anda yakin ingin ${actionLabel.toLowerCase()} akses presensi untuk ${formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang)}?`,
+      newStatus ? "Aktifkan" : "Nonaktifkan",
+      newStatus ? "question" : "warning"
+    );
+
+    if (!confirmed) return;
+
+    swalLoading(`${actionLabel} akun...`);
     const res = await toggleTeacherStatusAction(teacher.id, newStatus);
     swalClose();
 
@@ -152,91 +222,85 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         prev.map((t) => (t.id === teacher.id ? { ...t, isActive: newStatus } : t))
       );
       swalSuccess(
-        `Status Diperbarui`,
-        `Guru ${teacher.name} kini berstatus ${newStatus ? "Aktif" : "Non-Aktif"}.`
+        "Status Diperbarui",
+        `Guru berhasil di-${newStatus ? "aktifkan" : "nonaktifkan"}.`
       );
     } else {
-      swalError("Gagal Mengubah Status", res?.error || "Terjadi kesalahan.");
+      swalError("Gagal Mengubah Status", res?.error || "Terjadi kesalahan pada server.");
     }
   };
 
   // Reset Password
   const handleResetPassword = async (teacher: TeacherItem) => {
-    const isConfirmed = await swalConfirm(
-      "Reset Password Guru?",
-      `Password untuk "${teacher.name}" akan direset ke password standar: "Password123!". Lanjutkan?`,
-      "Ya, Reset Password",
-      "Batal"
+    const fullName = formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang);
+    const confirmed = await swalConfirm(
+      "Reset Kata Sandi?",
+      `Kata sandi untuk ${fullName} akan direset menjadi default: Password123!`,
+      "Ya, Reset Sandi",
+      "warning"
     );
 
-    if (!isConfirmed) return;
+    if (!confirmed) return;
 
-    swalLoading("Mereset Password...", "Menyimpan password baru...");
+    swalLoading("Mereset Kata Sandi...");
     const res = await resetTeacherPasswordAction(teacher.id, "Password123!");
     swalClose();
 
     if (res?.success) {
-      swalSuccess("Password Berhasil Direset!", `Password guru "${teacher.name}" telah direset ke: Password123!`);
+      swalSuccess(
+        "Kata Sandi Direset!",
+        `Kata sandi baru untuk ${fullName} adalah: Password123!`
+      );
     } else {
-      swalError("Gagal Reset Password", res?.error || "Terjadi kesalahan.");
+      swalError("Gagal Reset", res?.error || "Terjadi kesalahan saat mereset sandi.");
     }
   };
 
   // Delete Teacher
   const handleDeleteTeacher = async (teacher: TeacherItem) => {
-    const isConfirmed = await swalConfirm(
+    const fullName = formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang);
+    const confirmed = await swalConfirm(
       "Hapus Data Guru?",
-      `Apakah Anda yakin ingin menghapus akun guru "${teacher.name}"? Riwayat presensi terkait juga akan dihapus.`,
-      "Ya, Hapus Guru",
-      "Batal"
+      `Perhatian: Menghapus ${fullName} akan menghapus riwayat presensi yang terkait secara permanen!`,
+      "Ya, Hapus Permanen",
+      "error"
     );
 
-    if (!isConfirmed) return;
+    if (!confirmed) return;
 
-    swalLoading("Menghapus...", "Sedang menghapus akun dari database...");
+    swalLoading("Menghapus Data Guru...");
     const res = await deleteTeacherAction(teacher.id);
     swalClose();
 
     if (res?.success) {
       setTeachers((prev) => prev.filter((t) => t.id !== teacher.id));
-      swalSuccess("Dihapus!", `Guru ${teacher.name} telah dihapus.`);
+      swalSuccess("Berhasil Dihapus", `Data guru ${fullName} telah dihapus dari sistem.`);
     } else {
-      swalError("Gagal Menghapus", res?.error || "Gagal menghapus data guru.");
+      swalError("Gagal Menghapus", res?.error || "Terjadi kesalahan saat menghapus data.");
     }
   };
 
-  // Open Edit Form
-  const handleEdit = (teacher: TeacherItem) => {
-    setTeacherToEdit({
-      id: teacher.id,
-      name: teacher.name,
-      email: teacher.email,
-      nip: teacher.nip,
-      phone: teacher.phone,
-      isActive: teacher.isActive,
-    });
-    setIsFormModalOpen(true);
-  };
-
-  // Open Create Form
-  const handleCreate = () => {
-    setTeacherToEdit(null);
-    setIsFormModalOpen(true);
-  };
-
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full select-none">
-      {/* Executive Page Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-2 border-b border-border/80">
-        <div className="flex flex-col gap-1">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-              Manajemen Data Guru & Tenaga Kependidikan
-            </h1>
-            <Badge variant="default">Modul Guru</Badge>
+    <div className="flex flex-col gap-6 w-full select-none animate-in fade-in duration-200">
+      {/* Top Banner / Breadcrumb */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-border/80 pb-6">
+        <div>
+          <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+            <School className="size-3.5 text-primary" />
+            <span>{initialData.madrasahName}</span>
+            <span>&bull;</span>
+            <span className="font-mono">NSM: {initialData.nsm}</span>
           </div>
-          <p className="text-xs sm:text-sm text-muted-foreground">
-            Kelola daftar pendidik, NIP/NIK, kredensial login mobile, status aktifasi, dan impor data massal dari spreadsheet Excel.
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+              Manajemen Data Guru &amp; Tenaga Kependidikan
+            </h1>
+            <span className="px-2 py-0.5 text-[10px] font-black tracking-wider uppercase rounded-md bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+              EMIS 4.0 Synced
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Kelola data pendidik, gelar akademik, Peg ID, NUPTK, NIP, serta sinkronisasi Excel unduhan resmi EMISGTK Kemenag.
           </p>
         </div>
 
@@ -260,8 +324,9 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             onClick={downloadTeacherTemplate}
             leftIcon={<Download className="size-3.5 text-muted-foreground" />}
             className="text-xs font-medium"
+            title="Download Template Format EMIS GTK 4.0"
           >
-            Format Excel
+            Format EMIS 4.0
           </Button>
 
           <Button
@@ -272,7 +337,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             leftIcon={<FileSpreadsheet className="size-4 text-emerald-600" />}
             className="text-xs font-semibold border-emerald-500/30 text-emerald-800 bg-emerald-50/50 hover:bg-emerald-50 dark:bg-emerald-950/40 dark:text-emerald-300"
           >
-            Import Excel
+            Import Excel EMIS
           </Button>
 
           <Link
@@ -282,14 +347,6 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
           >
             <Briefcase className="size-3.5 text-amber-600 dark:text-amber-400" />
             <span>Master Jabatan</span>
-          </Link>
-
-          <Link
-            href="/admin/bulk-attendance"
-            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs transition-colors cursor-pointer"
-          >
-            <UserCheck className="size-3.5" />
-            <span>Presensi Massal</span>
           </Link>
 
           <Button
@@ -311,7 +368,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-muted-foreground block uppercase tracking-wider">
-              Total Pendidik
+              Total Pendidik &amp; GTK
             </span>
             <span className="text-2xl font-black text-foreground mt-1 block">
               {stats.total}
@@ -329,13 +386,13 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-emerald-600 dark:text-emerald-400 block uppercase tracking-wider">
-              Guru Aktif
+              Guru Aktif Presensi
             </span>
             <span className="text-2xl font-black text-emerald-600 dark:text-emerald-400 mt-1 block">
               {stats.active}
             </span>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              Dapat melakukan presensi mobile
+              Akses absensi GPS aktif
             </span>
           </div>
           <div className="size-11 rounded-2xl bg-emerald-500/10 text-emerald-600 flex items-center justify-center">
@@ -343,78 +400,80 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
           </div>
         </div>
 
-        {/* Guru Non-Aktif */}
+        {/* Terdata EMIS 4.0 */}
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-slate-500 block uppercase tracking-wider">
-              Non-Aktif / Cuti
+            <span className="text-xs font-semibold text-blue-600 dark:text-blue-400 block uppercase tracking-wider">
+              Terdata EMIS / Simpatika
             </span>
-            <span className="text-2xl font-black text-slate-700 dark:text-slate-300 mt-1 block">
-              {stats.inactive}
+            <span className="text-2xl font-black text-blue-600 dark:text-blue-400 mt-1 block">
+              {stats.emisLinked}
             </span>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              Akses presensi dinonaktifkan
+              Memiliki Peg ID / NUPTK resmi
             </span>
           </div>
-          <div className="size-11 rounded-2xl bg-slate-500/10 text-slate-600 flex items-center justify-center">
-            <UserX className="size-5" />
+          <div className="size-11 rounded-2xl bg-blue-500/10 text-blue-600 flex items-center justify-center">
+            <IdCard className="size-5" />
           </div>
         </div>
 
-        {/* Memiliki NIP */}
+        {/* PNS / PPPK */}
         <div className="p-5 rounded-2xl bg-card border border-border/80 shadow-sm flex items-center justify-between">
           <div>
             <span className="text-xs font-semibold text-amber-600 dark:text-amber-400 block uppercase tracking-wider">
-              Memiliki NIP
+              PNS &amp; PPPK
             </span>
             <span className="text-2xl font-black text-amber-600 dark:text-amber-400 mt-1 block">
-              {stats.hasNip}
+              {stats.pnsCount}
             </span>
             <span className="text-[11px] text-muted-foreground mt-0.5 block">
-              {stats.total > 0 ? `${Math.round((stats.hasNip / stats.total) * 100)}% dari total guru` : "0%"}
+              Pegawai ASN Satuan Pendidikan
             </span>
           </div>
           <div className="size-11 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center">
-            <FileCheck className="size-5" />
+            <Award className="size-5" />
           </div>
         </div>
       </div>
 
-      {/* Main Table Card */}
-      <div className="p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-5">
-        {/* Table Toolbar: Search, Status Filter & Export */}
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+      {/* Main Content Card */}
+      <div className="p-5 sm:p-6 rounded-2xl bg-card border border-border/80 shadow-sm flex flex-col gap-4">
+        {/* Filter and Search Bar */}
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Box */}
           <div className="relative flex-1 max-w-md">
-            <Search className="size-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-            <Input
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+            <input
               type="text"
-              placeholder="Cari nama guru, NIP, email, no HP..."
+              placeholder="Cari nama, gelar, PegID, NUPTK, NIP, NIK..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 h-10 text-xs"
+              className="w-full pl-9 pr-4 h-9 rounded-xl bg-background border border-border text-xs focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-2xs text-foreground placeholder:text-muted-foreground"
             />
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
-            {/* Status Filter Pills */}
-            <div className="flex items-center gap-1 p-1 rounded-xl bg-muted/60 border border-border/60">
+          {/* Filter Pills */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Status Keaktifan */}
+            <div className="flex items-center gap-1 bg-muted/60 p-1 rounded-xl border border-border/60">
               <button
                 type="button"
                 onClick={() => setStatusFilter("all")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   statusFilter === "all"
-                    ? "bg-card text-foreground shadow-sm"
+                    ? "bg-card text-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Semua ({stats.total})
+                Semua ({teachers.length})
               </button>
               <button
                 type="button"
                 onClick={() => setStatusFilter("active")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   statusFilter === "active"
-                    ? "bg-emerald-600 text-white shadow-sm"
+                    ? "bg-emerald-500 text-white shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -423,17 +482,28 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
               <button
                 type="button"
                 onClick={() => setStatusFilter("inactive")}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                   statusFilter === "inactive"
-                    ? "bg-slate-700 text-white shadow-sm"
+                    ? "bg-card text-foreground shadow-2xs"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                Non-Aktif ({stats.inactive})
+                Non-Aktif ({stats.total - stats.active})
               </button>
             </div>
 
-            {/* Export Excel Button */}
+            {/* Filter Kepegawaian */}
+            <select
+              value={kepegawaianFilter}
+              onChange={(e) => setKepegawaianFilter(e.target.value)}
+              className="h-9 px-3 rounded-xl bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none text-foreground shadow-2xs"
+            >
+              <option value="all">Semua Status Pegawai</option>
+              <option value="PNS">PNS</option>
+              <option value="PPPK">PPPK</option>
+              <option value="NON_PNS">Non-PNS / GTY / Honor</option>
+            </select>
+
             <Button
               type="button"
               variant="outline"
@@ -442,29 +512,31 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
               leftIcon={<Download className="size-3.5" />}
               className="h-9 text-xs"
             >
-              Export Excel
+              Export Excel EMIS
             </Button>
           </div>
         </div>
 
         {/* Teachers Datatable */}
-        <div className="border border-border/80 rounded-xl overflow-hidden shadow-xs">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="border border-border/80 rounded-xl overflow-hidden shadow-xs overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse min-w-[950px]">
             <thead className="bg-muted/70 text-muted-foreground uppercase text-[10px] tracking-wider border-b border-border/70">
               <tr>
-                <th className="py-3 px-4 w-12 text-center">No</th>
-                <th className="py-3 px-4">Guru / Tenaga Pendidik</th>
-                <th className="py-3 px-4">NIP / NIK</th>
-                <th className="py-3 px-4">Kontak (Email & WA)</th>
-                <th className="py-3 px-4 text-center">Total Presensi</th>
-                <th className="py-3 px-4 text-center">Status Akun</th>
+                <th className="py-3 px-3 w-10 text-center">No</th>
+                <th className="py-3 px-4 min-w-[220px]">Guru / GTK &amp; Gelar</th>
+                <th className="py-3 px-3">Peg ID &amp; NUPTK</th>
+                <th className="py-3 px-3">NIP / NIK</th>
+                <th className="py-3 px-3">Tempat, Tgl Lahir</th>
+                <th className="py-3 px-3">Kontak Akun</th>
+                <th className="py-3 px-3 text-center">Presensi</th>
+                <th className="py-3 px-3 text-center">Status</th>
                 <th className="py-3 px-4 text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-border/50">
               {filteredTeachers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-12 text-center text-muted-foreground">
+                  <td colSpan={9} className="py-12 text-center text-muted-foreground">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Users className="size-8 text-muted-foreground/40" />
                       <span className="font-semibold text-foreground text-sm">
@@ -473,7 +545,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                       <span className="text-xs text-muted-foreground max-w-sm">
                         {searchQuery
                           ? `Tidak ditemukan guru dengan kata kunci "${searchQuery}". Coba kata kunci lain.`
-                          : "Belum ada guru yang didaftarkan. Gunakan tombol Tambah Guru atau Import Excel di atas."}
+                          : "Belum ada guru yang didaftarkan. Gunakan tombol Tambah Guru atau Import Excel EMIS di atas."}
                       </span>
                       {!searchQuery && (
                         <Button
@@ -483,7 +555,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                           leftIcon={<Upload className="size-3.5" />}
                           className="mt-2 text-xs"
                         >
-                          Import Data dari Excel Sekarang
+                          Import File Excel EMIS Sekarang
                         </Button>
                       )}
                     </div>
@@ -492,6 +564,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
               ) : (
                 filteredTeachers.map((teacher, idx) => {
                   const initialLetter = teacher.name.charAt(0).toUpperCase();
+                  const displayName = formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang);
 
                   return (
                     <tr
@@ -499,24 +572,25 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                       className="hover:bg-muted/30 transition-colors group"
                     >
                       {/* Number */}
-                      <td className="py-3.5 px-4 text-center text-muted-foreground font-mono">
+                      <td className="py-3 px-3 text-center text-muted-foreground font-mono text-[11px]">
                         {idx + 1}
                       </td>
 
-                      {/* Name & Avatar */}
-                      <td className="py-3.5 px-4">
+                      {/* Name, Gelar & Position */}
+                      <td className="py-3 px-4">
                         <div className="flex items-center gap-3">
                           <div className="size-9 rounded-full bg-gradient-to-br from-[#0A5C36] to-emerald-800 text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
                             {initialLetter}
                           </div>
                           <div className="flex flex-col">
                             <span className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
-                              {teacher.name}
+                              {displayName}
                             </span>
                             <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {/* Position Badge */}
                               {teacher.position ? (
                                 <span
-                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.2 rounded ${
                                     teacher.position.isHeadmaster
                                       ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
                                       : "bg-primary/10 text-primary border border-primary/20"
@@ -526,67 +600,133 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                                   {teacher.position.name}
                                 </span>
                               ) : (
-                                <span className="text-[10px] text-muted-foreground italic">Guru Madrasah</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {teacher.jenisGtk || "Guru Madrasah"}
+                                </span>
                               )}
-                              <span className="text-[10px] text-muted-foreground">
-                                &bull; {new Date(teacher.createdAt).toLocaleDateString("id-ID", { month: "short", year: "numeric" })}
-                              </span>
+
+                              {/* Status Kepegawaian Badge */}
+                              {teacher.statusKepegawaian && (
+                                <span className="text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground border border-border font-medium">
+                                  {teacher.statusKepegawaian}
+                                </span>
+                              )}
                             </div>
                           </div>
                         </div>
                       </td>
 
-                      {/* NIP */}
-                      <td className="py-3.5 px-4 font-mono text-xs">
+                      {/* PegID & NUPTK */}
+                      <td className="py-3 px-3 font-mono text-xs">
+                        {teacher.pegId ? (
+                          <div className="flex items-center gap-1">
+                            <span className="text-[9px] font-bold text-blue-700 dark:text-blue-300 bg-blue-500/10 px-1 py-0.2 rounded">
+                              PEG
+                            </span>
+                            <span className="font-bold text-foreground text-[11px]">
+                              {stripLeadingQuote(teacher.pegId)}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-muted-foreground text-[10px] italic">
+                            Belum Ada PegID
+                          </span>
+                        )}
+                        {teacher.nuptk && (
+                          <div className="flex items-center gap-1 mt-0.5">
+                            <span className="text-[9px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 px-1 py-0.2 rounded">
+                              NUPTK
+                            </span>
+                            <span className="text-[10px] text-muted-foreground">
+                              {stripLeadingQuote(teacher.nuptk)}
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      {/* NIP & NIK */}
+                      <td className="py-3 px-3 font-mono text-xs">
                         {teacher.nip ? (
-                          <span className="px-2 py-0.5 rounded-md bg-muted font-semibold text-foreground border border-border">
-                            {teacher.nip}
+                          <span className="px-1.5 py-0.5 rounded bg-muted font-semibold text-foreground border border-border text-[11px] block w-fit">
+                            {stripLeadingQuote(teacher.nip)}
                           </span>
                         ) : (
-                          <span className="text-muted-foreground text-[11px] italic">
-                            Non-PNS / Belum Ada
+                          <span className="text-muted-foreground text-[11px] italic block">
+                            Non-PNS
+                          </span>
+                        )}
+                        {teacher.nik && (
+                          <span className="text-[10px] text-muted-foreground block mt-0.5 font-mono" title="NIK disamarkan untuk perlindungan data">
+                            NIK: {maskNik(teacher.nik)}
                           </span>
                         )}
                       </td>
 
+                      {/* Tempat & Tanggal Lahir */}
+                      <td className="py-3 px-3 text-[11px] text-muted-foreground">
+                        <div className="flex items-center gap-1 font-medium text-foreground">
+                          {teacher.gender && (
+                            <span
+                              className={`px-1 rounded text-[9px] font-bold ${
+                                teacher.gender === "L" || teacher.gender.toLowerCase().startsWith("l")
+                                  ? "bg-blue-500/15 text-blue-600"
+                                  : "bg-rose-500/15 text-rose-600"
+                              }`}
+                            >
+                              {teacher.gender === "L" || teacher.gender.toLowerCase().startsWith("l") ? "L" : "P"}
+                            </span>
+                          )}
+                          <span>{teacher.tempatLahir || "-"}</span>
+                        </div>
+                        <span className="text-[10px] text-muted-foreground block">
+                          {teacher.tanggalLahir
+                            ? new Date(teacher.tanggalLahir).toLocaleDateString("id-ID", {
+                                day: "2-digit",
+                                month: "short",
+                                year: "numeric",
+                              })
+                            : "-"}
+                        </span>
+                      </td>
+
                       {/* Contact */}
-                      <td className="py-3.5 px-4">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5 text-xs text-foreground font-mono">
-                            <Mail className="size-3 text-muted-foreground shrink-0" />
-                            <span>{teacher.email}</span>
+                      <td className="py-3 px-3">
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-1 text-[11px] text-foreground font-mono truncate max-w-[150px]">
+                            <Mail className="size-2.5 text-muted-foreground shrink-0" />
+                            <span className="truncate">{teacher.email}</span>
                           </div>
                           {teacher.phone ? (
                             <a
                               href={`https://wa.me/${teacher.phone.replace(/[^0-9]/g, "")}`}
                               target="_blank"
                               rel="noreferrer"
-                              className="flex items-center gap-1.5 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-mono"
+                              className="flex items-center gap-1 text-[11px] text-emerald-600 hover:text-emerald-700 hover:underline font-mono"
                             >
-                              <Phone className="size-3 text-emerald-500 shrink-0" />
+                              <Phone className="size-2.5 text-emerald-500 shrink-0" />
                               <span>{teacher.phone}</span>
                             </a>
                           ) : (
-                            <span className="text-[11px] text-muted-foreground italic">
-                              Tidak ada no HP
+                            <span className="text-[10px] text-muted-foreground italic">
+                              No WA (-)
                             </span>
                           )}
                         </div>
                       </td>
 
                       {/* Total Presensi */}
-                      <td className="py-3.5 px-4 text-center">
-                        <span className="px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-extrabold">
+                      <td className="py-3 px-3 text-center">
+                        <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-extrabold">
                           {teacher._count?.attendanceLogs ?? 0} Kali
                         </span>
                       </td>
 
                       {/* Status Toggle */}
-                      <td className="py-3.5 px-4 text-center">
+                      <td className="py-3 px-3 text-center">
                         <button
                           type="button"
                           onClick={() => handleToggleStatus(teacher)}
-                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold transition-all ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold transition-all ${
                             teacher.isActive
                               ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/25 border border-emerald-500/20"
                               : "bg-slate-500/15 text-slate-700 dark:text-slate-400 hover:bg-slate-500/25 border border-slate-500/20"
@@ -603,8 +743,17 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                       </td>
 
                       {/* Actions */}
-                      <td className="py-3.5 px-4 text-right">
+                      <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          <button
+                            type="button"
+                            onClick={() => setTeacherDetail(teacher)}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-blue-600 hover:bg-blue-500/10 transition-colors cursor-pointer"
+                            title="Lihat Detail Profil EMIS GTK"
+                          >
+                            <Eye className="size-3.5" />
+                          </button>
+
                           <Link
                             href={`/admin/reports?teacherId=${teacher.id}`}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
@@ -616,7 +765,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                           <button
                             type="button"
                             onClick={() => handleResetPassword(teacher)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors cursor-pointer"
                             title="Reset Password ke Password123!"
                           >
                             <KeyRound className="size-3.5" />
@@ -625,8 +774,8 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                           <button
                             type="button"
                             onClick={() => handleEdit(teacher)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
-                            title="Edit Biodata Guru"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors cursor-pointer"
+                            title="Edit Biodata Guru & EMIS GTK"
                           >
                             <Edit3 className="size-3.5" />
                           </button>
@@ -634,7 +783,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                           <button
                             type="button"
                             onClick={() => handleDeleteTeacher(teacher)}
-                            className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors"
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/10 transition-colors cursor-pointer"
                             title="Hapus Guru"
                           >
                             <Trash2 className="size-3.5" />
@@ -659,6 +808,151 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
           </span>
         </div>
       </div>
+
+      {/* DETAIL MODAL GTK EMIS 4.0 */}
+      {teacherDetail && (
+        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
+          <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+            {/* Modal Header */}
+            <div className="p-4 border-b border-border bg-gradient-to-r from-[#00288E] to-[#0A5C36] text-white flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="size-10 rounded-xl bg-white/10 flex items-center justify-center">
+                  <IdCard className="size-5 text-accent" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-extrabold tracking-tight">
+                    Kartu Data GTK (EMIS 4.0 Kemenag)
+                  </h3>
+                  <p className="text-[11px] text-blue-100">
+                    Rincian identitas pendidik &amp; nomor registrasi resmi
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTeacherDetail(null)}
+                className="p-1.5 rounded-lg text-blue-200 hover:text-white hover:bg-white/10 transition-colors"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-5 flex flex-col gap-4 text-xs">
+              {/* Full Name & Position Banner */}
+              <div className="p-4 rounded-xl bg-muted/50 border border-border flex items-center gap-3">
+                <div className="size-12 rounded-full bg-primary text-white font-black text-base flex items-center justify-center shadow-xs shrink-0">
+                  {teacherDetail.name.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex flex-col">
+                  <span className="text-sm font-extrabold text-foreground">
+                    {formatTeacherName(teacherDetail.name, teacherDetail.gelarDepan, teacherDetail.gelarBelakang)}
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                    <span className="font-semibold text-primary">
+                      {teacherDetail.position?.name || teacherDetail.jenisGtk || "Guru Madrasah"}
+                    </span>
+                    <span>&bull;</span>
+                    <span className="px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-bold text-[10px]">
+                      {teacherDetail.statusKepegawaian || "PNS"}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Data Grid */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Peg ID (EMIS)</span>
+                  <span className="font-mono font-bold text-foreground text-xs mt-0.5 block">
+                    {stripLeadingQuote(teacherDetail.pegId) || "-"}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <span className="text-[10px] text-muted-foreground block font-medium">NUPTK</span>
+                  <span className="font-mono font-bold text-foreground text-xs mt-0.5 block">
+                    {stripLeadingQuote(teacherDetail.nuptk) || "-"}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <span className="text-[10px] text-muted-foreground block font-medium">NIP</span>
+                  <span className="font-mono font-bold text-foreground text-xs mt-0.5 block">
+                    {stripLeadingQuote(teacherDetail.nip) || "Non-PNS"}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-muted-foreground block font-medium">NIK KTP</span>
+                    <span className="text-[9px] px-1 rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold">Tersamar</span>
+                  </div>
+                  <span className="font-mono font-bold text-foreground text-xs mt-0.5 block">
+                    {maskNik(teacherDetail.nik)}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Tempat, Tanggal Lahir</span>
+                  <span className="text-foreground text-xs mt-0.5 block">
+                    {teacherDetail.tempatLahir ? `${teacherDetail.tempatLahir}, ` : ""}
+                    {teacherDetail.tanggalLahir
+                      ? new Date(teacherDetail.tanggalLahir).toLocaleDateString("id-ID", {
+                          day: "2-digit",
+                          month: "long",
+                          year: "numeric",
+                        })
+                      : "-"}
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-lg border border-border bg-background">
+                  <span className="text-[10px] text-muted-foreground block font-medium">Jenis Kelamin</span>
+                  <span className="text-foreground text-xs mt-0.5 block">
+                    {teacherDetail.gender === "L" || teacherDetail.gender?.toLowerCase().startsWith("l")
+                      ? "Laki-laki (L)"
+                      : teacherDetail.gender === "P" || teacherDetail.gender?.toLowerCase().startsWith("p")
+                      ? "Perempuan (P)"
+                      : "-"}
+                  </span>
+                </div>
+              </div>
+
+              {/* Contact Information */}
+              <div className="p-3 rounded-lg border border-border bg-background flex flex-col gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Informasi Kontak &amp; Akun Mobile
+                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Email Login:</span>
+                  <span className="font-mono font-semibold text-foreground">{teacherDetail.email}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">WhatsApp / HP:</span>
+                  <span className="font-mono font-semibold text-emerald-600">{teacherDetail.phone || "-"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Total Presensi:</span>
+                  <span className="font-bold text-primary">{teacherDetail._count?.attendanceLogs ?? 0} Kali</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 border-t border-border flex items-center justify-end bg-muted/30">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setTeacherDetail(null)}
+              >
+                Tutup
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modals */}
       <ImportExcelModal

@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
+import { formatTeacherName, stripLeadingQuote, maskNik } from "@/lib/excel-helpers";
 
 export interface DailyReportRow {
   date: string; // YYYY-MM-DD
@@ -41,7 +42,13 @@ export interface AttendanceReportData {
   };
   employee: {
     pin: string;
-    nik: string;
+    nuptk: string;
+    nik?: string;
+    nip?: string;
+    idType: string;
+    idNumber: string;
+    secondaryIdType: string;
+    secondaryIdNumber: string;
     name: string;
     jabatan: string;
     departemen: string;
@@ -183,13 +190,25 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     let teacher: {
       id: string;
       name: string;
+      gelarDepan?: string | null;
+      gelarBelakang?: string | null;
       nip: string | null;
+      nik?: string | null;
+      pegId?: string | null;
+      nuptk?: string | null;
+      jenisGtk?: string | null;
       isActive: boolean;
       position?: { name: string; isHeadmaster?: boolean } | null;
     } = {
       id: "sample-wariah",
       name: "WARIAH",
-      nip: "12",
+      gelarDepan: null,
+      gelarBelakang: "S.Pd.I",
+      nip: "198503152019032008",
+      nuptk: "3541763665210032",
+      pegId: "205400018921",
+      nik: "3328145508850002",
+      jenisGtk: "Guru Mapel",
       isActive: true,
     };
 
@@ -197,7 +216,13 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       teacher = {
         id: "sample-wariah",
         name: "WARIAH",
-        nip: "12",
+        gelarDepan: null,
+        gelarBelakang: "S.Pd.I",
+        nip: "198503152019032008",
+        nuptk: "3541763665210032",
+        pegId: "205400018921",
+        nik: "3328145508850002",
+        jenisGtk: "Guru Mapel",
         isActive: true,
       };
     } else {
@@ -208,7 +233,13 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           select: {
             id: true,
             name: true,
+            gelarDepan: true,
+            gelarBelakang: true,
             nip: true,
+            nik: true,
+            pegId: true,
+            nuptk: true,
+            jenisGtk: true,
             isActive: true,
             position: {
               select: {
@@ -580,6 +611,65 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const now = new Date();
     const printDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
 
+    // Primary ID logic based on user specification:
+    // "PIN, NIK ganti dengan NUPTK jika tidak punya Gnati PegID jika tidak punya baru pake NIK"
+    const rawNuptk = stripLeadingQuote((teacher as any).nuptk);
+    const rawPegId = stripLeadingQuote((teacher as any).pegId);
+    const rawNik = stripLeadingQuote((teacher as any).nik);
+    const rawNip = stripLeadingQuote(teacher.nip);
+
+    let idType = "NUPTK";
+    let idNumber = "-";
+
+    if (rawNuptk && rawNuptk.length > 0) {
+      idType = "NUPTK";
+      idNumber = rawNuptk;
+    } else if (rawPegId && rawPegId.length > 0) {
+      idType = "Peg ID";
+      idNumber = rawPegId;
+    } else if (rawNik && rawNik.length > 0) {
+      idType = "NIK";
+      idNumber = maskNik(rawNik);
+    } else if (rawNip && rawNip.length > 0 && rawNip !== "12") {
+      idType = "NIP";
+      idNumber = rawNip;
+    }
+
+    // Secondary ID for the second line in report header:
+    let secondaryIdType = "Peg ID";
+    let secondaryIdNumber = "-";
+
+    if (idType === "NUPTK") {
+      if (rawPegId && rawPegId.length > 0) {
+        secondaryIdType = "Peg ID";
+        secondaryIdNumber = rawPegId;
+      } else if (rawNip && rawNip.length > 0 && rawNip !== "12") {
+        secondaryIdType = "NIP";
+        secondaryIdNumber = rawNip;
+      } else if (rawNik && rawNik.length > 0) {
+        secondaryIdType = "NIK";
+        secondaryIdNumber = maskNik(rawNik);
+      } else {
+        secondaryIdType = "Peg ID";
+        secondaryIdNumber = "-";
+      }
+    } else if (idType === "Peg ID") {
+      if (rawNip && rawNip.length > 0 && rawNip !== "12") {
+        secondaryIdType = "NIP";
+        secondaryIdNumber = rawNip;
+      } else if (rawNik && rawNik.length > 0) {
+        secondaryIdType = "NIK";
+        secondaryIdNumber = maskNik(rawNik);
+      } else {
+        secondaryIdType = "NIP";
+        secondaryIdNumber = "Non-PNS";
+      }
+    } else {
+      // idType is NIK
+      secondaryIdType = "NIP";
+      secondaryIdNumber = rawNip && rawNip.length > 0 && rawNip !== "12" ? rawNip : "Non-PNS";
+    }
+
     const reportData: AttendanceReportData = {
       madrasah: {
         id: madrasah?.id || "default",
@@ -588,10 +678,16 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
         address: madrasah?.address || null,
       },
       employee: {
-        pin: teacher.nip ? (teacher.nip.length <= 4 ? teacher.nip : teacher.nip.slice(-2)) : "12",
-        nik: teacher.nip || "12",
-        name: teacher.name,
-        jabatan: (teacher as any).position?.name || "Guru",
+        pin: idNumber,
+        nuptk: idNumber,
+        nik: rawNik ? maskNik(rawNik) : idNumber,
+        nip: rawNip && rawNip !== "12" ? rawNip : "Non-PNS",
+        idType,
+        idNumber,
+        secondaryIdType,
+        secondaryIdNumber,
+        name: formatTeacherName(teacher.name, (teacher as any).gelarDepan, (teacher as any).gelarBelakang),
+        jabatan: (teacher as any).position?.name || (teacher as any).jenisGtk || "Guru",
         departemen: madrasahName,
         status: teacher.isActive ? "Aktif" : "Non-Aktif",
       },

@@ -222,7 +222,7 @@ export function HeaderNavbar({
               {userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah")}
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5 leading-none">
-              {madrasahName || (isSuperadmin ? "Kemenag RI" : "Madrasah")}
+              {madrasahName || (isSuperadmin ? "Pusat Administrasi" : "Madrasah")}
             </span>
           </div>
         </div>

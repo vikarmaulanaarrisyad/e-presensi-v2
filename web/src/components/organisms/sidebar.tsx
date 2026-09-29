@@ -36,7 +36,7 @@ export function Sidebar({
   const pathname = usePathname();
   const isSuperadmin = pathname.startsWith("/superadmin");
 
-  const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Kemenag RI Pusat" : "MIN 1 Jakarta Selatan");
+  const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Pusat Kendali GTK" : "MIN 1 Jakarta Selatan");
   const effectiveUserName = userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah");
 
   const handleLogout = async () => {
@@ -151,20 +151,20 @@ export function Sidebar({
       <div className="flex flex-col overflow-y-auto">
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 p-0.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="size-10 rounded-xl bg-white p-0.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden border border-slate-700/60">
             <img
               src="/icons/app-logo.png"
-              alt="Logo E-Presensi"
-              className="size-full rounded-[9px] object-cover"
+              alt="Logo E-Presensi GTK"
+              className="size-full object-contain"
             />
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">
               <span className="font-extrabold text-sm tracking-tight text-white truncate">
-                E-Presensi Guru
+                E-Presensi GTK
               </span>
               <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
-                {isSuperadmin ? "KEMENAG" : "MADRASAH"}
+                {isSuperadmin ? "SUPERADMIN" : "MADRASAH"}
               </span>
             </div>
             <span className="text-[11px] text-slate-400 truncate font-medium">

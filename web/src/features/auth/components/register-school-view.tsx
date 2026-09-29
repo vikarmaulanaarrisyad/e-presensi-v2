@@ -242,11 +242,11 @@ export function RegisterSchoolView() {
         {/* Top Header Branding */}
         <div className="relative z-10 flex items-center justify-between">
           <Link href="/login" className="flex items-center gap-3.5 group">
-            <div className="size-11 rounded-2xl bg-gradient-to-br from-emerald-500 to-[#0A5C36] p-0.5 shadow-lg border border-white/20 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden">
+            <div className="size-11 rounded-2xl bg-white p-1 shadow-lg border border-white/20 flex items-center justify-center group-hover:scale-105 transition-transform overflow-hidden shrink-0">
               <img
                 src="/icons/app-logo.png"
-                alt="Logo E-Presensi"
-                className="size-full rounded-[14px] object-cover"
+                alt="Logo E-Presensi GTK"
+                className="size-full object-contain"
               />
             </div>
             <div>

@@ -136,25 +136,25 @@ export function LoginView() {
         {/* Top Header Branding */}
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            {/* Ministry Gold / Green Emblem Insignia */}
-            <div className="size-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-[#0A5C36] p-0.5 shadow-lg shadow-black/30 border border-white/20 flex items-center justify-center overflow-hidden">
+            {/* GTK Emblem Insignia */}
+            <div className="size-12 rounded-2xl bg-white p-1 shadow-lg shadow-black/20 border border-white/20 flex items-center justify-center overflow-hidden shrink-0">
               <img
                 src="/icons/app-logo.png"
-                alt="Logo E-Presensi"
-                className="size-full rounded-[14px] object-cover"
+                alt="Logo E-Presensi GTK"
+                className="size-full object-contain"
               />
             </div>
             <div>
               <div className="flex items-center gap-2">
                 <span className="font-extrabold text-lg tracking-tight text-white">
-                  SIAP-PRESENSI
+                  E-PRESENSI
                 </span>
                 <span className="px-1.5 py-0.5 text-[10px] font-bold tracking-wider uppercase rounded bg-[#D4AF37]/20 text-[#F3E3AC] border border-[#D4AF37]/40">
-                  MI v2.0
+                  GTK v2.0
                 </span>
               </div>
               <span className="text-xs text-emerald-200/90 block font-medium">
-                Direktorat KSKK Madrasah &bull; Ditjen Pendis Kemenag RI
+                Guru & Tenaga Kependidikan
               </span>
             </div>
           </div>
@@ -181,7 +181,7 @@ export function LoginView() {
             </h1>
 
             <p className="text-sm xl:text-base text-emerald-100/85 leading-relaxed">
-              Solusi absensi digital resmi Kementerian Agama untuk meningkatkan kedisiplinan dan transparansi data kehadiran guru dengan radius geofence akurat.
+              Solusi absensi digital terintegrasi untuk meningkatkan kedisiplinan dan transparansi data kehadiran guru dan tenaga kependidikan dengan radius geofence akurat.
             </p>
           </div>
 
@@ -246,19 +246,19 @@ export function LoginView() {
         {/* Mobile Header (Shown on small screens only) */}
         <div className="flex lg:hidden items-center justify-between pb-6 border-b border-border/60">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl overflow-hidden shadow-md flex items-center justify-center">
+            <div className="size-10 rounded-xl overflow-hidden shadow-sm flex items-center justify-center bg-white p-0.5 border border-border/40 shrink-0">
               <img
                 src="/icons/app-logo.png"
-                alt="Logo E-Presensi"
-                className="size-full object-cover"
+                alt="Logo E-Presensi GTK"
+                className="size-full object-contain"
               />
             </div>
             <div>
               <span className="font-extrabold text-base text-foreground tracking-tight block">
-                SIAP-PRESENSI MI
+                E-PRESENSI GTK
               </span>
               <span className="text-xs text-muted-foreground block -mt-0.5">
-                Kementerian Agama RI
+                Guru & Tenaga Kependidikan
               </span>
             </div>
           </div>
@@ -437,8 +437,8 @@ export function LoginView() {
 
         {/* Footer Info */}
         <div className="pt-4 border-t border-border/60 flex items-center justify-between text-xs text-muted-foreground">
-          <span>&copy; 2026 Kementerian Agama RI</span>
-          <div className="flex items-center gap-1 hover:text-foreground cursor-pointer transition-colors" onClick={() => alert("Bantuan teknis: hubungi support@kemenag.go.id")}>
+          <span>&copy; 2026 E-Presensi GTK</span>
+          <div className="flex items-center gap-1 hover:text-foreground cursor-pointer transition-colors" onClick={() => alert("Bantuan teknis: silakan hubungi administrator sekolah")}>
             <HelpCircle className="size-3.5" />
             <span>Pusat Bantuan</span>
           </div>

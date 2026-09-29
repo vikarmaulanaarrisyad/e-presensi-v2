@@ -108,12 +108,12 @@ export function exportReportToPdf(
   };
 
   // Row 1
-  drawLabelValue("PIN",           data.employee.pin,        c1, empRow1, true);
+  drawLabelValue(data.employee.idType || "NUPTK", data.employee.idNumber || data.employee.nuptk || "-", c1, empRow1, true);
   drawLabelValue("Nama Karyawan", data.employee.name,       c2, empRow1, true);
   drawLabelValue("Jabatan",       data.employee.jabatan,    c3, empRow1, false);
 
   // Row 2
-  drawLabelValue("NIK",           data.employee.nik,        c1, empRow2, true);
+  drawLabelValue(data.employee.secondaryIdType || "Peg ID", data.employee.secondaryIdNumber || "-", c1, empRow2, true);
   drawLabelValue("Departemen",    data.employee.departemen, c2, empRow2, false);
   drawLabelValue("Status",        data.employee.status,     c3, empRow2, false);
 

@@ -83,9 +83,9 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
         <div className="border-t border-b border-black py-1 px-1 mb-1 text-[10px] sm:text-[11px] leading-tight">
           <div className="grid grid-cols-3 gap-2">
             <div className="flex items-center gap-1">
-              <span className="w-12 font-medium">PIN</span>
+              <span className="w-16 font-medium">{data.employee.idType || "NUPTK"}</span>
               <span>:</span>
-              <span className="font-semibold">{data.employee.pin}</span>
+              <span className="font-semibold">{data.employee.idNumber || data.employee.nuptk || "-"}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-24 font-medium">Nama Karyawan</span>
@@ -100,9 +100,9 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           </div>
           <div className="grid grid-cols-3 gap-2 mt-0.5">
             <div className="flex items-center gap-1">
-              <span className="w-12 font-medium">NIK</span>
+              <span className="w-16 font-medium">{data.employee.secondaryIdType || "Peg ID"}</span>
               <span>:</span>
-              <span className="font-semibold">{data.employee.nik}</span>
+              <span className="font-semibold">{data.employee.secondaryIdNumber || "-"}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="w-24 font-medium">Departemen</span>

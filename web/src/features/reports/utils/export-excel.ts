@@ -27,7 +27,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
 
   // Employee details
   wsData.push([
-    `PIN : ${data.employee.pin}`,
+    `${data.employee.idType || "NUPTK"} : ${data.employee.idNumber || data.employee.nuptk || "-"}`,
     "",
     `Nama Karyawan : ${data.employee.name}`,
     "",
@@ -37,7 +37,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
     `Jabatan : ${data.employee.jabatan}`,
   ]);
   wsData.push([
-    `NIK : ${data.employee.nik}`,
+    `${data.employee.secondaryIdType || "Peg ID"} : ${data.employee.secondaryIdNumber || "-"}`,
     "",
     `Departemen : ${data.employee.departemen}`,
     "",
@@ -45,6 +45,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
     "",
     "",
     `Status : ${data.employee.status}`,
+    "",
   ]);
   wsData.push([]); // blank line
 

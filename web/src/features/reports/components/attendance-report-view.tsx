@@ -236,7 +236,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   };
 
   return (
-    <div className="flex flex-col gap-6 max-w-7xl mx-auto w-full select-none">
+    <div className="flex flex-col gap-6 w-full select-none">
       {/* 1. Executive Page Header (Hidden when printing) */}
       <div className="no-print flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-3 border-b border-border/80">
         <div className="flex flex-col gap-1 min-w-0">
@@ -356,7 +356,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
               className="h-9.5 px-3 rounded-xl bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-2xs"
             >
               <option value="sample-wariah">
-                ★ Contoh Gambar: WARIAH (PIN: 12)
+                ★ Format Standar: WARIAH (EMIS GTK)
               </option>
               <optgroup label="Guru Terdaftar di Database">
                 {initialData.teachers.map((t) => (

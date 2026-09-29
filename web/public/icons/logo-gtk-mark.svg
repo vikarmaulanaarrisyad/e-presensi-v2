@@ -1,0 +1,118 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%" fill="none">
+  <defs>
+    <!-- Gradients -->
+    <linearGradient id="blueGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7" />
+      <stop offset="45%" stop-color="#00288e" />
+      <stop offset="100%" stop-color="#0b1736" />
+    </linearGradient>
+
+    <linearGradient id="emeraldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34d399" />
+      <stop offset="50%" stop-color="#10b981" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#eab308" />
+      <stop offset="100%" stop-color="#ca8a04" />
+    </linearGradient>
+
+    <linearGradient id="shieldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f8fafc" />
+      <stop offset="100%" stop-color="#e2e8f0" />
+    </linearGradient>
+
+    <!-- Filters -->
+    <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#00288e" flood-opacity="0.25" />
+    </filter>
+    <filter id="emeraldGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="6" stdDeviation="10" flood-color="#10b981" flood-opacity="0.35" />
+    </filter>
+  </defs>
+
+  <!-- Base Geofence GPS Waves / Concentric Rings -->
+  <g opacity="0.85">
+    <!-- Outer dashed geofence radius -->
+    <circle cx="256" cy="270" r="195" stroke="#cbd5e1" stroke-width="3" stroke-dasharray="8 8" />
+    <!-- Middle radar ring -->
+    <circle cx="256" cy="270" r="160" stroke="#93c5fd" stroke-width="3" opacity="0.5" />
+    <!-- Orbiting GPS Satellite / Geofence Node -->
+    <circle cx="395" cy="185" r="7" fill="#10b981" />
+    <circle cx="395" cy="185" r="14" stroke="#10b981" stroke-width="2" opacity="0.4" />
+  </g>
+
+  <!-- Circular Dynamic Shield Ring (Attendance Progress Ring) -->
+  <path d="M 125,320 A 150,150 0 1,0 406,270" 
+        stroke="url(#blueGrad)" 
+        stroke-width="18" 
+        stroke-linecap="round" 
+        filter="url(#softGlow)" />
+
+  <path d="M 115,280 A 150,150 0 0,0 256,420 A 150,150 0 0,0 345,392" 
+        stroke="url(#emeraldGrad)" 
+        stroke-width="18" 
+        stroke-linecap="round" />
+
+  <!-- Academic Mortarboard / Toga Hat (Symbol of Teacher & Education) -->
+  <g filter="url(#softGlow)">
+    <!-- Cap Rhombus (Top Diamond) -->
+    <polygon points="256,92 388,148 256,204 124,148" fill="url(#blueGrad)" />
+    <!-- Inner Top Facet Highlight -->
+    <polygon points="256,92 388,148 256,155 124,148" fill="#38bdf8" opacity="0.3" />
+    
+    <!-- Cap Skull Base -->
+    <path d="M 175,170 L 175,225 C 175,255 337,255 337,225 L 337,170 C 310,185 285,190 256,190 C 227,190 202,185 175,170 Z" fill="#002166" />
+    
+    <!-- Golden Button on Cap Top -->
+    <ellipse cx="256" cy="148" rx="10" ry="7" fill="url(#goldGrad)" />
+    
+    <!-- Golden Tassel hanging left -->
+    <path d="M 256,150 Q 200,165 176,210" fill="none" stroke="url(#goldGrad)" stroke-width="5" stroke-linecap="round" />
+    <!-- Tassel Ribbon & Ring -->
+    <ellipse cx="176" cy="214" rx="6" ry="4" fill="url(#goldGrad)" />
+    <path d="M 173,218 L 170,250 C 170,254 182,254 182,250 L 179,218 Z" fill="url(#goldGrad)" />
+  </g>
+
+  <!-- Open Knowledge Book / Teacher Pedagogy Foundation -->
+  <g transform="translate(0, 10)">
+    <!-- Book Left Page -->
+    <path d="M 256,335 C 220,315 165,318 135,335 L 135,368 C 165,350 220,347 256,368 Z" 
+          fill="url(#blueGrad)" opacity="0.9" />
+    <!-- Book Right Page -->
+    <path d="M 256,335 C 292,315 347,318 377,335 L 377,368 C 347,350 292,347 256,368 Z" 
+          fill="url(#blueGrad)" opacity="0.9" />
+    <!-- Book Center Spine & Gold Accent -->
+    <path d="M 256,335 L 256,375" stroke="url(#goldGrad)" stroke-width="4" stroke-linecap="round" />
+    <!-- Book Gold Edge Lines -->
+    <path d="M 140,366 C 170,349 220,347 252,366" fill="none" stroke="url(#goldGrad)" stroke-width="3" />
+    <path d="M 372,366 C 342,349 292,347 260,366" fill="none" stroke="url(#goldGrad)" stroke-width="3" />
+  </g>
+
+  <!-- Central Verified Attendance Checkmark (Dynamic Presence & GPS Validation) -->
+  <g filter="url(#emeraldGlow)">
+    <path d="M 198,285 L 246,333 L 362,205" 
+          fill="none" 
+          stroke="url(#emeraldGrad)" 
+          stroke-width="26" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" />
+    <!-- Checkmark Specular Highlight -->
+    <path d="M 200,285 L 246,330 L 360,206" 
+          fill="none" 
+          stroke="#ffffff" 
+          stroke-width="5" 
+          stroke-linecap="round" 
+          stroke-linejoin="round" 
+          opacity="0.5" />
+  </g>
+
+  <!-- Wifi / Digital Signal Waves (IoT & Realtime Cloud Presensi) -->
+  <g transform="translate(325, 95)" opacity="0.9">
+    <path d="M 12,32 A 28,28 0 0,1 42,62" fill="none" stroke="#10b981" stroke-width="5" stroke-linecap="round" />
+    <path d="M 24,20 A 45,45 0 0,1 64,60" fill="none" stroke="#0284c7" stroke-width="5" stroke-linecap="round" />
+    <circle cx="12" cy="62" r="4.5" fill="#10b981" />
+  </g>
+</svg>

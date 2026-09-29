@@ -43,7 +43,7 @@ export default async function WebLayout({
         />
 
         {/* Dynamic Route Content */}
-        <main className="flex-1 p-4 sm:p-6 xl:p-8 max-w-7xl w-full mx-auto flex flex-col gap-6">
+        <main className="flex-1 px-4 sm:px-6 xl:px-8 py-6 w-full flex flex-col gap-6">
           {children}
         </main>
 

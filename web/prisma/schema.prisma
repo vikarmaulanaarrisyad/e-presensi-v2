@@ -119,19 +119,29 @@ model Position {
 }
 
 model User {
-  id              String    @id @default(uuid())
-  madrasahId      String?   @map("madrasah_id") // Nullable ONLY for SUPERADMIN
-  positionId      String?   @map("position_id")
-  name            String
-  email           String    @unique
-  nip             String?   // Nomor Induk Pegawai / NIK
-  passwordHash    String    @map("password_hash")
-  role            Role      @default(TEACHER)
-  phone           String?
-  avatarUrl       String?   @map("avatar_url")
-  isActive        Boolean   @default(true) @map("is_active")
-  createdAt       DateTime  @default(now()) @map("created_at")
-  updatedAt       DateTime  @updatedAt @map("updated_at")
+  id                String    @id @default(uuid())
+  madrasahId        String?   @map("madrasah_id") // Nullable ONLY for SUPERADMIN
+  positionId        String?   @map("position_id")
+  name              String
+  gelarDepan        String?   @map("gelar_depan")
+  gelarBelakang     String?   @map("gelar_belakang")
+  email             String    @unique
+  nip               String?   // Nomor Induk Pegawai
+  nik               String?   // Nomor Induk Kependudukan (16 digit)
+  pegId             String?   @map("peg_id") // ID Pegawai Simpatika / EMIS Kemenag
+  nuptk             String?   // Nomor Unik Pendidik & Tenaga Kependidikan (16 digit)
+  tempatLahir       String?   @map("tempat_lahir")
+  tanggalLahir      DateTime? @db.Date @map("tanggal_lahir")
+  gender            String?   // L (Laki-laki) / P (Perempuan)
+  statusKepegawaian String?   @map("status_kepegawaian") // PNS / PPPK / Non-PNS / GTY / GTT
+  jenisGtk          String?   @map("jenis_gtk") // Guru Mapel / Guru Kelas / Tenaga Administrasi / dll
+  passwordHash      String    @map("password_hash")
+  role              Role      @default(TEACHER)
+  phone             String?
+  avatarUrl         String?   @map("avatar_url")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
   // Relations
   madrasah        Madrasah?       @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
@@ -141,6 +151,8 @@ model User {
   @@index([madrasahId])
   @@index([positionId])
   @@index([role])
+  @@index([pegId])
+  @@index([nuptk])
   @@map("users")
 }
 

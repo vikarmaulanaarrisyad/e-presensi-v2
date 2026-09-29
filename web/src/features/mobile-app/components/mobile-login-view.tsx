@@ -3,24 +3,16 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 import { 
-  Building2, 
-  Lock, 
   LockOpen,
-  User, 
   KeyRound,
   Eye, 
   EyeOff, 
-  Sparkles, 
   ArrowRight, 
   ShieldCheck, 
-  CheckCircle2, 
   RefreshCw,
   MapPin,
   Headphones,
-  Check,
-  IdCard,
-  School,
-  ChevronDown
+  IdCard
 } from "lucide-react";
 import { loginWithCredentials } from "@/server/actions/auth.actions";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
@@ -98,7 +90,7 @@ export function MobileLoginView({ schools }: MobileLoginViewProps = {}) {
   const openHelpDesk = () => {
     swalSuccess(
       "Pusat Bantuan GTK",
-      "Layanan Tata Usaha & Helpdesk Madrasah:\nWhatsApp: +62 812-9876-5432\nEmail: tu.madrasah@kemenag.go.id\nJam Layanan: Senin - Jumat (07.00 - 15.30 WIB)",
+      "Layanan Tata Usaha & Helpdesk Madrasah:\nWhatsApp: +62 812-9876-5432\nEmail: tu.madrasah@sekolah.id\nJam Layanan: Senin - Jumat (07.00 - 15.30 WIB)",
       4000
     );
   };
@@ -115,36 +107,25 @@ export function MobileLoginView({ schools }: MobileLoginViewProps = {}) {
     <div className="w-full bg-[#f8f9ff] text-[#0b1c30] flex flex-col items-center px-4 py-6 sm:px-6 select-none font-sans min-h-screen">
 
       {/* 2. App Logo & Branding Showcase */}
-      <div className="relative flex flex-col items-center text-center max-w-xs mb-2">
-        <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-3 flex items-center justify-center p-2 rounded-3xl bg-white shadow-md border border-[#e5eeff]/80">
-          {!imgError ? (
-            <img
-              alt="Logo E-Presensi Guru"
-              className="w-full h-full object-contain rounded-2xl"
-              src="/icons/app-logo.png"
-              onError={() => setImgError(true)}
-            />
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center bg-gradient-to-tr from-[#00288e] to-[#1e40af] text-white rounded-2xl p-2">
-              <School className="w-10 h-10 mb-1" />
-              <span className="text-[9px] font-extrabold tracking-wider">E-PRESENSI</span>
-            </div>
-          )}
-
-          {/* Verified Badge */}
-          <div className="absolute -bottom-1 -right-1 bg-[#006c4a] text-white rounded-full p-1 shadow-sm flex items-center justify-center">
-            <Check className="w-3.5 h-3.5 stroke-[3]" />
-          </div>
+      <div className="relative flex flex-col items-center text-center w-full max-w-xs mb-2">
+        <div className="relative w-24 h-24 sm:w-28 sm:h-28 mb-2 flex items-center justify-center p-2.5 rounded-3xl bg-white shadow-md border border-[#e5eeff]/90 overflow-hidden">
+          <img
+            alt="Logo E-Presensi GTK"
+            className="w-full h-full object-contain"
+            src="/icons/app-logo.png"
+            onError={() => setImgError(true)}
+          />
         </div>
-
-        <h1 className="text-2xl font-extrabold text-[#00288e] tracking-tight">
-          E-Presensi Guru
-        </h1>
-
+        <span className="text-xl font-extrabold text-[#00288e] tracking-tight">
+          E-PRESENSI GTK
+        </span>
+        <span className="text-[11px] font-semibold text-slate-500 tracking-wider uppercase mt-0.5">
+          Guru & Tenaga Kependidikan
+        </span>
       </div>
 
       {/* 3. Main Login Card Container */}
-      <div className="w-full max-w-sm mt-3 bg-white rounded-3xl p-5 shadow-sm flex flex-col gap-4 border border-[#e5eeff]">
+      <div className="w-full max-w-sm mt-2 bg-white rounded-3xl p-5 shadow-sm flex flex-col gap-4 border border-[#e5eeff]">
         {/* Card Title */}
         <div className="flex items-center justify-between pb-1">
           <div>
@@ -213,38 +194,6 @@ export function MobileLoginView({ schools }: MobileLoginViewProps = {}) {
               >
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
-            </div>
-          </div>
-
-          {/* Unit Sekolah Penugasan Selector */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#0b1c30] flex items-center gap-1.5" htmlFor="schoolSelect">
-              <Building2 className="w-4 h-4 text-[#006c4a]" />
-              <span>Satuan Pendidikan / Unit Kerja</span>
-            </label>
-            <div className="relative flex items-center">
-              <select
-                id="schoolSelect"
-                value={selectedSchool}
-                onChange={(e) => setSelectedSchool(e.target.value)}
-                className="w-full h-12 pl-4 pr-10 rounded-xl bg-[#eff4ff] text-xs sm:text-sm font-medium text-[#0b1c30] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1e40af] appearance-none transition-all cursor-pointer"
-              >
-                {schools && schools.length > 0 ? (
-                  schools.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.name} (NSM: {s.nsm})
-                    </option>
-                  ))
-                ) : (
-                  <>
-                    <option value="min1">MIN 1 Jakarta Selatan (Induk)</option>
-                    <option value="sman1">SMAN 1 Nusantara (Induk)</option>
-                    <option value="smpn3">SMPN 3 Nusantara (Dpk)</option>
-                    <option value="dinas">Dinas Pendidikan / Kemenag Wilayah II</option>
-                  </>
-                )}
-              </select>
-              <ChevronDown className="w-4 h-4 absolute right-3 pointer-events-none text-[#444653]" />
             </div>
           </div>
 
