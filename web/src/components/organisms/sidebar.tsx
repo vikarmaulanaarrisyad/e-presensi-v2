@@ -151,10 +151,12 @@ export function Sidebar({
       <div className="flex flex-col overflow-y-auto">
         {/* Brand Header */}
         <div className="p-5 border-b border-slate-800/80 flex items-center gap-3">
-          <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 p-0.5 shadow-md flex items-center justify-center shrink-0">
-            <div className="size-full rounded-[9px] bg-slate-900 flex items-center justify-center">
-              <School className="size-5 text-emerald-400" />
-            </div>
+          <div className="size-10 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 p-0.5 shadow-md flex items-center justify-center shrink-0 overflow-hidden">
+            <img
+              src="/icons/app-logo.png"
+              alt="Logo E-Presensi"
+              className="size-full rounded-[9px] object-cover"
+            />
           </div>
           <div className="flex flex-col min-w-0">
             <div className="flex items-center gap-1.5">

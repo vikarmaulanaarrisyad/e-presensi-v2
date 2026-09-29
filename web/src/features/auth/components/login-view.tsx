@@ -137,10 +137,12 @@ export function LoginView() {
         <div className="relative z-10 flex items-center justify-between">
           <div className="flex items-center gap-3.5">
             {/* Ministry Gold / Green Emblem Insignia */}
-            <div className="size-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-[#0A5C36] p-0.5 shadow-lg shadow-black/30 border border-white/20 flex items-center justify-center">
-              <div className="size-full rounded-[14px] bg-[#05331d] flex items-center justify-center text-[#D4AF37]">
-                <School className="size-6 text-[#E5C158]" />
-              </div>
+            <div className="size-12 rounded-2xl bg-gradient-to-br from-emerald-600 to-[#0A5C36] p-0.5 shadow-lg shadow-black/30 border border-white/20 flex items-center justify-center overflow-hidden">
+              <img
+                src="/icons/app-logo.png"
+                alt="Logo E-Presensi"
+                className="size-full rounded-[14px] object-cover"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -244,8 +246,12 @@ export function LoginView() {
         {/* Mobile Header (Shown on small screens only) */}
         <div className="flex lg:hidden items-center justify-between pb-6 border-b border-border/60">
           <div className="flex items-center gap-3">
-            <div className="size-10 rounded-xl bg-primary flex items-center justify-center text-primary-foreground shadow-md">
-              <School className="size-5" />
+            <div className="size-10 rounded-xl overflow-hidden shadow-md flex items-center justify-center">
+              <img
+                src="/icons/app-logo.png"
+                alt="Logo E-Presensi"
+                className="size-full object-cover"
+              />
             </div>
             <div>
               <span className="font-extrabold text-base text-foreground tracking-tight block">
