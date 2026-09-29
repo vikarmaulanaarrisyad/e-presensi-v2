@@ -65,6 +65,100 @@ export async function getMadrasahDashboardData(madrasahId: string) {
     totalTeachers - (presentCount + lateCount + permitCount + sickCount)
   );
 
+  // 5. Weekly trend data for Monday - Friday of the current week from database
+  const dayOfWeek = today.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  const startOfWeek = new Date(today);
+  startOfWeek.setDate(today.getDate() + mondayOffset);
+  startOfWeek.setHours(0, 0, 0, 0);
+
+  const endOfWeek = new Date(startOfWeek);
+  endOfWeek.setDate(startOfWeek.getDate() + 6);
+  endOfWeek.setHours(23, 59, 59, 999);
+
+  const weeklyLogs = await prisma.attendanceLog.findMany({
+    where: {
+      madrasahId,
+      date: {
+        gte: startOfWeek,
+        lte: endOfWeek,
+      },
+    },
+  });
+
+  const dayNames = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
+  const weeklyData = dayNames.map((name, idx) => {
+    const curDate = new Date(startOfWeek);
+    curDate.setDate(startOfWeek.getDate() + idx);
+    const curDateStr = curDate.toISOString().split("T")[0];
+
+    const logsForDay = weeklyLogs.filter((l) => {
+      const logDateStr = new Date(l.date).toISOString().split("T")[0];
+      return logDateStr === curDateStr;
+    });
+
+    const hadir = logsForDay.filter((l) => l.status === "PRESENT").length;
+    const terlambat = logsForDay.filter((l) => l.status === "LATE").length;
+    const izin = logsForDay.filter((l) => l.status === "PERMIT" || l.status === "SICK").length;
+
+    return {
+      day: name,
+      hadir,
+      terlambat,
+      izin,
+    };
+  });
+
+  // 6. Real Geofence breakdown from today's attendance logs
+  const maxRadius = madrasah?.settings?.radiusMeters || 50;
+  let zoneInti = 0;
+  let zoneLuar = 0;
+  let zoneKritis = 0;
+  let zoneLuarRadius = 0;
+
+  todayLogs.forEach((l) => {
+    const dist = l.checkInDistance;
+    if (dist !== null && dist !== undefined) {
+      if (dist <= 25) {
+        zoneInti++;
+      } else if (dist <= 40) {
+        zoneLuar++;
+      } else if (dist <= maxRadius) {
+        zoneKritis++;
+      } else {
+        zoneLuarRadius++;
+      }
+    }
+  });
+
+  const totalLogsCount = todayLogs.length || 1;
+  const geofenceZones = [
+    {
+      label: "Zona Inti (0 - 25m)",
+      count: `${zoneInti} Guru`,
+      percent: todayLogs.length > 0 ? Math.round((zoneInti / totalLogsCount) * 100) : 0,
+      color: "bg-emerald-500",
+    },
+    {
+      label: "Zona Luar (25 - 40m)",
+      count: `${zoneLuar} Guru`,
+      percent: todayLogs.length > 0 ? Math.round((zoneLuar / totalLogsCount) * 100) : 0,
+      color: "bg-teal-500",
+    },
+    {
+      label: `Batas Kritis (40 - ${maxRadius}m)`,
+      count: `${zoneKritis} Guru`,
+      percent: todayLogs.length > 0 ? Math.round((zoneKritis / totalLogsCount) * 100) : 0,
+      color: "bg-amber-500",
+    },
+    {
+      label: `Di Luar Radius (> ${maxRadius}m)`,
+      count: `${zoneLuarRadius} Guru`,
+      percent: todayLogs.length > 0 ? Math.round((zoneLuarRadius / totalLogsCount) * 100) : 0,
+      color: "bg-rose-500",
+    },
+  ];
+
   return {
     madrasah,
     stats: {
@@ -80,6 +174,8 @@ export async function getMadrasahDashboardData(madrasahId: string) {
           : 0,
     },
     todayLogs,
+    weeklyData,
+    geofenceZones,
   };
 }
 

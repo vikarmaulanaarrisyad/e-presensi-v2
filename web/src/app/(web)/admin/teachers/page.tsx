@@ -2,6 +2,8 @@ import React from "react";
 import { TeacherManagementView } from "@/features/teachers/components/teacher-management-view";
 import { fetchTeachersData } from "@/server/actions/teacher.actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function TeachersPage() {
   const res = await fetchTeachersData();
   const data = res?.data;
@@ -10,8 +12,8 @@ export default async function TeachersPage() {
 
   const initialData = {
     madrasahId: madrasah?.id || "",
-    madrasahName: madrasah?.name || "MIN 1 Jakarta Selatan",
-    nsm: madrasah?.nsm || "111131740001",
+    madrasahName: madrasah?.name || "Madrasah",
+    nsm: madrasah?.nsm || "-",
     radiusMeters: madrasah?.settings?.radiusMeters || 50,
     teachers: teachers.map((t) => ({
       id: t.id,

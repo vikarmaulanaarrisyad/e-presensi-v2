@@ -73,10 +73,13 @@ const MONTHS = [
 const YEARS = [2024, 2025, 2026, 2027];
 
 export function AttendanceReportView({ initialData }: AttendanceReportViewProps) {
-  // State for filters
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>("sample-wariah");
-  const [selectedMonth, setSelectedMonth] = useState<number>(1); // Default Januari to match sample
-  const [selectedYear, setSelectedYear] = useState<number>(2025); // Default 2025 to match sample
+  // State for filters - default to real database teacher if available
+  const now = new Date();
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
+    initialData.teachers.length > 0 ? initialData.teachers[0].id : "sample-wariah"
+  );
+  const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [filterType, setFilterType] = useState<string>("all");
   const [dateLanguage, setDateLanguage] = useState<"en" | "id">("en");
 

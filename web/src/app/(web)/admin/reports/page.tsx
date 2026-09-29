@@ -10,9 +10,9 @@ export default async function AdminReportsPage() {
   const initialData = {
     madrasah: res?.data?.madrasah || {
       id: "default",
-      name: "MI IKHSANIYAH LEBETENG",
-      nsm: "111131740001",
-      address: "Jl. Raya Lebeteng",
+      name: "Madrasah",
+      nsm: "-",
+      address: "-",
     },
     teachers: res?.data?.teachers || [],
   };

@@ -37,22 +37,32 @@ interface AttendanceChartsProps {
   sickCount: number;
   totalTeachers: number;
   radiusMeters?: number;
+  weeklyData?: { day: string; hadir: number; terlambat: number; izin: number }[];
+  geofenceZones?: { label: string; count: string; percent: number; color: string }[];
+  workStartTime?: string;
+  lateThreshold?: string;
+  workEndTime?: string;
 }
 
 export function AttendanceCharts({
-  presentCount = 2,
-  lateCount = 1,
-  permitCount = 1,
-  sickCount = 1,
-  totalTeachers = 5,
+  presentCount = 0,
+  lateCount = 0,
+  permitCount = 0,
+  sickCount = 0,
+  totalTeachers = 0,
   radiusMeters = 50,
+  weeklyData: propWeeklyData,
+  geofenceZones: propGeofenceZones,
+  workStartTime = "07:00",
+  lateThreshold = "07:15",
+  workEndTime = "14:00",
 }: AttendanceChartsProps) {
-  // Weekly Trend Data (Senin s/d Jumat)
-  const weeklyData = [
-    { day: "Senin", hadir: 5, terlambat: 0, izin: 0 },
-    { day: "Selasa", hadir: 4, terlambat: 1, izin: 0 },
-    { day: "Rabu", hadir: 4, terlambat: 0, izin: 1 },
-    { day: "Kamis", hadir: 5, terlambat: 0, izin: 0 },
+  // Weekly Trend Data from database (or fallback)
+  const weeklyData = propWeeklyData || [
+    { day: "Senin", hadir: 0, terlambat: 0, izin: 0 },
+    { day: "Selasa", hadir: 0, terlambat: 0, izin: 0 },
+    { day: "Rabu", hadir: 0, terlambat: 0, izin: 0 },
+    { day: "Kamis", hadir: 0, terlambat: 0, izin: 0 },
     { day: "Jumat", hadir: presentCount, terlambat: lateCount, izin: permitCount + sickCount },
   ];
 
@@ -69,21 +79,21 @@ export function AttendanceCharts({
     { name: "Belum Ada Presensi", value: 1, color: "#cbd5e1" },
   ];
 
-  // Geofence Distance Breakdown
-  const geofenceZones = [
-    { label: "Zona Inti (0 - 25m)", count: "3 Guru", percent: 60, color: "bg-emerald-500" },
-    { label: "Zona Luar (25 - 40m)", count: "1 Guru", percent: 25, color: "bg-teal-500" },
-    { label: "Batas Kritis (40 - 50m)", count: "1 Guru", percent: 15, color: "bg-amber-500" },
-    { label: "Di Luar Radius (> 50m)", count: "0 Guru", percent: 0, color: "bg-rose-500" },
+  // Geofence Distance Breakdown from database
+  const geofenceZones = propGeofenceZones || [
+    { label: "Zona Inti (0 - 25m)", count: "0 Guru", percent: 0, color: "bg-emerald-500" },
+    { label: "Zona Luar (25 - 40m)", count: "0 Guru", percent: 0, color: "bg-teal-500" },
+    { label: `Batas Kritis (40 - ${radiusMeters}m)`, count: "0 Guru", percent: 0, color: "bg-amber-500" },
+    { label: `Di Luar Radius (> ${radiusMeters}m)`, count: "0 Guru", percent: 0, color: "bg-rose-500" },
   ];
 
-  // Today's Operational Timeline
+  // Today's Operational Timeline from database settings
   const operationalSchedule = [
     { time: "06:30 WIB", event: "Gerbang Dibuka & Radar Geofence Standby", done: true },
-    { time: "07:00 WIB", event: "Jam Masuk Resmi & Apel Pagi Madrasah", done: true },
-    { time: "07:15 WIB", event: "Batas Akhir Toleransi (Masuk Kategori Terlambat)", done: true },
+    { time: `${workStartTime} WIB`, event: "Jam Masuk Resmi & Apel Pagi Madrasah", done: true },
+    { time: `${lateThreshold} WIB`, event: "Batas Akhir Toleransi (Masuk Kategori Terlambat)", done: true },
     { time: "12:00 WIB", event: "Istirahat & Sholat Dzuhur Berjamaah", done: false },
-    { time: "14:00 WIB", event: "Jam Kepulangan & Presensi Clock-Out Dibuka", done: false },
+    { time: `${workEndTime} WIB`, event: "Jam Kepulangan & Presensi Clock-Out Dibuka", done: false },
   ];
 
   const attendanceRate = totalTeachers > 0

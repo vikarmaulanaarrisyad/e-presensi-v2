@@ -113,6 +113,45 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
     const activeWorkDays = (settings.workDays || "1,2,3,4,5,6").split(",");
     const isWeekend = !activeWorkDays.includes(dayOfWeek);
 
+    // 4. Calculate real monthly statistics for this teacher from database
+    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+    const monthlyLogs = await prisma.attendanceLog.findMany({
+      where: {
+        userId: teacher.id,
+        madrasahId,
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+    });
+
+    const presentMonth = monthlyLogs.filter((l) => l.status === "PRESENT").length;
+    const lateMonth = monthlyLogs.filter((l) => l.status === "LATE").length;
+    const permitMonth = monthlyLogs.filter((l) => l.status === "PERMIT").length;
+    const sickMonth = monthlyLogs.filter((l) => l.status === "SICK").length;
+    const absentMonth = monthlyLogs.filter((l) => l.status === "ABSENT").length;
+    const totalMonth = monthlyLogs.length;
+
+    let totalWorkMinutes = 0;
+    monthlyLogs.forEach((l) => {
+      if (l.checkInTime && l.checkOutTime) {
+        const diffMs = new Date(l.checkOutTime).getTime() - new Date(l.checkInTime).getTime();
+        if (diffMs > 0) {
+          totalWorkMinutes += Math.round(diffMs / (1000 * 60));
+        }
+      } else if (l.checkInTime && (l.status === "PRESENT" || l.status === "LATE")) {
+        totalWorkMinutes += 360; // 6 hours
+      }
+    });
+
+    const totalWorkHours = (totalWorkMinutes / 60).toFixed(1);
+    const disciplineRate = totalMonth > 0
+      ? Math.min(100, Math.round(((presentMonth + lateMonth) / totalMonth) * 100))
+      : 100;
+
     return {
       success: true,
       teacher: {
@@ -157,6 +196,16 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
           }
         : null,
       isWeekend,
+      monthlyStats: {
+        presentMonth,
+        lateMonth,
+        permitMonth,
+        sickMonth,
+        absentMonth,
+        totalMonth,
+        totalWorkHours,
+        disciplineRate,
+      },
     };
   } catch (error: any) {
     console.error("Gagal memuat data mobile guru:", error);

@@ -36,8 +36,8 @@ export default async function BulkAttendancePage() {
 
   const initialData = {
     madrasahId: madrasah?.id || "",
-    madrasahName: madrasah?.name || "MIN 1 Jakarta Selatan",
-    nsm: madrasah?.nsm || "111131740001",
+    madrasahName: madrasah?.name || "Madrasah",
+    nsm: madrasah?.nsm || "-",
     settings: settings
       ? {
           workStartTime: settings.workStartTime,

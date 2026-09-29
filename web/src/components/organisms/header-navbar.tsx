@@ -26,14 +26,18 @@ interface HeaderNavbarProps {
   madrasahName?: string;
   nsm?: string;
   radiusMeters?: number;
+  userName?: string;
+  userRole?: string;
   onRefresh?: () => void;
   isRefreshing?: boolean;
 }
 
 export function HeaderNavbar({
-  madrasahName = "MIN 1 Jakarta Selatan",
-  nsm = "111131740001",
+  madrasahName,
+  nsm,
   radiusMeters = 50,
+  userName,
+  userRole,
   onRefresh,
   isRefreshing = false,
 }: HeaderNavbarProps) {
@@ -208,14 +212,14 @@ export function HeaderNavbar({
         {/* User Profile Mini Badge */}
         <div className="flex items-center gap-2 pl-1 sm:pl-2 border-l border-border/60">
           <div className="size-8 rounded-full bg-gradient-to-br from-emerald-600 to-teal-800 text-white font-extrabold text-xs flex items-center justify-center shadow-xs">
-            {isSuperadmin ? "S" : "O"}
+            {userName ? userName.charAt(0).toUpperCase() : isSuperadmin ? "S" : "O"}
           </div>
           <div className="hidden sm:flex flex-col text-left">
             <span className="text-xs font-bold text-foreground leading-none">
-              {isSuperadmin ? "Superadministrator" : "Operator Madrasah"}
+              {userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah")}
             </span>
             <span className="text-[10px] text-muted-foreground mt-0.5 leading-none">
-              {isSuperadmin ? "Kemenag RI" : "MIN 1 Jaksel"}
+              {madrasahName || (isSuperadmin ? "Kemenag RI" : "Madrasah")}
             </span>
           </div>
         </div>

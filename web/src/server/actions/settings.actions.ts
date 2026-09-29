@@ -11,10 +11,19 @@ import {
 } from "@/server/repositories/settings.repo";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/lib/auth";
 
 export async function fetchSettingsData(madrasahId?: string) {
   try {
     let targetMadrasahId = madrasahId;
+
+    if (!targetMadrasahId) {
+      const session = await auth();
+      const user = session?.user as unknown as { madrasahId?: string | null };
+      if (user?.madrasahId) {
+        targetMadrasahId = user.madrasahId;
+      }
+    }
 
     if (!targetMadrasahId) {
       const first = await prisma.madrasah.findFirst({

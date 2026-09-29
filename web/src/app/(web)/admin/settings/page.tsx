@@ -2,6 +2,8 @@ import React from "react";
 import { AttendanceSettingsView } from "@/features/madrasah/components/attendance-settings-view";
 import { fetchSettingsData } from "@/server/actions/settings.actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function SettingsPage() {
   const res = await fetchSettingsData();
   const data = res?.data;
@@ -11,8 +13,8 @@ export default async function SettingsPage() {
 
   const initialData = {
     madrasahId: madrasah?.id || "",
-    madrasahName: madrasah?.name || "MIN 1 Jakarta Selatan",
-    nsm: madrasah?.nsm || "111131740001",
+    madrasahName: madrasah?.name || "Madrasah",
+    nsm: madrasah?.nsm || "-",
     workStartTime: settings?.workStartTime || "07:00",
     lateThreshold: settings?.lateThreshold || "07:15",
     workEndTime: settings?.workEndTime || "14:00",

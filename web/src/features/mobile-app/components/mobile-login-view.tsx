@@ -25,11 +25,15 @@ import {
 import { loginWithCredentials } from "@/server/actions/auth.actions";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
 
-export function MobileLoginView() {
+interface MobileLoginViewProps {
+  schools?: { id: string; name: string; nsm: string }[];
+}
+
+export function MobileLoginView({ schools }: MobileLoginViewProps = {}) {
   const router = useRouter();
   const [nipInput, setNipInput] = useState("");
   const [password, setPassword] = useState("");
-  const [selectedSchool, setSelectedSchool] = useState("min1");
+  const [selectedSchool, setSelectedSchool] = useState(schools?.[0]?.id || "min1");
   const [rememberNip, setRememberNip] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -225,10 +229,20 @@ export function MobileLoginView() {
                 onChange={(e) => setSelectedSchool(e.target.value)}
                 className="w-full h-12 pl-4 pr-10 rounded-xl bg-[#eff4ff] text-xs sm:text-sm font-medium text-[#0b1c30] focus:outline-none focus:bg-white focus:ring-2 focus:ring-[#1e40af] appearance-none transition-all cursor-pointer"
               >
-                <option value="min1">MIN 1 Jakarta Selatan (Induk)</option>
-                <option value="sman1">SMAN 1 Nusantara (Induk)</option>
-                <option value="smpn3">SMPN 3 Nusantara (Dpk)</option>
-                <option value="dinas">Dinas Pendidikan / Kemenag Wilayah II</option>
+                {schools && schools.length > 0 ? (
+                  schools.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} (NSM: {s.nsm})
+                    </option>
+                  ))
+                ) : (
+                  <>
+                    <option value="min1">MIN 1 Jakarta Selatan (Induk)</option>
+                    <option value="sman1">SMAN 1 Nusantara (Induk)</option>
+                    <option value="smpn3">SMPN 3 Nusantara (Dpk)</option>
+                    <option value="dinas">Dinas Pendidikan / Kemenag Wilayah II</option>
+                  </>
+                )}
               </select>
               <ChevronDown className="w-4 h-4 absolute right-3 pointer-events-none text-[#444653]" />
             </div>

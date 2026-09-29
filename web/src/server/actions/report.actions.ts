@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
 
 export interface DailyReportRow {
   date: string; // YYYY-MM-DD
@@ -84,6 +85,14 @@ export async function fetchReportInitialData(madrasahId?: string) {
     let targetMadrasahId = madrasahId;
 
     if (!targetMadrasahId) {
+      const session = await auth();
+      const user = session?.user as unknown as { madrasahId?: string | null };
+      if (user?.madrasahId) {
+        targetMadrasahId = user.madrasahId;
+      }
+    }
+
+    if (!targetMadrasahId) {
       const first = await prisma.madrasah.findFirst({
         where: { isActive: true },
         select: { id: true },
@@ -143,6 +152,13 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const isSample = params.isSampleWariah || params.teacherId === "sample-wariah";
 
     let targetMadrasahId = params.madrasahId;
+    if (!targetMadrasahId) {
+      const session = await auth();
+      const user = session?.user as unknown as { madrasahId?: string | null };
+      if (user?.madrasahId) {
+        targetMadrasahId = user.madrasahId;
+      }
+    }
     if (!targetMadrasahId) {
       const first = await prisma.madrasah.findFirst({
         where: { isActive: true },

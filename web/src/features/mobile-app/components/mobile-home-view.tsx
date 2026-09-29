@@ -68,6 +68,16 @@ interface MobileHomeViewProps {
       description?: string | null;
     } | null;
     isWeekend?: boolean;
+    monthlyStats?: {
+      presentMonth: number;
+      lateMonth: number;
+      permitMonth: number;
+      sickMonth: number;
+      absentMonth: number;
+      totalMonth: number;
+      totalWorkHours: string;
+      disciplineRate: number;
+    };
   };
   onRefresh: () => void;
   onOpenHistoryTab: () => void;
@@ -90,7 +100,7 @@ function getGreetingEmoji(name: string): string {
 }
 
 export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHomeViewProps) {
-  const { teacher, settings, todayLog, holiday } = data;
+  const { teacher, settings, todayLog, holiday, monthlyStats } = data;
 
   // Clock state
   const [timeStr, setTimeStr] = useState<string>("");
@@ -571,22 +581,26 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
                     d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                     fill="none"
                     stroke="currentColor"
-                    strokeDasharray="95.8, 100"
+                    strokeDasharray={`${monthlyStats?.disciplineRate ?? (hasCheckedIn ? 100 : 0)}, 100`}
                     strokeLinecap="round"
                     strokeWidth="3.5"
                   />
                 </svg>
-                <span className="absolute text-[11px] font-bold text-[#0b1c30]">96%</span>
+                <span className="absolute text-[11px] font-bold text-[#0b1c30]">
+                  {monthlyStats?.disciplineRate ?? (hasCheckedIn ? 100 : 0)}%
+                </span>
               </div>
               <div className="flex flex-col">
                 <div className="flex items-center gap-1.5">
-                  <span className="text-[14px] font-bold text-[#0b1c30]">Disiplin Kehadiran 95.8%</span>
+                  <span className="text-[14px] font-bold text-[#0b1c30]">
+                    Disiplin Kehadiran {monthlyStats?.disciplineRate ?? (hasCheckedIn ? 100 : 0)}%
+                  </span>
                   <span className="px-1.5 py-0.5 rounded bg-[#82f5c1]/50 text-[#005137] text-[10px] font-bold">
-                    Sangat Baik
+                    {(monthlyStats?.disciplineRate ?? (hasCheckedIn ? 100 : 0)) >= 85 ? "Sangat Baik" : "Perlu Ditingkatkan"}
                   </span>
                 </div>
                 <span className="text-[12px] text-[#444653]">
-                  Target Jam Kerja: 142.5 / 150 Jam (+4.5 jam)
+                  Total Terakumulasi: {monthlyStats?.totalWorkHours ?? "0.0"} Jam Kerja Bulan Ini
                 </span>
               </div>
             </div>
@@ -596,17 +610,44 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
           </div>
           {/* Progress bar */}
           <div className="w-full bg-[#e5eeff] rounded-full h-2 overflow-hidden">
-            <div className="bg-[#006c4a] h-2 rounded-full transition-all duration-700" style={{ width: "95%" }} />
+            <div
+              className="bg-[#006c4a] h-2 rounded-full transition-all duration-700"
+              style={{ width: `${monthlyStats?.disciplineRate ?? (hasCheckedIn ? 100 : 0)}%` }}
+            />
           </div>
         </div>
 
         {/* Stats grid */}
         <div className="grid grid-cols-2 gap-3">
           {[
-            { icon: "check_circle", label: "Tepat Waktu", value: hasCheckedIn ? 1 : 0, color: "bg-[#82f5c1]/40 text-[#005137]", lucide: <CheckCircle2 className="w-5 h-5" /> },
-            { icon: "timer_off", label: "Terlambat", value: 0, color: "bg-[#ffdcc3] text-[#532a00]", lucide: <Clock className="w-5 h-5" /> },
-            { icon: "assignment", label: "Izin / Sakit", value: 0, color: "bg-[#dde1ff] text-[#00288e]", lucide: <FileText className="w-5 h-5" /> },
-            { icon: "block", label: "Tanpa Ket.", value: 0, color: "bg-[#e5eeff] text-[#444653]", lucide: <Info className="w-5 h-5" /> },
+            {
+              icon: "check_circle",
+              label: "Tepat Waktu",
+              value: monthlyStats?.presentMonth ?? (hasCheckedIn ? 1 : 0),
+              color: "bg-[#82f5c1]/40 text-[#005137]",
+              lucide: <CheckCircle2 className="w-5 h-5" />,
+            },
+            {
+              icon: "timer_off",
+              label: "Terlambat",
+              value: monthlyStats?.lateMonth ?? 0,
+              color: "bg-[#ffdcc3] text-[#532a00]",
+              lucide: <Clock className="w-5 h-5" />,
+            },
+            {
+              icon: "assignment",
+              label: "Izin / Sakit",
+              value: (monthlyStats?.permitMonth ?? 0) + (monthlyStats?.sickMonth ?? 0),
+              color: "bg-[#dde1ff] text-[#00288e]",
+              lucide: <FileText className="w-5 h-5" />,
+            },
+            {
+              icon: "block",
+              label: "Tanpa Ket.",
+              value: monthlyStats?.absentMonth ?? 0,
+              color: "bg-[#e5eeff] text-[#444653]",
+              lucide: <Info className="w-5 h-5" />,
+            },
           ].map((stat) => (
             <div key={stat.label} className="bg-white p-3.5 rounded-xl shadow-sm flex items-center gap-3">
               <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 ${stat.color}`}>

@@ -16,12 +16,14 @@ export default async function AdminDashboardPage() {
   const stats = dashboardData?.stats;
   const todayLogs = (dashboardData?.todayLogs || []) as unknown as AttendanceRowData[];
 
-  const presentCount = stats?.presentCount || 2;
-  const lateCount = stats?.lateCount || 1;
-  const permitCount = stats?.permitCount || 1;
-  const sickCount = stats?.sickCount || 1;
-  const absentCount = stats?.absentCount || 0;
-  const totalTeachers = stats?.totalTeachers || 5;
+  const presentCount = stats?.presentCount ?? 0;
+  const lateCount = stats?.lateCount ?? 0;
+  const permitCount = stats?.permitCount ?? 0;
+  const sickCount = stats?.sickCount ?? 0;
+  const absentCount = stats?.absentCount ?? 0;
+  const totalTeachers = stats?.totalTeachers ?? 0;
+  const weeklyData = (dashboardData as any)?.weeklyData;
+  const geofenceZones = (dashboardData as any)?.geofenceZones;
 
   return (
     <div className="flex flex-col gap-6 w-full">
@@ -33,7 +35,7 @@ export default async function AdminDashboardPage() {
         permitCount={permitCount}
         sickCount={sickCount}
         absentCount={absentCount}
-        attendancePercentage={stats?.attendancePercentage || 60}
+        attendancePercentage={stats?.attendancePercentage ?? 0}
         radiusMeters={settings?.radiusMeters || 50}
         latitude={settings?.latitude || -6.2615}
         longitude={settings?.longitude || 106.8106}
@@ -47,6 +49,11 @@ export default async function AdminDashboardPage() {
         sickCount={sickCount}
         totalTeachers={totalTeachers}
         radiusMeters={settings?.radiusMeters || 50}
+        weeklyData={weeklyData}
+        geofenceZones={geofenceZones}
+        workStartTime={settings?.workStartTime}
+        lateThreshold={settings?.lateThreshold}
+        workEndTime={settings?.workEndTime}
       />
 
       {/* 3. Geofence Parameters Card */}
