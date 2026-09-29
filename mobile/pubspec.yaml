@@ -1,0 +1,50 @@
+name: e_presensi_mobile
+description: "Aplikasi Mobile E-Presensi Guru Madrasah Ibtidaiyah Berbasis Geofence & Bukti Kamera Selfie"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.3.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management & Architecture
+  flutter_bloc: ^8.1.6
+  equatable: ^2.0.7
+  get_it: ^8.0.3
+
+  # Networking & REST API
+  dio: ^5.8.0+1
+  pretty_dio_logger: ^1.4.0
+
+  # Local Storage & Security
+  flutter_secure_storage: ^9.2.4
+
+  # Location & Geofencing
+  geolocator: ^13.0.2
+  google_maps_flutter: ^2.10.1
+
+  # Camera & Media
+  camera: ^0.11.1
+  image_picker: ^1.1.2
+  path_provider: ^2.1.5
+  path: ^1.9.1
+
+  # UI, Icons, Typography & Helpers
+  google_fonts: ^6.2.1
+  intl: ^0.20.2
+  cached_network_image: ^3.4.1
+  flutter_spinkit: ^5.2.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/
