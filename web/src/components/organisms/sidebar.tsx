@@ -15,7 +15,8 @@ import {
   BarChart3,
   Clock,
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Smartphone
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -105,6 +106,17 @@ export function Sidebar({
               href: "/admin/reports",
               icon: FileText,
               badge: "Cetak F4",
+            },
+          ],
+        },
+        {
+          groupLabel: "PORTAL MOBILE GURU",
+          items: [
+            {
+              title: "Aplikasi Mobile Guru",
+              href: "/guru",
+              icon: Smartphone,
+              badge: "Flutter UI",
             },
           ],
         },

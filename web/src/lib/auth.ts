@@ -5,8 +5,8 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 
 const loginSchema = z.object({
-  email: z.string().email("Format email tidak valid"),
-  password: z.string().min(6, "Password minimal 6 karakter"),
+  email: z.string().min(3, "Masukkan email atau NIP valid"),
+  password: z.string().min(1, "Password wajib diisi"),
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -14,7 +14,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     Credentials({
       name: "Credentials",
       credentials: {
-        email: { label: "Email", type: "email" },
+        email: { label: "Email / NIP", type: "text" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
@@ -23,8 +23,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        const user = await prisma.user.findUnique({
-          where: { email: parsed.data.email.toLowerCase().trim() },
+        const identifier = parsed.data.email.trim();
+        const user = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: { equals: identifier, mode: "insensitive" } },
+              { nip: identifier },
+            ],
+          },
           include: { madrasah: true },
         });
 
@@ -46,6 +52,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           name: user.name,
           email: user.email,
           role: user.role,
+          nip: user.nip,
           madrasahId: user.madrasahId,
           madrasahName: user.madrasah?.name ?? null,
         };
@@ -57,6 +64,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (user) {
         token.id = user.id;
         token.role = (user as unknown as { role: string }).role;
+        token.nip = (user as unknown as { nip: string | null }).nip;
         token.madrasahId = (user as unknown as { madrasahId: string | null }).madrasahId;
         token.madrasahName = (user as unknown as { madrasahName: string | null }).madrasahName;
       }
@@ -66,6 +74,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as unknown as { role: string }).role = token.role as string;
+        (session.user as unknown as { nip: string | null }).nip = (token.nip as string) ?? null;
         (session.user as unknown as { madrasahId: string | null }).madrasahId =
           token.madrasahId as string | null;
         (session.user as unknown as { madrasahName: string | null }).madrasahName =

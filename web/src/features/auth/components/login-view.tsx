@@ -30,8 +30,8 @@ import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
 export function LoginView() {
   const router = useRouter();
 
-  // Role Switcher Tab: 'admin_madrasah' or 'superadmin'
-  const [selectedRole, setSelectedRole] = useState<"admin_madrasah" | "superadmin">("admin_madrasah");
+  // Role Switcher Tab: 'admin_madrasah', 'guru', or 'superadmin'
+  const [selectedRole, setSelectedRole] = useState<"admin_madrasah" | "guru" | "superadmin">("admin_madrasah");
 
   // Form State
   const [email, setEmail] = useState("admin@min1jaksel.sch.id");
@@ -73,11 +73,14 @@ export function LoginView() {
   }, []);
 
   // Handle Role Switching
-  const handleSelectRole = (role: "admin_madrasah" | "superadmin") => {
+  const handleSelectRole = (role: "admin_madrasah" | "guru" | "superadmin") => {
     setSelectedRole(role);
     setErrorMessage(null);
     if (role === "superadmin") {
       setEmail("superadmin@kemenag.go.id");
+      setPassword("Password123!");
+    } else if (role === "guru") {
+      setEmail("199203152019031002");
       setPassword("Password123!");
     } else {
       setEmail("admin@min1jaksel.sch.id");
@@ -91,7 +94,7 @@ export function LoginView() {
     setSuccessMessage(null);
 
     if (!email.trim()) {
-      setErrorMessage("Silakan masukkan email akun Anda.");
+      setErrorMessage("Silakan masukkan email atau NIP akun Anda.");
       return;
     }
     if (!password) {
@@ -114,11 +117,13 @@ export function LoginView() {
       }
 
       swalClose();
-      swalSuccess("Autentikasi Berhasil!", "Selamat datang kembali. Mengarahkan ke panel dashboard...", 1800);
-      setSuccessMessage("Autentikasi berhasil! Mengarahkan ke panel dashboard...");
+      swalSuccess("Autentikasi Berhasil!", "Selamat datang kembali. Mengarahkan ke panel...", 1800);
+      setSuccessMessage("Autentikasi berhasil! Mengarahkan...");
       
       setTimeout(() => {
-        if (email.includes("superadmin")) {
+        if (selectedRole === "guru" || email.includes("fauzi") || email.includes("199203152019031002") || email.includes("siti")) {
+          router.push("/guru");
+        } else if (email.includes("superadmin")) {
           router.push("/superadmin");
         } else {
           router.push("/admin");
@@ -290,33 +295,69 @@ export function LoginView() {
             <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
               Pilih Peran Pengguna:
             </span>
-            <div className="grid grid-cols-2 p-1.5 rounded-xl bg-muted/70 border border-border gap-1.5">
+            <div className="grid grid-cols-3 p-1.5 rounded-xl bg-muted/70 border border-border gap-1.5">
               <button
                 type="button"
                 onClick={() => handleSelectRole("admin_madrasah")}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
                   selectedRole === "admin_madrasah"
                     ? "bg-background text-primary shadow-sm border border-border"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <Building2 className={`size-4 ${selectedRole === "admin_madrasah" ? "text-primary" : ""}`} />
-                <span>Admin Madrasah</span>
+                <Building2 className={`size-3.5 ${selectedRole === "admin_madrasah" ? "text-primary" : ""}`} />
+                <span className="truncate">Admin</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleSelectRole("guru")}
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
+                  selectedRole === "guru"
+                    ? "bg-emerald-600 text-white shadow-sm border border-emerald-600 font-bold"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Smartphone className={`size-3.5 ${selectedRole === "guru" ? "text-white" : ""}`} />
+                <span className="truncate">Guru (Mobile)</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleSelectRole("superadmin")}
-                className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs sm:text-sm font-semibold transition-all ${
+                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
                   selectedRole === "superadmin"
                     ? "bg-background text-primary shadow-sm border border-border"
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                <ShieldCheck className={`size-4 ${selectedRole === "superadmin" ? "text-primary" : ""}`} />
-                <span>Superadmin Kemenag</span>
+                <ShieldCheck className={`size-3.5 ${selectedRole === "superadmin" ? "text-primary" : ""}`} />
+                <span className="truncate">Superadmin</span>
               </button>
             </div>
+          </div>
+
+          {/* Mobile Teacher App Banner Shortcut */}
+          <div className="p-3 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-emerald-600/5 to-teal-500/10 border border-emerald-500/30 flex items-center justify-between gap-3 shadow-sm">
+            <div className="flex items-center gap-2.5">
+              <div className="size-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-sm">
+                <Smartphone className="size-4" />
+              </div>
+              <div>
+                <span className="text-xs font-bold text-emerald-950 dark:text-emerald-300 block">
+                  Aplikasi Mobile Guru (Flutter Experience)
+                </span>
+                <span className="text-[11px] text-muted-foreground block">
+                  Presensi selfie kamera & radar geofence langsung di web
+                </span>
+              </div>
+            </div>
+            <a
+              href="/guru"
+              className="text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-xl shadow transition-colors shrink-0"
+            >
+              Buka Mobile →
+            </a>
           </div>
 
           {/* Quick Demo Autofill Notice Pill */}
@@ -324,7 +365,7 @@ export function LoginView() {
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-primary shrink-0" />
               <span className="text-muted-foreground">
-                Kredensial demo terisi otomatis: <strong className="text-foreground">{selectedRole === "superadmin" ? "Superadmin Pusat" : "MIN 1 Jakarta Selatan"}</strong>
+                Kredensial demo terisi otomatis: <strong className="text-foreground">{selectedRole === "superadmin" ? "Superadmin Pusat" : selectedRole === "guru" ? "Ahmad Fauzi (Guru MIN 1)" : "MIN 1 Jakarta Selatan"}</strong>
               </span>
             </div>
             <span className="text-[11px] font-semibold text-primary">Siap Diuji</span>

@@ -5,7 +5,7 @@ import { AuthError } from "next-auth";
 import { z } from "zod";
 
 const loginSchema = z.object({
-  email: z.string().email("Format email tidak valid"),
+  email: z.string().min(3, "Masukkan email atau NIP valid"),
   password: z.string().min(1, "Kata sandi wajib diisi"),
 });
 
