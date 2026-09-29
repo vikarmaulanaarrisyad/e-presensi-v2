@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import Link from "next/link";
 import { 
   Search, 
   Filter, 
@@ -170,6 +171,15 @@ export function AttendanceTable({
               <option value="SICK">Sakit</option>
             </select>
           </div>
+
+          {/* Quick Presensi Massal Button */}
+          <Link
+            href="/admin/bulk-attendance"
+            className="inline-flex items-center gap-1.5 h-10 px-3.5 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs transition-colors whitespace-nowrap cursor-pointer"
+          >
+            <UserCheck className="size-4" />
+            <span>Presensi Massal</span>
+          </Link>
         </div>
       </div>
 

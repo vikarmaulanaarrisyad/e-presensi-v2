@@ -1,26 +1,20 @@
 import React from "react";
-import { prisma } from "@/lib/prisma";
-import { MobileDeviceFrame } from "@/features/mobile-app/components/mobile-device-frame";
 import { MobileLoginView } from "@/features/mobile-app/components/mobile-login-view";
 
 export const dynamic = "force-dynamic";
 
-export default async function GuruLoginPage() {
-  const teachersList = await prisma.user.findMany({
-    where: { role: "TEACHER", isActive: true },
-    select: { name: true, nip: true, email: true },
-    take: 4,
-  });
+export const metadata = {
+  title: "Login Guru | E-Presensi GTK",
+  description: "Portal masuk presensi digital terintegrasi untuk guru dan tenaga kependidikan.",
+};
 
-  const formattedTeachers = teachersList.map((t) => ({
-    name: t.name,
-    nip: t.nip ?? "-",
-    email: t.email,
-  }));
-
+export default function GuruLoginPage() {
   return (
-    <MobileDeviceFrame availableTeachers={formattedTeachers}>
-      <MobileLoginView />
-    </MobileDeviceFrame>
+    <div className="min-h-screen w-full bg-slate-100/70 dark:bg-slate-950 flex items-center justify-center sm:py-8 sm:px-4">
+      {/* Container: 100% Fullscreen on mobile, centered clean card on desktop */}
+      <div className="w-full sm:max-w-md min-h-screen sm:min-h-0 sm:rounded-3xl bg-[#f8f9ff] sm:shadow-xl sm:border sm:border-[#e5eeff] overflow-hidden">
+        <MobileLoginView />
+      </div>
+    </div>
   );
 }

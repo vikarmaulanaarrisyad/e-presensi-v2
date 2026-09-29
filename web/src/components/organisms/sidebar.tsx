@@ -16,7 +16,8 @@ import {
   Clock,
   Sparkles,
   ChevronRight,
-  Smartphone
+  Smartphone,
+  UserCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -72,6 +73,12 @@ export function Sidebar({
               href: "/admin",
               icon: LayoutDashboard,
               badge: "Hari Ini",
+            },
+            {
+              title: "Presensi Massal",
+              href: "/admin/bulk-attendance",
+              icon: UserCheck,
+              badge: "Baru",
             },
             {
               title: "Kelola Data Guru",

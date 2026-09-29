@@ -257,6 +257,14 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             Import Excel
           </Button>
 
+          <Link
+            href="/admin/bulk-attendance"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-emerald-700 hover:bg-emerald-600 text-white shadow-xs transition-colors cursor-pointer"
+          >
+            <UserCheck className="size-3.5" />
+            <span>Presensi Massal</span>
+          </Link>
+
           <Button
             type="button"
             variant="default"

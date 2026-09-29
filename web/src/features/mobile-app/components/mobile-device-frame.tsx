@@ -160,7 +160,7 @@ export function MobileDeviceFrame({
         >
           {/* Top Dynamic Island & Status Bar (Simulated Flutter iOS/Android Header) */}
           {useDeviceChassis && (
-            <div className="relative pt-3 px-6 pb-1 bg-emerald-900/90 text-white flex items-center justify-between select-none z-30">
+            <div className="relative pt-3 px-6 pb-1 bg-slate-900 text-white flex items-center justify-between select-none z-30">
               {/* Status Bar Clock */}
               <span className="text-[11px] font-bold font-mono tracking-tight text-white/90">
                 {statusBarTime}

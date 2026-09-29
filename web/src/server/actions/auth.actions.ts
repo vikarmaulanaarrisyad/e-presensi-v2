@@ -1,6 +1,7 @@
 "use server";
 
 import { signIn } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import { AuthError } from "next-auth";
 import { z } from "zod";
 
@@ -24,7 +25,18 @@ export async function loginWithCredentials(data: LoginFormData) {
       redirect: false,
     });
 
-    return { success: true, result };
+    const identifier = parsed.data.email.trim();
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: identifier, mode: "insensitive" } },
+          { nip: identifier },
+        ],
+      },
+      select: { role: true },
+    });
+
+    return { success: true, result, role: user?.role };
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {

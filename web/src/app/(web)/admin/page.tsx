@@ -5,6 +5,8 @@ import { AttendanceTable, type AttendanceRowData } from "@/features/attendance/c
 import { GeofenceQuickCard } from "@/features/madrasah/components/geofence-quick-card";
 import { fetchAdminDashboardData } from "@/server/actions/attendance.actions";
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminDashboardPage() {
   const result = await fetchAdminDashboardData();
   const dashboardData = result?.data;

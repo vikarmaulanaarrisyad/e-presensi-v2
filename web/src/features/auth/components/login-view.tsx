@@ -13,13 +13,11 @@ import {
   MapPin, 
   CheckCircle2, 
   AlertCircle,
-  Building2,
-  Sparkles,
-  Clock,
-  Radio,
   HelpCircle,
   Smartphone,
-  ChevronRight
+  Sparkles,
+  Clock,
+  Radio
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -30,12 +28,9 @@ import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
 export function LoginView() {
   const router = useRouter();
 
-  // Role Switcher Tab: 'admin_madrasah', 'guru', or 'superadmin'
-  const [selectedRole, setSelectedRole] = useState<"admin_madrasah" | "guru" | "superadmin">("admin_madrasah");
-
   // Form State
-  const [email, setEmail] = useState("admin@min1jaksel.sch.id");
-  const [password, setPassword] = useState("Password123!");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -72,22 +67,6 @@ export function LoginView() {
     return () => clearInterval(interval);
   }, []);
 
-  // Handle Role Switching
-  const handleSelectRole = (role: "admin_madrasah" | "guru" | "superadmin") => {
-    setSelectedRole(role);
-    setErrorMessage(null);
-    if (role === "superadmin") {
-      setEmail("superadmin@kemenag.go.id");
-      setPassword("Password123!");
-    } else if (role === "guru") {
-      setEmail("199203152019031002");
-      setPassword("Password123!");
-    } else {
-      setEmail("admin@min1jaksel.sch.id");
-      setPassword("Password123!");
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
@@ -120,10 +99,11 @@ export function LoginView() {
       swalSuccess("Autentikasi Berhasil!", "Selamat datang kembali. Mengarahkan ke panel...", 1800);
       setSuccessMessage("Autentikasi berhasil! Mengarahkan...");
       
+      const targetRole = res?.role;
       setTimeout(() => {
-        if (selectedRole === "guru" || email.includes("fauzi") || email.includes("199203152019031002") || email.includes("siti")) {
+        if (targetRole === "TEACHER" || /^\d{16,18}$/.test(email.trim())) {
           router.push("/guru");
-        } else if (email.includes("superadmin")) {
+        } else if (targetRole === "SUPERADMIN" || email.includes("superadmin")) {
           router.push("/superadmin");
         } else {
           router.push("/admin");
@@ -286,55 +266,8 @@ export function LoginView() {
               Masuk ke Portal Presensi
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Silakan pilih kategori peran Anda atau langsung gunakan akun resmi yang terdaftar.
+              Silakan masukkan email atau NIP dan kata sandi akun resmi Anda untuk melanjutkan.
             </p>
-          </div>
-
-          {/* Role Segmented Controller Tabs */}
-          <div className="flex flex-col gap-2">
-            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-              Pilih Peran Pengguna:
-            </span>
-            <div className="grid grid-cols-3 p-1.5 rounded-xl bg-muted/70 border border-border gap-1.5">
-              <button
-                type="button"
-                onClick={() => handleSelectRole("admin_madrasah")}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === "admin_madrasah"
-                    ? "bg-background text-primary shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Building2 className={`size-3.5 ${selectedRole === "admin_madrasah" ? "text-primary" : ""}`} />
-                <span className="truncate">Admin</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectRole("guru")}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === "guru"
-                    ? "bg-emerald-600 text-white shadow-sm border border-emerald-600 font-bold"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <Smartphone className={`size-3.5 ${selectedRole === "guru" ? "text-white" : ""}`} />
-                <span className="truncate">Guru (Mobile)</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => handleSelectRole("superadmin")}
-                className={`flex items-center justify-center gap-1.5 py-2 px-2 rounded-lg text-xs font-semibold transition-all ${
-                  selectedRole === "superadmin"
-                    ? "bg-background text-primary shadow-sm border border-border"
-                    : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                <ShieldCheck className={`size-3.5 ${selectedRole === "superadmin" ? "text-primary" : ""}`} />
-                <span className="truncate">Superadmin</span>
-              </button>
-            </div>
           </div>
 
           {/* Mobile Teacher App Banner Shortcut */}
@@ -348,27 +281,16 @@ export function LoginView() {
                   Aplikasi Mobile Guru (Flutter Experience)
                 </span>
                 <span className="text-[11px] text-muted-foreground block">
-                  Presensi selfie kamera & radar geofence langsung di web
+                  Presensi selfie kamera & radar geofence langsung di perangkat mobile
                 </span>
               </div>
             </div>
             <a
-              href="/guru"
+              href="/guru/login"
               className="text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 px-3 py-1.5 rounded-xl shadow transition-colors shrink-0"
             >
               Buka Mobile →
             </a>
-          </div>
-
-          {/* Quick Demo Autofill Notice Pill */}
-          <div className="flex items-center justify-between p-3 rounded-xl bg-secondary/60 border border-border/80 text-xs">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-primary shrink-0" />
-              <span className="text-muted-foreground">
-                Kredensial demo terisi otomatis: <strong className="text-foreground">{selectedRole === "superadmin" ? "Superadmin Pusat" : selectedRole === "guru" ? "Ahmad Fauzi (Guru MIN 1)" : "MIN 1 Jakarta Selatan"}</strong>
-              </span>
-            </div>
-            <span className="text-[11px] font-semibold text-primary">Siap Diuji</span>
           </div>
 
           {/* Error Message Box */}
@@ -389,22 +311,22 @@ export function LoginView() {
 
           {/* Login Form */}
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            {/* Email Field */}
+            {/* Email / NIP Field */}
             <div className="flex flex-col gap-1.5">
               <label 
                 htmlFor="email" 
                 className="text-xs font-semibold text-foreground uppercase tracking-wider flex items-center justify-between"
               >
-                <span>Email Akun Madrasah / Kemenag</span>
+                <span>Email atau NIP Pengguna</span>
                 <span className="text-[11px] text-muted-foreground font-normal lowercase">harus terdaftar</span>
               </label>
               <Input
                 id="email"
-                type="email"
+                type="text"
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                placeholder="nama@kemenag.go.id atau madrasah"
+                placeholder="nama@kemenag.go.id atau NIP GTK"
                 leftIcon={<Mail className="size-4" />}
                 disabled={isLoading}
               />
@@ -421,7 +343,7 @@ export function LoginView() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert("Silakan hubungi administrator pusat Kemenag untuk melakukan reset kata sandi.")}
+                  onClick={() => alert("Silakan hubungi administrator madrasah atau pusat Kemenag untuk melakukan reset kata sandi.")}
                   className="text-xs text-primary hover:underline font-semibold"
                 >
                   Lupa Kata Sandi?
@@ -476,7 +398,7 @@ export function LoginView() {
                 className="w-full text-base font-semibold shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30"
                 rightIcon={<ArrowRight className="size-4" />}
               >
-                Masuk ke Panel {selectedRole === "superadmin" ? "Superadmin" : "Madrasah"}
+                Masuk ke Portal Presensi
               </Button>
             </div>
           </form>
