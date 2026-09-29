@@ -72,8 +72,8 @@ export function exportReportToPdf(
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 2. EMPLOYEE DETAILS SUB-HEADER  (matches preview 2-row grid layout)
-  //    Row 1: PIN | Nama Karyawan | Jabatan
-  //    Row 2: NIK | Departemen   | Status
+  //    Row 1: NUPTK  | Nama Karyawan | Jabatan
+  //    Row 2: Peg ID | Departemen    | Status
   // ═══════════════════════════════════════════════════════════════════════════
   const empY   = hBoxY + hBoxH + 1.5;   // just below header box
   const empRow1 = empY + 4;
@@ -84,7 +84,7 @@ export function exportReportToPdf(
   doc.line(margin, empRow2 + 2.2, margin + cW, empRow2 + 2.2); // bottom border
 
   // Column X positions matching the 3-column grid in preview
-  // Col 1 starts at margin+2 (PIN/NIK)
+  // Col 1 starts at margin+2 (NUPTK / Peg ID)
   // Col 2 starts at roughly 33 % = margin + cW * 0.33
   // Col 3 starts at roughly 66 % = margin + cW * 0.66
   const c1 = margin + 2;

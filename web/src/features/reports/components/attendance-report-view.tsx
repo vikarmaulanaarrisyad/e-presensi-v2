@@ -33,11 +33,16 @@ import {
 import { exportReportToPdf } from "../utils/export-pdf";
 import { exportReportToExcel } from "../utils/export-excel";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
+import { formatTeacherName } from "@/lib/excel-helpers";
 
 interface TeacherOption {
   id: string;
   name: string;
+  gelarDepan?: string | null;
+  gelarBelakang?: string | null;
   nip: string | null;
+  pegId?: string | null;
+  nuptk?: string | null;
   email: string;
   phone: string | null;
   isActive: boolean;
@@ -359,11 +364,21 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
                 ★ Format Standar: WARIAH (EMIS GTK)
               </option>
               <optgroup label="Guru Terdaftar di Database">
-                {initialData.teachers.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} ({t.nip || "Tanpa NIP"})
-                  </option>
-                ))}
+                {initialData.teachers.map((t) => {
+                  const idLabel = t.nuptk
+                    ? `NUPTK: ${t.nuptk}`
+                    : t.pegId
+                    ? `PegID: ${t.pegId}`
+                    : t.nip && t.nip !== "12"
+                    ? `NIP: ${t.nip}`
+                    : "Tanpa ID";
+                  const fullName = formatTeacherName(t.name, t.gelarDepan, t.gelarBelakang);
+                  return (
+                    <option key={t.id} value={t.id}>
+                      {fullName} ({idLabel})
+                    </option>
+                  );
+                })}
               </optgroup>
             </select>
           </div>

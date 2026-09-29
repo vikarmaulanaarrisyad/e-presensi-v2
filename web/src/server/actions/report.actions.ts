@@ -43,6 +43,7 @@ export interface AttendanceReportData {
   employee: {
     pin: string;
     nuptk: string;
+    pegId?: string;
     nik?: string;
     nip?: string;
     idType: string;
@@ -127,7 +128,11 @@ export async function fetchReportInitialData(madrasahId?: string) {
       select: {
         id: true,
         name: true,
+        gelarDepan: true,
+        gelarBelakang: true,
         nip: true,
+        pegId: true,
+        nuptk: true,
         email: true,
         phone: true,
         isActive: true,
@@ -611,13 +616,13 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const now = new Date();
     const printDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
 
-    // Primary ID logic based on user specification:
-    // "PIN, NIK ganti dengan NUPTK jika tidak punya Gnati PegID jika tidak punya baru pake NIK"
+    // Identifiers logic for Report:
+    // Specification: "Laporan jangan menggunakan NIK tapi PegId atau NUPTK"
     const rawNuptk = stripLeadingQuote((teacher as any).nuptk);
     const rawPegId = stripLeadingQuote((teacher as any).pegId);
-    const rawNik = stripLeadingQuote((teacher as any).nik);
     const rawNip = stripLeadingQuote(teacher.nip);
 
+    // Primary ID (Row 1): Prioritize NUPTK, then Peg ID, then NIP (Never NIK)
     let idType = "NUPTK";
     let idNumber = "-";
 
@@ -627,15 +632,15 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     } else if (rawPegId && rawPegId.length > 0) {
       idType = "Peg ID";
       idNumber = rawPegId;
-    } else if (rawNik && rawNik.length > 0) {
-      idType = "NIK";
-      idNumber = maskNik(rawNik);
     } else if (rawNip && rawNip.length > 0 && rawNip !== "12") {
       idType = "NIP";
       idNumber = rawNip;
+    } else {
+      idType = "NUPTK";
+      idNumber = "-";
     }
 
-    // Secondary ID for the second line in report header:
+    // Secondary ID (Row 2): Complement with Peg ID or NUPTK (Never NIK)
     let secondaryIdType = "Peg ID";
     let secondaryIdNumber = "-";
 
@@ -646,28 +651,33 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       } else if (rawNip && rawNip.length > 0 && rawNip !== "12") {
         secondaryIdType = "NIP";
         secondaryIdNumber = rawNip;
-      } else if (rawNik && rawNik.length > 0) {
-        secondaryIdType = "NIK";
-        secondaryIdNumber = maskNik(rawNik);
       } else {
         secondaryIdType = "Peg ID";
         secondaryIdNumber = "-";
       }
     } else if (idType === "Peg ID") {
-      if (rawNip && rawNip.length > 0 && rawNip !== "12") {
+      if (rawNuptk && rawNuptk.length > 0) {
+        secondaryIdType = "NUPTK";
+        secondaryIdNumber = rawNuptk;
+      } else if (rawNip && rawNip.length > 0 && rawNip !== "12") {
         secondaryIdType = "NIP";
         secondaryIdNumber = rawNip;
-      } else if (rawNik && rawNik.length > 0) {
-        secondaryIdType = "NIK";
-        secondaryIdNumber = maskNik(rawNik);
       } else {
-        secondaryIdType = "NIP";
-        secondaryIdNumber = "Non-PNS";
+        secondaryIdType = "NUPTK";
+        secondaryIdNumber = "-";
       }
     } else {
-      // idType is NIK
-      secondaryIdType = "NIP";
-      secondaryIdNumber = rawNip && rawNip.length > 0 && rawNip !== "12" ? rawNip : "Non-PNS";
+      // idType is NIP
+      if (rawNuptk && rawNuptk.length > 0) {
+        secondaryIdType = "NUPTK";
+        secondaryIdNumber = rawNuptk;
+      } else if (rawPegId && rawPegId.length > 0) {
+        secondaryIdType = "Peg ID";
+        secondaryIdNumber = rawPegId;
+      } else {
+        secondaryIdType = "Peg ID";
+        secondaryIdNumber = "-";
+      }
     }
 
     const reportData: AttendanceReportData = {
@@ -679,8 +689,8 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       },
       employee: {
         pin: idNumber,
-        nuptk: idNumber,
-        nik: rawNik ? maskNik(rawNik) : idNumber,
+        nuptk: rawNuptk || "-",
+        pegId: rawPegId || "-",
         nip: rawNip && rawNip !== "12" ? rawNip : "Non-PNS",
         idType,
         idNumber,
