@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { 
   School, 
@@ -400,6 +401,19 @@ export function LoginView() {
               >
                 Masuk ke Portal Presensi
               </Button>
+            </div>
+
+            {/* School Registration Link */}
+            <div className="text-center pt-1 pb-1">
+              <p className="text-xs text-muted-foreground">
+                Belum mendaftarkan sekolah Anda?{" "}
+                <Link
+                  href="/register"
+                  className="font-semibold text-primary hover:underline hover:text-emerald-700"
+                >
+                  Registrasi Sekolah Baru →
+                </Link>
+              </p>
             </div>
           </form>
 
