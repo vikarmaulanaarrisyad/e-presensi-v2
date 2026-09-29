@@ -125,8 +125,8 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               alt="Logo E-Presensi"
-              className="h-8 w-auto object-contain"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9-W-4xnbeUjFZ37P1ZJOHcyEN-aTrRJSACMKG5JG592vWSKnHBs3EIUhziH6totxXV3hYh2EtvYLLw_N_C45FhVD64dnL8N9Ih4OWGiQIZMi4KH7dCm_O52f8q3RkA1OtXvUyuH4wgWlutdQZLx0UVnTkohxsy6X4iqIhh-cVuRBFTFUCHCWp4tkSEqh5MXQgSEYYpn_xgeIr2c2B1XoZ2c12vM1iMOPrsLks8X76UR8Dugvd2s1z"
+              className="h-8 w-auto object-contain rounded-md"
+              src="/icons/app-logo.png"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
             <div className="flex flex-col">

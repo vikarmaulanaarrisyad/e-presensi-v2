@@ -39,6 +39,16 @@ export function Sidebar({
   const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Kemenag RI Pusat" : "MIN 1 Jakarta Selatan");
   const effectiveUserName = userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah");
 
+  const handleLogout = async () => {
+    try {
+      await signOut({ redirect: false });
+    } catch (e) {
+      console.error("Logout error:", e);
+    } finally {
+      window.location.href = "/login";
+    }
+  };
+
   // Navigation Items Groups
   const navGroups = isSuperadmin
     ? [
@@ -242,7 +252,7 @@ export function Sidebar({
 
         <button
           type="button"
-          onClick={() => signOut({ callbackUrl: "/login" })}
+          onClick={handleLogout}
           className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 hover:bg-rose-500/20 text-xs font-medium transition-colors cursor-pointer"
         >
           <LogOut className="size-3.5" />

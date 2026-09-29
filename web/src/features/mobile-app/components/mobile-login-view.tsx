@@ -116,8 +116,8 @@ export function MobileLoginView() {
           {!imgError ? (
             <img
               alt="Logo E-Presensi Guru"
-              className="w-full h-full object-contain"
-              src="https://lh3.googleusercontent.com/aida-public/AB6AXuD9-W-4xnbeUjFZ37P1ZJOHcyEN-aTrRJSACMKG5JG592vWSKnHBs3EIUhziH6totxXV3hYh2EtvYLLw_N_C45FhVD64dnL8N9Ih4OWGiQIZMi4KH7dCm_O52f8q3RkA1OtXvUyuH4wgWlutdQZLx0UVnTkohxsy6X4iqIhh-cVuRBFTFUCHCWp4tkSEqh5MXQgSEYYpn_xgeIr2c2B1XoZ2c12vM1iMOPrsLks8X76UR8Dugvd2s1z"
+              className="w-full h-full object-contain rounded-2xl"
+              src="/icons/app-logo.png"
               onError={() => setImgError(true)}
             />
           ) : (

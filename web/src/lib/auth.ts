@@ -10,6 +10,7 @@ const loginSchema = z.object({
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  trustHost: true,
   providers: [
     Credentials({
       name: "Credentials",
@@ -81,6 +82,20 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.madrasahName as string | null;
       }
       return session;
+    },
+    async redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        const resolvedBase = process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : process.env.NEXTAUTH_URL && !process.env.NEXTAUTH_URL.includes("localhost")
+          ? process.env.NEXTAUTH_URL
+          : baseUrl;
+        return `${resolvedBase}${url}`;
+      }
+      try {
+        if (new URL(url).origin === baseUrl) return url;
+      } catch {}
+      return baseUrl;
     },
   },
   pages: {

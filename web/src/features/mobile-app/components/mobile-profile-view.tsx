@@ -43,9 +43,15 @@ interface MobileProfileViewProps {
 export function MobileProfileView({ teacher, settings }: MobileProfileViewProps) {
   const handleLogout = async () => {
     swalSuccess("Sampai Jumpa!", "Anda telah keluar dari aplikasi.", 1500);
-    setTimeout(() => {
-      signOut({ callbackUrl: "/guru/login" });
-    }, 800);
+    setTimeout(async () => {
+      try {
+        await signOut({ redirect: false });
+      } catch (e) {
+        console.error("Signout error:", e);
+      } finally {
+        window.location.href = "/guru/login";
+      }
+    }, 600);
   };
 
   return (
