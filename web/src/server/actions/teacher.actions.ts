@@ -15,25 +15,26 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 
+async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
+  if (madrasahId && madrasahId.trim().length > 0) return madrasahId;
+
+  const session = await auth();
+  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
+  if (sessionUser?.madrasahId) {
+    return sessionUser.madrasahId;
+  }
+
+  const firstMadrasah = await prisma.madrasah.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+  });
+
+  return firstMadrasah?.id ?? null;
+}
+
 export async function fetchTeachersData(madrasahId?: string) {
   try {
-    let targetMadrasahId = madrasahId;
-
-    if (!targetMadrasahId) {
-      const session = await auth();
-      const user = session?.user as unknown as { madrasahId?: string | null };
-      if (user?.madrasahId) {
-        targetMadrasahId = user.madrasahId;
-      }
-    }
-
-    if (!targetMadrasahId) {
-      const first = await prisma.madrasah.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      targetMadrasahId = first?.id;
-    }
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
 
     if (!targetMadrasahId) {
       return { error: "Madrasah tidak ditemukan." };
@@ -49,6 +50,11 @@ export async function fetchTeachersData(madrasahId?: string) {
 
 export async function createTeacherAction(madrasahId: string, input: TeacherInput) {
   try {
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
+    if (!targetMadrasahId) {
+      return { error: "Madrasah tidak ditemukan." };
+    }
+
     // Check if email already exists
     const existing = await prisma.user.findUnique({
       where: { email: input.email.trim().toLowerCase() },
@@ -58,7 +64,7 @@ export async function createTeacherAction(madrasahId: string, input: TeacherInpu
       return { error: "Email sudah terdaftar pada pengguna lain." };
     }
 
-    const newTeacher = await createTeacher(madrasahId, input);
+    const newTeacher = await createTeacher(targetMadrasahId, input);
     revalidatePath("/admin/teachers");
     revalidatePath("/admin");
     return { success: true, data: newTeacher };
@@ -132,7 +138,12 @@ export async function importTeachersAction(
       return { success: false as const, error: "Tidak ada data guru yang diunggah." };
     }
 
-    const result = await bulkImportTeachers(madrasahId, teachersData);
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
+    if (!targetMadrasahId) {
+      return { success: false as const, error: "Madrasah tidak ditemukan." };
+    }
+
+    const result = await bulkImportTeachers(targetMadrasahId, teachersData);
     revalidatePath("/admin/teachers");
     revalidatePath("/admin");
     return { ...result, success: true as const };

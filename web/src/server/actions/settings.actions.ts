@@ -13,25 +13,26 @@ import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 
+async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
+  if (madrasahId && madrasahId.trim().length > 0) return madrasahId;
+
+  const session = await auth();
+  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
+  if (sessionUser?.madrasahId) {
+    return sessionUser.madrasahId;
+  }
+
+  const firstMadrasah = await prisma.madrasah.findFirst({
+    where: { isActive: true },
+    select: { id: true },
+  });
+
+  return firstMadrasah?.id ?? null;
+}
+
 export async function fetchSettingsData(madrasahId?: string) {
   try {
-    let targetMadrasahId = madrasahId;
-
-    if (!targetMadrasahId) {
-      const session = await auth();
-      const user = session?.user as unknown as { madrasahId?: string | null };
-      if (user?.madrasahId) {
-        targetMadrasahId = user.madrasahId;
-      }
-    }
-
-    if (!targetMadrasahId) {
-      const first = await prisma.madrasah.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      targetMadrasahId = first?.id;
-    }
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
 
     if (!targetMadrasahId) {
       return { error: "Madrasah tidak ditemukan." };
@@ -50,10 +51,16 @@ export async function saveAttendanceSettingsAction(
   input: AttendanceSettingsInput
 ) {
   try {
-    const updated = await updateMadrasahSettings(madrasahId, input);
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
+    if (!targetMadrasahId) {
+      return { error: "Madrasah tidak ditemukan." };
+    }
+
+    const updated = await updateMadrasahSettings(targetMadrasahId, input);
     revalidatePath("/admin/settings");
     revalidatePath("/admin");
     revalidatePath("/admin/geofence");
+    revalidatePath("/guru");
     return { success: true, data: updated };
   } catch (error) {
     console.error("Gagal menyimpan pengaturan:", error);
@@ -63,9 +70,16 @@ export async function saveAttendanceSettingsAction(
 
 export async function addHolidayAction(madrasahId: string, input: HolidayInput) {
   try {
-    const newHoliday = await createHoliday(madrasahId, input);
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
+    if (!targetMadrasahId) {
+      return { error: "Madrasah tidak ditemukan." };
+    }
+
+    const newHoliday = await createHoliday(targetMadrasahId, input);
     revalidatePath("/admin/settings");
     revalidatePath("/admin");
+    revalidatePath("/admin/reports");
+    revalidatePath("/guru");
     return { success: true, data: newHoliday };
   } catch (error) {
     console.error("Gagal menambahkan hari libur:", error);
@@ -78,9 +92,16 @@ export async function syncKemenagHolidaysAction(
   year: number | "all" = "all"
 ) {
   try {
-    const res = await syncKemenagHolidays(madrasahId, year);
+    const targetMadrasahId = await resolveMadrasahId(madrasahId);
+    if (!targetMadrasahId) {
+      return { success: false as const, error: "Madrasah tidak ditemukan." };
+    }
+
+    const res = await syncKemenagHolidays(targetMadrasahId, year);
     revalidatePath("/admin/settings");
     revalidatePath("/admin");
+    revalidatePath("/admin/reports");
+    revalidatePath("/guru");
     return { success: true as const, ...res };
   } catch (error) {
     console.error("Gagal sinkronisasi hari libur Kemenag:", error);

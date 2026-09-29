@@ -50,7 +50,7 @@ interface MobileAppShellProps {
   onRefresh: () => void;
 }
 
-type TabId = "home" | "presensi" | "history" | "permit";
+type TabId = "home" | "presensi" | "history" | "permit" | "profile";
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   {
@@ -95,6 +95,16 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
       </svg>
     ),
   },
+  {
+    id: "profile",
+    label: "Profil",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/>
+        <circle cx="12" cy="7" r="4"/>
+      </svg>
+    ),
+  },
 ];
 
 export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
@@ -136,6 +146,7 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
                 {activeTab === "presensi" && "Presensi"}
                 {activeTab === "history" && "Riwayat"}
                 {activeTab === "permit" && "Pengajuan Izin"}
+                {activeTab === "profile" && "Profil Pengguna"}
               </h1>
             </div>
           </div>
@@ -153,12 +164,19 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
               </svg>
               <span className="absolute top-2.5 right-2.5 w-2 h-2 rounded-full bg-[#ba1a1a] ring-2 ring-[#f8f9ff]" />
             </button>
-            {/* Avatar */}
-            <div className="w-8 h-8 rounded-full bg-[#00288e] flex items-center justify-center shrink-0 ml-1">
+            {/* Avatar Button */}
+            <button
+              type="button"
+              onClick={() => setActiveTab("profile")}
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ml-1 transition-all ${
+                activeTab === "profile" ? "ring-2 ring-[#00288e] bg-[#00288e]" : "bg-[#00288e] hover:opacity-90"
+              }`}
+              title="Profil Guru"
+            >
               <span className="text-white text-[13px] font-bold">
                 {data.teacher.name.charAt(0)}
               </span>
-            </div>
+            </button>
           </div>
         </div>
       </header>
@@ -193,6 +211,12 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
                 onRefresh();
                 setActiveTab("history");
               }}
+            />
+          )}
+          {activeTab === "profile" && (
+            <MobileProfileView
+              teacher={data.teacher}
+              settings={data.settings}
             />
           )}
         </div>

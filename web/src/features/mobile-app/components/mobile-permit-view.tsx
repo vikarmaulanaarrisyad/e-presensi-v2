@@ -27,7 +27,27 @@ export function MobilePermitView({ userId, onSuccess }: MobilePermitViewProps) {
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [endDate, setEndDate] = useState<string>(new Date().toISOString().split("T")[0]);
   const [notes, setNotes] = useState<string>("");
+  const [attachmentBase64, setAttachmentBase64] = useState<string | null>(null);
+  const [attachmentFileName, setAttachmentFileName] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      swalError("File Terlalu Besar", "Ukuran lampiran maksimal adalah 2MB.");
+      return;
+    }
+
+    setAttachmentFileName(file.name);
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setAttachmentBase64(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +65,7 @@ export function MobilePermitView({ userId, onSuccess }: MobilePermitViewProps) {
         startDate,
         endDate,
         notes,
+        attachmentBase64: attachmentBase64 || undefined,
       });
 
       swalClose();
@@ -55,6 +76,8 @@ export function MobilePermitView({ userId, onSuccess }: MobilePermitViewProps) {
 
       swalSuccess("Pengajuan Berhasil Dikirim!", res.message, 2000);
       setNotes("");
+      setAttachmentBase64(null);
+      setAttachmentFileName(null);
       onSuccess();
     } catch (err: any) {
       swalClose();
@@ -163,13 +186,44 @@ export function MobilePermitView({ userId, onSuccess }: MobilePermitViewProps) {
           />
         </div>
 
-        {/* Upload Doc Mockup */}
-        <div className="rounded-2xl border-2 border-dashed border-slate-200 dark:border-slate-800 p-3.5 text-center flex flex-col items-center gap-1.5 bg-slate-50/50 dark:bg-slate-800/30">
-          <Paperclip className="w-5 h-5 text-slate-400" />
-          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
-            Lampirkan Surat Keterangan Dokter / Undangan
-          </span>
-          <span className="text-[10px] text-slate-400">Format: JPG, PNG, PDF (Maks. 2MB)</span>
+        {/* Real Document Attachment Upload */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileChange}
+          accept="image/png,image/jpeg,image/webp,application/pdf"
+          className="hidden"
+        />
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          className={`rounded-2xl border-2 border-dashed p-3.5 text-center flex flex-col items-center gap-1.5 transition-all cursor-pointer ${
+            attachmentFileName
+              ? "border-emerald-500 bg-emerald-50/40 dark:bg-emerald-950/20"
+              : "border-slate-200 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 hover:border-blue-400"
+          }`}
+        >
+          <Paperclip
+            className={`w-5 h-5 ${attachmentFileName ? "text-emerald-600" : "text-slate-400"}`}
+          />
+          {attachmentFileName ? (
+            <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 truncate max-w-[240px]">
+                {attachmentFileName}
+              </span>
+              <span className="text-[10px] text-emerald-600">
+                ✓ Dokumen terlampir (Klik untuk ganti)
+              </span>
+            </div>
+          ) : (
+            <>
+              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                Lampirkan Surat Keterangan Dokter / Undangan
+              </span>
+              <span className="text-[10px] text-slate-400">
+                Format: JPG, PNG, PDF (Maks. 2MB)
+              </span>
+            </>
+          )}
         </div>
 
         <Button

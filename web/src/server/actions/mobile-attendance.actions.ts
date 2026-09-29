@@ -464,6 +464,7 @@ export async function submitTeacherPermitAction(payload: {
   startDate: string; // YYYY-MM-DD
   endDate?: string;
   notes: string;
+  attachmentBase64?: string;
 }) {
   try {
     const teacher = await prisma.user.findUnique({
@@ -497,6 +498,7 @@ export async function submitTeacherPermitAction(payload: {
           data: {
             status: payload.status as AttendanceStatus,
             notes: payload.notes,
+            checkInPhotoUrl: payload.attachmentBase64 || existing.checkInPhotoUrl,
           },
         });
       } else {
@@ -507,6 +509,7 @@ export async function submitTeacherPermitAction(payload: {
             date: curDate,
             status: payload.status as AttendanceStatus,
             notes: payload.notes,
+            checkInPhotoUrl: payload.attachmentBase64 || null,
           },
         });
       }

@@ -4,6 +4,8 @@ import { fetchSuperadminDashboard } from "@/server/actions/madrasah.actions";
 import { Building2, Users, UserCheck, ShieldCheck, CheckCircle2 } from "lucide-react";
 import { Badge } from "@/components/atoms/badge";
 
+export const dynamic = "force-dynamic";
+
 export default async function SuperadminPage() {
   const res = await fetchSuperadminDashboard();
   const madrasahs = (res?.data?.madrasahs || []) as unknown as MadrasahRow[];
@@ -43,7 +45,7 @@ export default async function SuperadminPage() {
             </div>
           </div>
           <span className="text-3xl font-extrabold text-foreground tracking-tight">
-            {stats?.totalMadrasahs || 1}
+            {stats?.totalMadrasahs ?? 0}
           </span>
           <span className="text-xs text-muted-foreground">
             Terdaftar dalam sistem
@@ -60,7 +62,7 @@ export default async function SuperadminPage() {
             </div>
           </div>
           <span className="text-3xl font-extrabold text-emerald-600 dark:text-emerald-400 tracking-tight">
-            {stats?.activeMadrasahs || 1}
+            {stats?.activeMadrasahs ?? 0}
           </span>
           <span className="text-xs text-muted-foreground">
             Operasional berjalan lancar
@@ -77,7 +79,7 @@ export default async function SuperadminPage() {
             </div>
           </div>
           <span className="text-3xl font-extrabold text-foreground tracking-tight">
-            {stats?.totalTeachers || 5}
+            {stats?.totalTeachers ?? 0}
           </span>
           <span className="text-xs text-muted-foreground">
             Guru & Tenaga Kependidikan
@@ -94,7 +96,7 @@ export default async function SuperadminPage() {
             </div>
           </div>
           <span className="text-3xl font-extrabold text-foreground tracking-tight">
-            {stats?.totalAttendanceToday || 5}
+            {stats?.totalAttendanceToday ?? 0}
           </span>
           <span className="text-xs text-muted-foreground">
             Log presensi tervalidasi

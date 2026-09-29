@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
+import { revalidatePath } from "next/cache";
 
 export interface DailyReportRow {
   date: string; // YYYY-MM-DD
@@ -604,9 +605,25 @@ export async function saveSemesterHolidayAction(params: {
   description?: string;
 }) {
   try {
+    let targetMadrasahId = params.madrasahId;
+    if (!targetMadrasahId || targetMadrasahId === "default") {
+      const session = await auth();
+      targetMadrasahId = (session?.user as any)?.madrasahId;
+    }
+    if (!targetMadrasahId) {
+      const first = await prisma.madrasah.findFirst({
+        where: { isActive: true },
+        select: { id: true },
+      });
+      targetMadrasahId = first?.id || "";
+    }
+    if (!targetMadrasahId) {
+      return { error: "Madrasah tidak ditemukan." };
+    }
+
     const holiday = await prisma.holiday.create({
       data: {
-        madrasahId: params.madrasahId,
+        madrasahId: targetMadrasahId,
         name: params.name.trim(),
         date: new Date(params.startDate),
         endDate: new Date(params.endDate),
@@ -614,6 +631,11 @@ export async function saveSemesterHolidayAction(params: {
         description: params.description || "Libur Semester Kalender Pendidikan Madrasah",
       },
     });
+
+    revalidatePath("/admin/reports");
+    revalidatePath("/admin/settings");
+    revalidatePath("/admin");
+    revalidatePath("/guru");
 
     return { success: true, data: holiday };
   } catch (error: any) {
