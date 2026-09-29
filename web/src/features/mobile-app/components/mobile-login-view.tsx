@@ -109,13 +109,6 @@ export function MobileLoginView() {
 
   return (
     <div className="w-full bg-[#f8f9ff] text-[#0b1c30] flex flex-col items-center px-4 py-6 sm:px-6 select-none font-sans min-h-screen">
-      {/* 1. Institutional Badge & Live Clock Status */}
-      <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#dce9ff] text-[#00288e] mb-4 shadow-xs">
-        <span className="w-2 h-2 rounded-full bg-[#006c4a] animate-pulse shrink-0" />
-        <span className="text-[11px] font-bold tracking-wide uppercase">
-          Server Aktif • TA 2024/2025
-        </span>
-      </div>
 
       {/* 2. App Logo & Branding Showcase */}
       <div className="relative flex flex-col items-center text-center max-w-xs mb-2">
@@ -143,9 +136,7 @@ export function MobileLoginView() {
         <h1 className="text-2xl font-extrabold text-[#00288e] tracking-tight">
           E-Presensi Guru
         </h1>
-        <p className="text-xs text-[#444653] mt-1 leading-snug">
-          Sistem Presensi Digital Terintegrasi Dinas Pendidikan & Satuan Pendidikan
-        </p>
+
       </div>
 
       {/* 3. Main Login Card Container */}
@@ -333,16 +324,6 @@ export function MobileLoginView() {
           <span>Kendala login? Hubungi <strong>Admin TU Sekolah</strong></span>
         </button>
 
-        {/* Security / Certified Compliance Badge */}
-        <div className="flex items-center gap-1.5 text-[#444653] text-[11px] font-semibold mt-1">
-          <ShieldCheck className="w-4 h-4 text-[#006c4a]" />
-          <span>v2.4.1 • Kemdikbudristek Certified</span>
-        </div>
-
-        {/* Legal / Safe Note */}
-        <p className="text-[11px] text-[#757684] text-center max-w-xs leading-normal">
-          Terintegrasi langsung dengan Data Pokok Pendidikan (DAPODIK) Kemendikdasmen RI.
-        </p>
 
         {/* Switch to Web Admin Link */}
         <a
