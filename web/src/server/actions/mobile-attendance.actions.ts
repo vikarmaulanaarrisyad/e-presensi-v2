@@ -29,31 +29,59 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
     }
 
     // Fallback: If still no userId (e.g. testing mode or direct access), pick first teacher
-    let teacher = null;
+    let teacher: any = null;
     if (userId) {
-      teacher = await prisma.user.findUnique({
-        where: { id: userId },
-        include: {
-          madrasah: {
-            include: {
-              settings: true,
+      try {
+        teacher = await prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            position: true,
+            madrasah: {
+              include: {
+                settings: true,
+              },
             },
           },
-        },
-      });
+        });
+      } catch {
+        teacher = await prisma.user.findUnique({
+          where: { id: userId },
+          include: {
+            madrasah: {
+              include: {
+                settings: true,
+              },
+            },
+          },
+        });
+      }
     }
 
     if (!teacher) {
-      teacher = await prisma.user.findFirst({
-        where: { role: "TEACHER", isActive: true },
-        include: {
-          madrasah: {
-            include: {
-              settings: true,
+      try {
+        teacher = await prisma.user.findFirst({
+          where: { role: "TEACHER", isActive: true },
+          include: {
+            position: true,
+            madrasah: {
+              include: {
+                settings: true,
+              },
             },
           },
-        },
-      });
+        });
+      } catch {
+        teacher = await prisma.user.findFirst({
+          where: { role: "TEACHER", isActive: true },
+          include: {
+            madrasah: {
+              include: {
+                settings: true,
+              },
+            },
+          },
+        });
+      }
     }
 
     if (!teacher || !teacher.madrasah) {
@@ -161,6 +189,8 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
         email: teacher.email,
         phone: teacher.phone ?? "-",
         avatarUrl: teacher.avatarUrl,
+        positionName: (teacher as any).position?.name || "Guru Madrasah",
+        isHeadmaster: (teacher as any).position?.isHeadmaster || false,
         madrasahName: teacher.madrasah.name,
         madrasahAddress: teacher.madrasah.address ?? "",
       },

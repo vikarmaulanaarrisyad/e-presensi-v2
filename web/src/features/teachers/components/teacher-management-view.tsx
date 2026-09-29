@@ -24,7 +24,8 @@ import {
   ShieldAlert,
   ArrowUpDown,
   Filter,
-  Printer
+  Printer,
+  Briefcase
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -57,6 +58,13 @@ export interface TeacherItem {
   phone: string | null;
   avatarUrl: string | null;
   isActive: boolean;
+  positionId?: string | null;
+  position?: {
+    id: string;
+    name: string;
+    code?: string | null;
+    isHeadmaster?: boolean;
+  } | null;
   createdAt: string | Date;
   updatedAt: string | Date;
   _count?: {
@@ -71,11 +79,18 @@ interface TeacherManagementViewProps {
     nsm: string;
     radiusMeters: number;
     teachers: TeacherItem[];
+    positions?: {
+      id: string;
+      name: string;
+      code?: string | null;
+      isHeadmaster?: boolean;
+    }[];
   };
 }
 
 export function TeacherManagementView({ initialData }: TeacherManagementViewProps) {
   const [teachers, setTeachers] = useState<TeacherItem[]>(initialData.teachers || []);
+  const [positions, setPositions] = useState(initialData.positions || []);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
 
@@ -89,6 +104,9 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
     const res = await fetchTeachersData(initialData.madrasahId);
     if (res?.data?.teachers) {
       setTeachers(res.data.teachers as any);
+    }
+    if ((res?.data as any)?.positions) {
+      setPositions((res?.data as any).positions);
     }
   };
 
@@ -256,6 +274,15 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
           >
             Import Excel
           </Button>
+
+          <Link
+            href="/admin/positions"
+            className="inline-flex items-center gap-1.5 h-8 px-3 rounded-md text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/25 shadow-xs transition-colors cursor-pointer"
+            title="Kelola Master Jabatan & Kepala Madrasah"
+          >
+            <Briefcase className="size-3.5 text-amber-600 dark:text-amber-400" />
+            <span>Master Jabatan</span>
+          </Link>
 
           <Link
             href="/admin/bulk-attendance"
@@ -486,9 +513,25 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                             <span className="font-bold text-foreground text-sm group-hover:text-primary transition-colors">
                               {teacher.name}
                             </span>
-                            <span className="text-[11px] text-muted-foreground">
-                              Didaftarkan {new Date(teacher.createdAt).toLocaleDateString("id-ID", { month: "short", year: "numeric" })}
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              {teacher.position ? (
+                                <span
+                                  className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                                    teacher.position.isHeadmaster
+                                      ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30"
+                                      : "bg-primary/10 text-primary border border-primary/20"
+                                  }`}
+                                >
+                                  {teacher.position.isHeadmaster ? "👑 " : "📌 "}
+                                  {teacher.position.name}
+                                </span>
+                              ) : (
+                                <span className="text-[10px] text-muted-foreground italic">Guru Madrasah</span>
+                              )}
+                              <span className="text-[10px] text-muted-foreground">
+                                &bull; {new Date(teacher.createdAt).toLocaleDateString("id-ID", { month: "short", year: "numeric" })}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       </td>
@@ -630,6 +673,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         onClose={() => setIsFormModalOpen(false)}
         madrasahId={initialData.madrasahId}
         teacherToEdit={teacherToEdit}
+        positions={positions}
         onSuccess={reloadData}
       />
     </div>

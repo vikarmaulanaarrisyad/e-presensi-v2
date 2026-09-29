@@ -8,6 +8,7 @@ export interface TeacherInput {
   phone?: string | null;
   password?: string;
   isActive?: boolean;
+  positionId?: string | null;
 }
 
 export interface TeacherImportData {
@@ -22,8 +23,44 @@ export interface TeacherImportData {
  * Fetch all teachers for a specific madrasah with attendance counts
  */
 export async function getTeachersByMadrasah(madrasahId: string) {
-  const [teachers, madrasah] = await Promise.all([
-    prisma.user.findMany({
+  let teachers: any[] = [];
+  try {
+    teachers = await prisma.user.findMany({
+      where: {
+        madrasahId,
+        role: "TEACHER",
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        nip: true,
+        phone: true,
+        avatarUrl: true,
+        isActive: true,
+        positionId: true,
+        position: {
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            isHeadmaster: true,
+          },
+        },
+        createdAt: true,
+        updatedAt: true,
+        _count: {
+          select: {
+            attendanceLogs: true,
+          },
+        },
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+  } catch {
+    teachers = await prisma.user.findMany({
       where: {
         madrasahId,
         role: "TEACHER",
@@ -47,23 +84,35 @@ export async function getTeachersByMadrasah(madrasahId: string) {
       orderBy: {
         name: "asc",
       },
-    }),
-    prisma.madrasah.findUnique({
-      where: { id: madrasahId },
-      select: {
-        id: true,
-        name: true,
-        nsm: true,
-        settings: {
-          select: {
-            radiusMeters: true,
-          },
+    });
+  }
+
+  const madrasah = await prisma.madrasah.findUnique({
+    where: { id: madrasahId },
+    select: {
+      id: true,
+      name: true,
+      nsm: true,
+      settings: {
+        select: {
+          radiusMeters: true,
         },
       },
-    }),
-  ]);
+    },
+  });
 
-  return { teachers, madrasah };
+  let positions: any[] = [];
+  try {
+    positions = (await (prisma as any).position?.findMany?.({
+      where: { madrasahId },
+      orderBy: [{ isHeadmaster: "desc" }, { order: "asc" }, { name: "asc" }],
+      select: { id: true, name: true, code: true, isHeadmaster: true },
+    })) || [];
+  } catch {
+    positions = [];
+  }
+
+  return { teachers, madrasah, positions };
 }
 
 /**
@@ -82,6 +131,7 @@ export async function createTeacher(madrasahId: string, input: TeacherInput) {
       passwordHash,
       role: "TEACHER",
       isActive: input.isActive ?? true,
+      positionId: input.positionId || null,
     },
   });
 }
@@ -99,6 +149,7 @@ export async function updateTeacher(
     nip: input.nip !== undefined ? input.nip?.trim() || null : undefined,
     phone: input.phone !== undefined ? input.phone?.trim() || null : undefined,
     isActive: input.isActive,
+    positionId: input.positionId !== undefined ? (input.positionId || null) : undefined,
   };
 
   if (input.password && input.password.trim().length > 0) {

@@ -15,6 +15,7 @@ export default async function TeachersPage() {
     madrasahName: madrasah?.name || "Madrasah",
     nsm: madrasah?.nsm || "-",
     radiusMeters: madrasah?.settings?.radiusMeters || 50,
+    positions: data?.positions || [],
     teachers: teachers.map((t) => ({
       id: t.id,
       name: t.name,
@@ -23,6 +24,8 @@ export default async function TeachersPage() {
       phone: t.phone,
       avatarUrl: t.avatarUrl,
       isActive: t.isActive,
+      positionId: t.positionId,
+      position: t.position,
       createdAt: t.createdAt,
       updatedAt: t.updatedAt,
       _count: t._count,

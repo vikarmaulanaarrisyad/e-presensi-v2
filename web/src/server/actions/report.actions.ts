@@ -185,7 +185,13 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       name: string;
       nip: string | null;
       isActive: boolean;
-    } | null = null;
+      position?: { name: string; isHeadmaster?: boolean } | null;
+    } = {
+      id: "sample-wariah",
+      name: "WARIAH",
+      nip: "12",
+      isActive: true,
+    };
 
     if (isSample || !params.teacherId) {
       teacher = {
@@ -195,15 +201,36 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
         isActive: true,
       };
     } else {
-      const dbTeacher = await prisma.user.findUnique({
-        where: { id: params.teacherId },
-        select: {
-          id: true,
-          name: true,
-          nip: true,
-          isActive: true,
-        },
-      });
+      let dbTeacher: any = null;
+      try {
+        dbTeacher = await prisma.user.findUnique({
+          where: { id: params.teacherId },
+          select: {
+            id: true,
+            name: true,
+            nip: true,
+            isActive: true,
+            position: {
+              select: {
+                name: true,
+                isHeadmaster: true,
+              },
+            },
+          },
+        });
+      } catch (err) {
+        // Fallback if dev server runtime hasn't reloaded position schema
+        dbTeacher = await prisma.user.findUnique({
+          where: { id: params.teacherId },
+          select: {
+            id: true,
+            name: true,
+            nip: true,
+            isActive: true,
+          },
+        });
+      }
+
       if (dbTeacher) {
         teacher = dbTeacher;
       } else {
@@ -564,7 +591,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
         pin: teacher.nip ? (teacher.nip.length <= 4 ? teacher.nip : teacher.nip.slice(-2)) : "12",
         nik: teacher.nip || "12",
         name: teacher.name,
-        jabatan: "Guru",
+        jabatan: (teacher as any).position?.name || "Guru",
         departemen: madrasahName,
         status: teacher.isActive ? "Aktif" : "Non-Aktif",
       },

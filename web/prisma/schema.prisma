@@ -47,6 +47,7 @@ model Madrasah {
   users           User[]
   attendanceLogs  AttendanceLog[]
   holidays        Holiday[]
+  positions       Position[]
 
   @@map("madrasahs")
 }
@@ -97,9 +98,30 @@ model Holiday {
   @@map("holidays")
 }
 
+model Position {
+  id           String   @id @default(uuid())
+  madrasahId   String   @map("madrasah_id")
+  name         String   // e.g. "Kepala Madrasah", "Wakil Kepala", "Guru Kelas", "Guru Mapel", "Tata Usaha"
+  code         String?  // e.g. "KAMAD", "WAKAMAD", "GURU", "TU"
+  description  String?  @db.Text
+  isHeadmaster Boolean  @default(false) @map("is_headmaster") // Penanda khusus Kepala Madrasah
+  order        Int      @default(0)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  madrasah     Madrasah @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  users        User[]
+
+  @@unique([madrasahId, name])
+  @@index([madrasahId])
+  @@map("positions")
+}
+
 model User {
   id              String    @id @default(uuid())
   madrasahId      String?   @map("madrasah_id") // Nullable ONLY for SUPERADMIN
+  positionId      String?   @map("position_id")
   name            String
   email           String    @unique
   nip             String?   // Nomor Induk Pegawai / NIK
@@ -113,9 +135,11 @@ model User {
 
   // Relations
   madrasah        Madrasah?       @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  position        Position?       @relation(fields: [positionId], references: [id], onDelete: SetNull)
   attendanceLogs  AttendanceLog[]
 
   @@index([madrasahId])
+  @@index([positionId])
   @@index([role])
   @@map("users")
 }

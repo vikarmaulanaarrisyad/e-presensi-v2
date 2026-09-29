@@ -86,6 +86,9 @@ export function HeaderNavbar({
     if (pathname.startsWith("/admin/teachers")) {
       return { title: "Kelola Data Guru", section: "Pendidik & Staf" };
     }
+    if (pathname.startsWith("/admin/positions")) {
+      return { title: "Master Jabatan & Kamad", section: "Struktur Organisasi" };
+    }
     if (pathname.startsWith("/admin/settings")) {
       return { title: "Pengaturan Kehadiran", section: "Jam Kerja & Kalender" };
     }

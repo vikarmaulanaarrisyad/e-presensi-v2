@@ -14,6 +14,7 @@ export interface TeacherData {
   nip: string | null;
   phone: string | null;
   isActive: boolean;
+  positionId?: string | null;
 }
 
 interface TeacherFormModalProps {
@@ -21,6 +22,7 @@ interface TeacherFormModalProps {
   onClose: () => void;
   madrasahId: string;
   teacherToEdit?: TeacherData | null;
+  positions?: { id: string; name: string; code?: string | null; isHeadmaster?: boolean }[];
   onSuccess: () => void;
 }
 
@@ -29,6 +31,7 @@ export function TeacherFormModal({
   onClose,
   madrasahId,
   teacherToEdit,
+  positions = [],
   onSuccess,
 }: TeacherFormModalProps) {
   const [name, setName] = useState("");
@@ -36,6 +39,7 @@ export function TeacherFormModal({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
+  const [positionId, setPositionId] = useState("");
   const [isActive, setIsActive] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -47,6 +51,7 @@ export function TeacherFormModal({
       setNip(teacherToEdit.nip || "");
       setEmail(teacherToEdit.email || "");
       setPhone(teacherToEdit.phone || "");
+      setPositionId(teacherToEdit.positionId || "");
       setIsActive(teacherToEdit.isActive ?? true);
       setPassword("");
     } else {
@@ -54,6 +59,7 @@ export function TeacherFormModal({
       setNip("");
       setEmail("");
       setPhone("");
+      setPositionId("");
       setPassword("Password123!");
       setIsActive(true);
     }
@@ -83,6 +89,7 @@ export function TeacherFormModal({
         email,
         phone: phone || null,
         password: password || undefined,
+        positionId: positionId || null,
         isActive,
       });
     } else {
@@ -92,6 +99,7 @@ export function TeacherFormModal({
         email,
         phone: phone || null,
         password: password || "Password123!",
+        positionId: positionId || null,
         isActive,
       });
     }
@@ -177,6 +185,27 @@ export function TeacherFormModal({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
+
+          {/* Master Jabatan Dropdown */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-foreground flex items-center justify-between">
+              <span>Jabatan / Penugasan</span>
+              <span className="text-[10px] text-muted-foreground font-normal">Misal: Kepala Madrasah / Guru Kelas</span>
+            </label>
+            <select
+              value={positionId}
+              onChange={(e) => setPositionId(e.target.value)}
+              className="h-10 px-3 rounded-xl bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-2xs text-foreground"
+            >
+              <option value="">-- Tanpa Jabatan Khusus (Guru Biasa) --</option>
+              {positions.map((pos) => (
+                <option key={pos.id} value={pos.id}>
+                  {pos.isHeadmaster ? "👑 " : "📌 "}
+                  {pos.name} {pos.code ? `(${pos.code})` : ""}
+                </option>
+              ))}
+            </select>
+          </div>
 
           <FormInput
             label={isEditing ? "Kata Sandi Baru (Kosongkan jika tidak diubah)" : "Kata Sandi Awal"}

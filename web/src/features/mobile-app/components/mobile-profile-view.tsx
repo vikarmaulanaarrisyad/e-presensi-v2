@@ -29,6 +29,8 @@ interface MobileProfileViewProps {
     email: string;
     phone: string;
     avatarUrl?: string | null;
+    positionName?: string;
+    isHeadmaster?: boolean;
     madrasahName: string;
     madrasahAddress: string;
   };
@@ -73,8 +75,13 @@ export function MobileProfileView({ teacher, settings }: MobileProfileViewProps)
         <p className="text-xs text-slate-500 dark:text-slate-400 font-mono mt-0.5">
           NIP. {teacher.nip}
         </p>
-        <Badge className="mt-2 bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200 text-[10px]">
-          Guru Aktif Kemenag
+        <Badge className={`mt-2 text-[10px] ${
+          teacher.isHeadmaster
+            ? "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 font-bold"
+            : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border-emerald-200"
+        }`}>
+          {teacher.isHeadmaster ? "👑 " : "📌 "}
+          {teacher.positionName || "Guru Aktif Kemenag"}
         </Badge>
       </div>
 
