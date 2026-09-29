@@ -25,18 +25,20 @@ import { signOut } from "next-auth/react";
 interface SidebarProps {
   madrasahName?: string;
   userName?: string;
+  userEmail?: string;
   userRole?: string;
 }
 
 export function Sidebar({
   madrasahName,
   userName,
+  userEmail,
   userRole,
 }: SidebarProps) {
   const pathname = usePathname();
   const isSuperadmin = pathname.startsWith("/superadmin");
 
-  const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Pusat Kendali GTK" : "MIN 1 Jakarta Selatan");
+  const effectiveMadrasahName = madrasahName || (isSuperadmin ? "Pusat Kendali GTK" : "MI Ikhsaniyah Lebeteng");
   const effectiveUserName = userName || (isSuperadmin ? "Superadministrator" : "Operator Madrasah");
 
   const handleLogout = async () => {
@@ -253,7 +255,7 @@ export function Sidebar({
               {effectiveUserName}
             </span>
             <span className="text-[10px] text-slate-400 truncate">
-              {isSuperadmin ? "superadmin@kemenag.go.id" : "admin@min1jaksel.sch.id"}
+              {userEmail || (isSuperadmin ? "superadmin@kemenag.go.id" : "operator@madrasah.id")}
             </span>
           </div>
         </div>

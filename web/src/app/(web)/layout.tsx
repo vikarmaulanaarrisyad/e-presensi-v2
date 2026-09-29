@@ -31,6 +31,7 @@ export default async function WebLayout({
         <Sidebar
           madrasahName={madrasahName}
           userName={user?.name ?? undefined}
+          userEmail={user?.email ?? undefined}
           userRole={user?.role ?? undefined}
         />
       </div>
