@@ -145,3 +145,44 @@
     font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
 }
+
+@media print {
+  @page {
+    size: landscape;
+    margin: 5mm 8mm;
+  }
+
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: Arial, Helvetica, sans-serif !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Hide application shell navigation, headers, footers, sidebars */
+  header, nav, aside, footer, .no-print, [role="dialog"], button {
+    display: none !important;
+  }
+
+  #printable-attendance-sheet {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    zoom: 0.93 !important;
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  /* Force background colors and borders in print */
+  *, *::before, *::after {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+}

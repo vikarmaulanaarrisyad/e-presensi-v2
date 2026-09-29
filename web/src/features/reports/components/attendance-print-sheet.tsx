@@ -21,40 +21,77 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           color: "#000000",
         }}
       >
-        {/* Style injection for printing */}
-        <style jsx global>{`
-          @media print {
-            @page {
-              size: 330mm 215mm; /* F4 / Folio Landscape */
-              margin: 15mm; /* 1.5 cm */
-            }
-            body {
-              background: #ffffff !important;
-              color: #000000 !important;
-              font-family: Arial, Helvetica, sans-serif !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            .no-print {
-              display: none !important;
-            }
-            #printable-attendance-sheet {
-              width: 100% !important;
-              max-width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-              border: none !important;
-              box-shadow: none !important;
-            }
-            table, tr, td, th {
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-          }
-        `}</style>
+        {/* Global Print Stylesheet */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html: `
+              @page {
+                size: landscape;
+                margin: 5mm 8mm;
+              }
+              @media print {
+                html, body {
+                  background: #ffffff !important;
+                  color: #000000 !important;
+                  font-family: Arial, Helvetica, sans-serif !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                }
+                .no-print, header, nav, aside, footer {
+                  display: none !important;
+                }
+                #printable-attendance-sheet {
+                  width: 100% !important;
+                  max-width: 100% !important;
+                  margin: 0 !important;
+                  padding: 0 !important;
+                  border: none !important;
+                  box-shadow: none !important;
+                  border-radius: 0 !important;
+                  transform: none !important;
+                  zoom: 0.93 !important;
+                  page-break-inside: avoid !important;
+                  break-inside: avoid !important;
+                }
+                table {
+                  width: 100% !important;
+                  border-collapse: collapse !important;
+                  page-break-inside: avoid !important;
+                }
+                tr {
+                  page-break-inside: avoid !important;
+                }
+                thead th {
+                  padding: 1.5px 1px !important;
+                  font-size: 7.5px !important;
+                  line-height: 1.1 !important;
+                }
+                tbody td {
+                  padding: 1px 1.5px !important;
+                  font-size: 8px !important;
+                  line-height: 1.1 !important;
+                  height: 15.5px !important;
+                }
+                table, tr, td, th {
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+                tr.holiday-row,
+                tr[style*="background-color: rgb(255, 255, 0)"],
+                tr[style*="background-color: #FFFF00"] {
+                  background-color: #FFFF00 !important;
+                  -webkit-print-color-adjust: exact !important;
+                  print-color-adjust: exact !important;
+                }
+              }
+            `,
+          }}
+        />
 
         {/* 1. Header Box */}
-        <div className="border border-black p-1.5 mb-1.5">
+        <div className="header-box border border-black p-1.5 mb-1.5">
           <div className="text-center font-extrabold text-xs sm:text-sm tracking-wide border-b border-black pb-1 mb-1">
             LAPORAN RINCIAN HARIAN
           </div>
@@ -80,7 +117,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
         </div>
 
         {/* 2. Employee Details Subheader */}
-        <div className="border-t border-b border-black py-1 px-1 mb-1 text-[10px] sm:text-[11px] leading-tight">
+        <div className="emp-details border-t border-b border-black py-1 px-1 mb-1 text-[10px] sm:text-[11px] leading-tight">
           <div className="grid grid-cols-3 gap-2">
             <div className="flex items-center gap-1">
               <span className="w-16 font-medium">{data.employee.idType || "NUPTK"}</span>
@@ -192,7 +229,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
                 return (
                   <tr
                     key={row.date}
-                    className="hover:bg-slate-100/50 transition-colors"
+                    className={`hover:bg-slate-100/50 transition-colors ${isYellow ? "holiday-row bg-[#FFFF00]" : ""}`}
                     style={{
                       backgroundColor: isYellow ? "#FFFF00" : "transparent",
                       color: "#000000",
@@ -325,7 +362,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
         </div>
 
         {/* 4. Document Footer */}
-        <div className="flex items-center justify-between text-[10px] mt-2 pt-1 font-medium border-t border-black">
+        <div className="doc-footer flex items-center justify-between text-[10px] mt-2 pt-1 font-medium border-t border-black">
           <div className="w-1/3 text-left">
             <span>Halaman : 1</span>
             <span className="mx-3">dari : 1</span>

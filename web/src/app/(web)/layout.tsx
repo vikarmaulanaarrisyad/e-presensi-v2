@@ -25,30 +25,36 @@ export default async function WebLayout({
   }
 
   return (
-    <div className="min-h-screen flex bg-slate-50/70 dark:bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-900">
+    <div className="min-h-screen flex bg-slate-50/70 dark:bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-900 print:min-h-0 print:bg-white">
       {/* Sticky Executive Sidebar */}
-      <Sidebar
-        madrasahName={madrasahName}
-        userName={user?.name ?? undefined}
-        userRole={user?.role ?? undefined}
-      />
-
-      {/* Main Content Column with Header & Footer */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-slate-50/70 dark:bg-background">
-        {/* Unified Executive Header */}
-        <HeaderNavbar
+      <div className="print:hidden">
+        <Sidebar
           madrasahName={madrasahName}
           userName={user?.name ?? undefined}
           userRole={user?.role ?? undefined}
         />
+      </div>
+
+      {/* Main Content Column with Header & Footer */}
+      <div className="flex-1 flex flex-col min-w-0 min-h-screen bg-slate-50/70 dark:bg-background print:min-h-0 print:bg-white print:p-0">
+        {/* Unified Executive Header */}
+        <div className="print:hidden">
+          <HeaderNavbar
+            madrasahName={madrasahName}
+            userName={user?.name ?? undefined}
+            userRole={user?.role ?? undefined}
+          />
+        </div>
 
         {/* Dynamic Route Content */}
-        <main className="flex-1 px-4 sm:px-6 xl:px-8 py-6 w-full flex flex-col gap-6">
+        <main className="flex-1 px-4 sm:px-6 xl:px-8 py-6 w-full flex flex-col gap-6 print:p-0 print:m-0 print:gap-0 print:block">
           {children}
         </main>
 
         {/* Unified Official Footer */}
-        <Footer />
+        <div className="print:hidden">
+          <Footer />
+        </div>
       </div>
     </div>
   );

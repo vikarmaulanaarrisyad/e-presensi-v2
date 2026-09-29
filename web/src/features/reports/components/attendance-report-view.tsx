@@ -32,6 +32,7 @@ import {
 } from "@/server/actions/report.actions";
 import { exportReportToPdf } from "../utils/export-pdf";
 import { exportReportToExcel } from "../utils/export-excel";
+import { printAttendanceReport } from "../utils/print-sheet";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
 import { formatTeacherName } from "@/lib/excel-helpers";
 
@@ -128,9 +129,9 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     loadReport();
   }, [selectedTeacherId, selectedMonth, selectedYear, filterType]);
 
-  // Direct Print Handler
+  // Direct Print Handler with 100% Preview Fidelity
   const handlePrint = () => {
-    window.print();
+    printAttendanceReport("printable-attendance-sheet");
   };
 
   // PDF Export Handler
@@ -515,9 +516,9 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
       </div>
 
       {/* 3. Live Printable Sheet Preview Container */}
-      <div className="w-full flex flex-col items-center justify-center bg-slate-900/5 dark:bg-slate-950/40 p-4 sm:p-8 rounded-3xl border border-border/80 overflow-x-auto min-h-[600px]">
+      <div className="w-full flex flex-col items-center justify-center bg-slate-900/5 dark:bg-slate-950/40 p-4 sm:p-8 rounded-3xl border border-border/80 overflow-x-auto min-h-[600px] print:p-0 print:border-0 print:bg-transparent print:min-h-0 print:overflow-visible">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground no-print">
             <div className="size-8 border-3 border-primary border-t-transparent rounded-full animate-spin" />
             <span className="text-sm font-medium">Memuat Laporan Rincian Harian...</span>
           </div>
@@ -528,7 +529,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
               transformOrigin: "top center",
               transition: "transform 0.15s ease-out",
             }}
-            className="w-full flex justify-center py-2"
+            className="w-full flex justify-center py-2 print:transform-none print:py-0 print:w-full"
           >
             <AttendancePrintSheet
               ref={printSheetRef}
@@ -537,7 +538,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
             />
           </div>
         ) : (
-          <div className="text-muted-foreground text-sm py-12">
+          <div className="text-muted-foreground text-sm py-12 no-print">
             Data laporan tidak tersedia. Silakan pilih guru dan periode yang valid.
           </div>
         )}
