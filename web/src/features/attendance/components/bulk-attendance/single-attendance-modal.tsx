@@ -118,8 +118,10 @@ export function SingleAttendanceModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Tutup modal terlebih dahulu agar halaman bersih
+    onClose();
+
     try {
-      setIsSubmitting(true);
       swalLoading("Menyimpan Presensi Guru...", teacher.name);
 
       const result = await singleRecordAttendanceAction({
@@ -136,7 +138,6 @@ export function SingleAttendanceModal({
       });
 
       swalClose();
-      setIsSubmitting(false);
 
       if (result.error) {
         swalError("Gagal Menyimpan", result.error);
@@ -145,10 +146,8 @@ export function SingleAttendanceModal({
 
       await swalSuccess("Berhasil Disimpan", `Presensi untuk ${teacher.name} berhasil diperbarui.`);
       onSuccess();
-      onClose();
     } catch (err: any) {
       swalClose();
-      setIsSubmitting(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data.");
     }
   };
@@ -165,14 +164,15 @@ export function SingleAttendanceModal({
 
     if (!confirmed) return;
 
+    // Tutup modal terlebih dahulu agar halaman bersih
+    onClose();
+
     try {
-      setIsSubmitting(true);
       swalLoading("Menghapus Data Presensi...", teacher.name);
 
       const res = await deleteAttendanceLogAction(teacher.attendanceLog.id, madrasahId);
 
       swalClose();
-      setIsSubmitting(false);
 
       if (res.error) {
         swalError("Gagal Menghapus", res.error);
@@ -181,10 +181,8 @@ export function SingleAttendanceModal({
 
       await swalSuccess("Presensi Dihapus", "Catatan kehadiran guru berhasil dihapus.");
       onSuccess();
-      onClose();
     } catch (err: any) {
       swalClose();
-      setIsSubmitting(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal menghapus data.");
     }
   };

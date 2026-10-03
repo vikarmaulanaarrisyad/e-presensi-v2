@@ -334,8 +334,10 @@ export function BulkAttendanceModal({
 
     if (!confirmed) return;
 
+    // Tutup modal terlebih dahulu agar halaman bersih
+    onClose();
+
     try {
-      setIsSubmitting(true);
       swalLoading("Menyimpan Presensi Massal...", `Memproses ${count} guru madrasah.`);
 
       const result = await bulkRecordAttendanceAction({
@@ -356,7 +358,6 @@ export function BulkAttendanceModal({
       });
 
       swalClose();
-      setIsSubmitting(false);
 
       if (result.error) {
         swalError("Gagal Mencatat Presensi", result.error);
@@ -370,10 +371,8 @@ export function BulkAttendanceModal({
 
       await swalSuccess("Presensi Massal Berhasil!", successMessage);
       onSuccess();
-      onClose();
     } catch (err: any) {
       swalClose();
-      setIsSubmitting(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data presensi.");
     }
   };

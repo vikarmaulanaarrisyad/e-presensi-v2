@@ -386,8 +386,10 @@ export function BulkAttendanceDateRangeModal({
     );
     if (!confirmed) return;
 
+    // Tutup modal terlebih dahulu agar halaman bersih
+    onClose();
+
     try {
-      setIsSubmitting(true);
       swalLoading(
         "Memproses Presensi Massal...",
         `Sedang memproses ${count} guru selama ±${groupCounts.totalWorkDays || estimatedWorkDays} hari kerja. Mohon tunggu...`
@@ -418,7 +420,6 @@ export function BulkAttendanceDateRangeModal({
       });
 
       swalClose();
-      setIsSubmitting(false);
 
       if (result.error) {
         swalError("Gagal Presensi Massal", result.error);
@@ -433,10 +434,8 @@ export function BulkAttendanceDateRangeModal({
       );
 
       onSuccess();
-      onClose();
     } catch (err: any) {
       swalClose();
-      setIsSubmitting(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data presensi.");
     }
   };
