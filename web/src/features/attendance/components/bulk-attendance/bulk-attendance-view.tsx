@@ -298,6 +298,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
     const d = new Date(time);
     return (
       d.toLocaleTimeString("id-ID", {
+        timeZone: "Asia/Jakarta",
         hour: "2-digit",
         minute: "2-digit",
         hour12: false,

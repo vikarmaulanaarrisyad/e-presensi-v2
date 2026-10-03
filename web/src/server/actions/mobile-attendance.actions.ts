@@ -482,22 +482,10 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
         const [outH, outM] = outTimeStr.split(":").map(Number);
 
         const checkInTimestamp = new Date(
-          targetDateStart.getFullYear(),
-          targetDateStart.getMonth(),
-          targetDateStart.getDate(),
-          inH,
-          inM,
-          0,
-          0
+          `${payload.dateStr}T${String(inH).padStart(2, "0")}:${String(inM).padStart(2, "0")}:00+07:00`
         );
         const checkOutTimestamp = new Date(
-          targetDateStart.getFullYear(),
-          targetDateStart.getMonth(),
-          targetDateStart.getDate(),
-          outH,
-          outM,
-          0,
-          0
+          `${payload.dateStr}T${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}:00+07:00`
         );
 
         const [threshH, threshM] = (settings.lateThreshold || "07:15").split(":").map(Number);
@@ -543,13 +531,7 @@ safeRevalidatePath("/admin/reports");
         const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
         const [inH, inM] = inTimeStr.split(":").map(Number);
         const checkInTimestamp = new Date(
-          targetDateStart.getFullYear(),
-          targetDateStart.getMonth(),
-          targetDateStart.getDate(),
-          inH,
-          inM,
-          0,
-          0
+          `${payload.dateStr}T${String(inH).padStart(2, "0")}:${String(inM).padStart(2, "0")}:00+07:00`
         );
 
         const [threshH, threshM] = (settings.lateThreshold || "07:15").split(":").map(Number);
@@ -587,13 +569,7 @@ safeRevalidatePath("/admin/reports");
         const outTimeStr = payload.customCheckOutTime || settings.workEndTime || "14:00";
         const [outH, outM] = outTimeStr.split(":").map(Number);
         const checkOutTimestamp = new Date(
-          targetDateStart.getFullYear(),
-          targetDateStart.getMonth(),
-          targetDateStart.getDate(),
-          outH,
-          outM,
-          0,
-          0
+          `${payload.dateStr}T${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}:00+07:00`
         );
 
         if (log) {
@@ -612,13 +588,7 @@ safeRevalidatePath("/admin/reports");
           const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
           const [inH, inM] = inTimeStr.split(":").map(Number);
           const checkInTimestamp = new Date(
-            targetDateStart.getFullYear(),
-            targetDateStart.getMonth(),
-            targetDateStart.getDate(),
-            inH,
-            inM,
-            0,
-            0
+            `${payload.dateStr}T${String(inH).padStart(2, "0")}:${String(inM).padStart(2, "0")}:00+07:00`
           );
 
           log = await upsertAttendanceRecord({

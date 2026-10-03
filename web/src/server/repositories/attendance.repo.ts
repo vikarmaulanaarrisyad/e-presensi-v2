@@ -537,7 +537,9 @@ function generateRandomTimes(
     const m = totalMin % 60;
     const s = randomSec;
 
-    results.push(new Date(year, month - 1, day, h, m, s, 0));
+    // Explicit +07:00 ensures WIB local time is preserved accurately across server/client timezones
+    const isoStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}+07:00`;
+    results.push(new Date(isoStr));
   }
 
   return results;
@@ -645,18 +647,21 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
       let fixedIn: Date | null = null;
       if (input.checkInTime) {
         const [inH, inM] = input.checkInTime.split(":").map(Number);
-        fixedIn = new Date(year, month - 1, day, inH, inM, 0, 0);
+        const isoStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(inH).padStart(2, "0")}:${String(inM).padStart(2, "0")}:00+07:00`;
+        fixedIn = new Date(isoStr);
       } else {
         const defaultStart = resolvedStartTime || settings?.workStartTime || "07:00";
         const [inH, inM] = defaultStart.split(":").map(Number);
-        fixedIn = new Date(year, month - 1, day, inH, inM, 0, 0);
+        const isoStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(inH).padStart(2, "0")}:${String(inM).padStart(2, "0")}:00+07:00`;
+        fixedIn = new Date(isoStr);
       }
       checkInDates = Array(count).fill(fixedIn);
 
       if (input.setCheckOut) {
         const targetCheckOut = input.checkOutTime || resolvedEndTime;
         const [outH, outM] = targetCheckOut.split(":").map(Number);
-        const fixedOut = new Date(year, month - 1, day, outH, outM, 0, 0);
+        const isoStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}T${String(outH).padStart(2, "0")}:${String(outM).padStart(2, "0")}:00+07:00`;
+        const fixedOut = new Date(isoStr);
         checkOutDates = Array(count).fill(fixedOut);
       }
     }
