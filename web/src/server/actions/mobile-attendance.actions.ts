@@ -134,30 +134,63 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
       }
     }
 
-    if (!teacher) {
-      try {
-        teacher = await prisma.user.findFirst({
-          where: { role: "TEACHER", isActive: true },
-          include: {
-            position: true,
-            madrasah: {
-              include: {
-                settings: true,
+    // If user was not found, or if user is an ADMIN / SUPERADMIN testing the mobile portal:
+    if (!teacher || teacher.role !== "TEACHER" || !teacher.madrasah) {
+      const targetMadrasahId = teacher?.madrasahId;
+      let previewTeacher: any = null;
+
+      if (targetMadrasahId) {
+        try {
+          previewTeacher = await prisma.user.findFirst({
+            where: { madrasahId: targetMadrasahId, role: "TEACHER", isActive: true },
+            include: {
+              position: true,
+              madrasah: {
+                include: { settings: true },
               },
             },
-          },
-        });
-      } catch {
-        teacher = await prisma.user.findFirst({
-          where: { role: "TEACHER", isActive: true },
-          include: {
-            madrasah: {
-              include: {
-                settings: true,
+            orderBy: { name: "asc" },
+          });
+        } catch {
+          previewTeacher = await prisma.user.findFirst({
+            where: { madrasahId: targetMadrasahId, role: "TEACHER", isActive: true },
+            include: {
+              madrasah: {
+                include: { settings: true },
               },
             },
-          },
-        });
+            orderBy: { name: "asc" },
+          });
+        }
+      }
+
+      if (!previewTeacher) {
+        try {
+          previewTeacher = await prisma.user.findFirst({
+            where: { role: "TEACHER", isActive: true },
+            include: {
+              position: true,
+              madrasah: {
+                include: { settings: true },
+              },
+            },
+            orderBy: { name: "asc" },
+          });
+        } catch {
+          previewTeacher = await prisma.user.findFirst({
+            where: { role: "TEACHER", isActive: true },
+            include: {
+              madrasah: {
+                include: { settings: true },
+              },
+            },
+            orderBy: { name: "asc" },
+          });
+        }
+      }
+
+      if (previewTeacher) {
+        teacher = previewTeacher;
       }
     }
 

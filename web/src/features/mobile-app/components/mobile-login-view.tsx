@@ -197,9 +197,6 @@ export function MobileLoginView({ schools }: MobileLoginViewProps = {}) {
                 {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
               </button>
             </div>
-            <span className="text-[11px] text-[#757684] mt-0.5 block">
-              Kata sandi default akun guru yang telah direset: <strong className="text-[#00288e] font-mono">Password123!</strong>
-            </span>
           </div>
 
           {/* Checkbox Ingat NIP & Terlindungi Badge */}

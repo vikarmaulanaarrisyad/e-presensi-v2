@@ -382,7 +382,7 @@ export function LoginView() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => alert("Kata sandi akun guru telah direset menjadi: Password123!\nJika memerlukan bantuan, hubungi admin sekolah.")}
+                  onClick={() => alert("Jika Anda lupa kata sandi, silakan hubungi operator atau admin madrasah untuk melakukan reset kata sandi.")}
                   className="text-xs text-primary hover:underline font-semibold"
                 >
                   Lupa Kata Sandi?
@@ -410,9 +410,6 @@ export function LoginView() {
                   </button>
                 }
               />
-              <span className="text-[11px] text-muted-foreground">
-                Kata sandi default akun guru yang telah direset: <strong className="text-foreground font-mono">Password123!</strong>
-              </span>
             </div>
 
             {/* Remember Me */}

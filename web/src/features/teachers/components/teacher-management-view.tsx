@@ -55,7 +55,8 @@ import {
   swalSuccess, 
   swalError, 
   swalClose, 
-  swalConfirm 
+  swalConfirm,
+  customSwal
 } from "@/lib/swal";
 
 export interface TeacherItem {
@@ -230,27 +231,55 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
     }
   };
 
-  // Reset Password
+  // Reset Password with Random Password Generation
   const handleResetPassword = async (teacher: TeacherItem) => {
     const fullName = formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang);
     const confirmed = await swalConfirm(
-      "Reset Kata Sandi?",
-      `Kata sandi untuk ${fullName} akan direset menjadi default: Password123!`,
-      "Ya, Reset Sandi",
-      "warning"
+      "Reset Kata Sandi Akun?",
+      `Sistem akan men-generate kata sandi baru yang acak untuk ${fullName}.`,
+      "Ya, Generate Sandi Acak",
+      "Batal"
     );
 
     if (!confirmed) return;
 
-    swalLoading("Mereset Kata Sandi...");
-    const res = await resetTeacherPasswordAction(teacher.id, "Password123!");
+    swalLoading("Mereset Kata Sandi...", "Men-generate sandi acak baru untuk guru...");
+    const res = await resetTeacherPasswordAction(teacher.id);
     swalClose();
 
-    if (res?.success) {
-      swalSuccess(
-        "Kata Sandi Direset!",
-        `Kata sandi baru untuk ${fullName} adalah: Password123!`
-      );
+    if (res?.success && res.newPassword) {
+      const generatedPass = res.newPassword;
+      await customSwal.fire({
+        icon: "success",
+        title: "Kata Sandi Berhasil Direset!",
+        html: `
+          <div style="text-align: left; padding-top: 8px;">
+            <p style="font-size: 13px; color: #64748b; margin-bottom: 12px;">
+              Kata sandi acak baru untuk <strong>${fullName}</strong>:
+            </p>
+            <div style="display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 12px; margin-bottom: 12px;">
+              <span id="random-pass-display" style="font-family: monospace; font-size: 16px; font-weight: bold; letter-spacing: 1px; color: #0f172a; user-select: all;">${generatedPass}</span>
+              <button id="copy-pass-btn" type="button" style="padding: 6px 12px; background: #0A5C36; color: white; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: background 0.2s;">
+                Salin
+              </button>
+            </div>
+            <p style="font-size: 11px; color: #64748b; font-style: italic;">
+              💡 Silakan salin dan berikan kata sandi baru ini kepada guru. Guru dapat menggantinya kapan saja setelah masuk.
+            </p>
+          </div>
+        `,
+        confirmButtonText: "Selesai",
+        didOpen: () => {
+          const btn = document.getElementById("copy-pass-btn");
+          if (btn) {
+            btn.addEventListener("click", () => {
+              navigator.clipboard.writeText(generatedPass);
+              btn.textContent = "Tersalin! ✓";
+              btn.style.background = "#10b981";
+            });
+          }
+        },
+      });
     } else {
       swalError("Gagal Reset", res?.error || "Terjadi kesalahan saat mereset sandi.");
     }
@@ -766,7 +795,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                             type="button"
                             onClick={() => handleResetPassword(teacher)}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-amber-600 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                            title="Reset Password ke Password123!"
+                            title="Reset Kata Sandi Acak"
                           >
                             <KeyRound className="size-3.5" />
                           </button>
@@ -804,7 +833,7 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             Menampilkan <strong>{filteredTeachers.length}</strong> dari <strong>{teachers.length}</strong> pendidik
           </span>
           <span className="italic text-[11px]">
-            Password standar akun baru: <strong>Password123!</strong>
+            Sistem Presensi Terintegrasi EMIS GTK
           </span>
         </div>
       </div>

@@ -254,19 +254,53 @@ export async function toggleTeacherStatus(teacherId: string, isActive: boolean) 
 }
 
 /**
- * Reset teacher password to default or custom
+ * Generate a secure, readable random password (length 8-10 chars)
+ * Excludes easily confusable characters (like 0, O, 1, l, I)
+ */
+export function generateRandomPassword(length = 8): string {
+  const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ"; // without I, O
+  const lower = "abcdefghijkmnopqrstuvwxyz"; // without l
+  const numbers = "23456789"; // without 0, 1
+  const symbols = "!@#$%*";
+
+  // Ensure at least one character from each set
+  const passwordChars = [
+    upper[Math.floor(Math.random() * upper.length)],
+    lower[Math.floor(Math.random() * lower.length)],
+    numbers[Math.floor(Math.random() * numbers.length)],
+    symbols[Math.floor(Math.random() * symbols.length)],
+  ];
+
+  const allChars = upper + lower + numbers + symbols;
+  for (let i = passwordChars.length; i < length; i++) {
+    passwordChars.push(allChars[Math.floor(Math.random() * allChars.length)]);
+  }
+
+  // Shuffle to randomize order
+  for (let i = passwordChars.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [passwordChars[i], passwordChars[j]] = [passwordChars[j], passwordChars[i]];
+  }
+
+  return passwordChars.join("");
+}
+
+/**
+ * Reset teacher password to a generated random password or custom
  */
 export async function resetTeacherPassword(
   teacherId: string,
   newPassword?: string
 ) {
-  const passwordToUse = newPassword?.trim() || "Password123!";
+  const passwordToUse = newPassword?.trim() || generateRandomPassword(8);
   const passwordHash = await bcrypt.hash(passwordToUse, 10);
 
-  return await prisma.user.update({
+  await prisma.user.update({
     where: { id: teacherId },
     data: { passwordHash },
   });
+
+  return { password: passwordToUse };
 }
 
 /**

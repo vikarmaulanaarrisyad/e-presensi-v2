@@ -1,5 +1,5 @@
 // E-Presensi Guru PWA Service Worker
-const CACHE_NAME = "epresensi-guru-v1";
+const CACHE_NAME = "epresensi-guru-v2";
 const STATIC_ASSETS = [
   "/guru/login",
   "/manifest.json",
@@ -14,9 +14,19 @@ self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(STATIC_ASSETS);
-    })
+    }).catch(() => {})
   );
-  self.skipWaiting();
+  // Only auto-skipWaiting on initial installation so update prompt can be presented to user
+  if (!self.registration.active) {
+    self.skipWaiting();
+  }
+});
+
+// Listen for client message to skip waiting when user confirms update
+self.addEventListener("message", (event) => {
+  if (event.data && event.data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+  }
 });
 
 // Activate event - clean old caches
@@ -33,12 +43,28 @@ self.addEventListener("activate", (event) => {
 
 // Fetch event - Network first strategy for dynamic app, with offline cache fallback
 self.addEventListener("fetch", (event) => {
-  const url = new URL(event.request.url);
+  // Only handle standard HTTP and HTTPS requests
+  // Ignore chrome-extension://, moz-extension://, data:, blob:, ws:, etc.
+  if (!event.request.url.startsWith("http://") && !event.request.url.startsWith("https://")) {
+    return;
+  }
 
-  // Bypass API requests and authentication from caching to ensure live accurate data
+  // Only handle GET requests
+  if (event.request.method !== "GET") {
+    return;
+  }
+
+  let url;
+  try {
+    url = new URL(event.request.url);
+  } catch {
+    return;
+  }
+
+  // Bypass API requests, authentication, and Next.js hot reload / webpack
   if (
     url.pathname.startsWith("/api/") ||
-    event.request.method !== "GET"
+    url.pathname.includes("/_next/webpack-hmr")
   ) {
     return;
   }
@@ -47,7 +73,7 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        // Cache successful GET requests for static assets or pages
+        // Cache successful GET responses for static assets
         if (
           response &&
           response.status === 200 &&
@@ -59,20 +85,24 @@ self.addEventListener("fetch", (event) => {
         ) {
           const responseToCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseToCache);
-          });
+            cache.put(event.request, responseToCache).catch(() => {});
+          }).catch(() => {});
         }
         return response;
       })
       .catch(async () => {
         // Fallback to cache if network fails
-        const cachedResponse = await caches.match(event.request);
-        if (cachedResponse) {
-          return cachedResponse;
-        }
-        if (event.request.mode === "navigate") {
-          const loginCache = await caches.match("/guru/login");
-          if (loginCache) return loginCache;
+        try {
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          if (event.request.mode === "navigate") {
+            const loginCache = await caches.match("/guru/login");
+            if (loginCache) return loginCache;
+          }
+        } catch {
+          // ignore cache lookup errors
         }
         return new Response("Offline - Tidak ada koneksi internet", {
           status: 503,

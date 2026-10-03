@@ -109,8 +109,8 @@ export async function resetTeacherPasswordAction(teacherId: string, newPassword?
   try {
     await assertTeacherBelongsToCaller(teacherId);
 
-    await resetTeacherPassword(teacherId, newPassword);
-    return { success: true };
+    const result = await resetTeacherPassword(teacherId, newPassword);
+    return { success: true, newPassword: result.password };
   } catch (error: any) {
     console.error("Gagal mereset password:", error);
     return { error: error?.message || "Gagal mereset kata sandi guru." };
