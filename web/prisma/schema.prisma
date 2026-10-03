@@ -68,10 +68,11 @@ model MadrasahSetting {
 
   // Work Days & Daily Specific Hours (JSON String for Monday to Sunday)
   workDays        String   @default("1,2,3,4,5") @map("work_days")
-  dailySchedules  String?  @db.Text @map("daily_schedules")
-  requireSelfie   Boolean  @default(true) @map("require_selfie")
+  dailySchedules            String?  @db.Text @map("daily_schedules")
+  requireSelfie             Boolean  @default(true) @map("require_selfie")
+  allowBackdatedAttendance  Boolean  @default(false) @map("allow_backdated_attendance")
 
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt                 DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations

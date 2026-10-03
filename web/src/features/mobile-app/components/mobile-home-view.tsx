@@ -21,11 +21,18 @@ import {
   ArrowLeftRight,
   NotepadText,
   BadgeCheck,
-  Loader2
+  Loader2,
+  CalendarDays,
+  Calendar,
+  X,
+  Check
 } from "lucide-react";
 import { MobileCameraModal } from "./mobile-camera-modal";
 import { calculateDistanceMeters } from "@/lib/geo";
-import { recordMobileAttendanceAction } from "@/server/actions/mobile-attendance.actions";
+import {
+  recordMobileAttendanceAction,
+  getTeacherAttendanceForDateAction
+} from "@/server/actions/mobile-attendance.actions";
 import { swalSuccess, swalError, swalLoading, swalClose } from "@/lib/swal";
 
 interface MobileHomeViewProps {
@@ -48,6 +55,7 @@ interface MobileHomeViewProps {
       lateThreshold: string;
       workEndTime: string;
       requireSelfie: boolean;
+      allowBackdatedAttendance?: boolean;
     };
     todayLog?: {
       id: string;
@@ -199,6 +207,37 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
   const hasCheckedIn = !!todayLog?.checkInTime;
   const hasCheckedOut = !!todayLog?.checkOutTime;
 
+  const handleSubmitDirect = async (type: "CHECK_IN" | "CHECK_OUT") => {
+    swalLoading(
+      type === "CHECK_IN" ? "Merekam Presensi Masuk..." : "Merekam Presensi Pulang...",
+      "Memverifikasi koordinat GPS dan mencatat kehadiran Anda..."
+    );
+    try {
+      const res = await recordMobileAttendanceAction({
+        userId: teacher.id,
+        type,
+        lat: currentLat,
+        lng: currentLng,
+        distance: distanceMeters,
+        notes: "Presensi mandiri langsung (Verifikasi GPS)",
+      });
+      swalClose();
+      if (res?.error) {
+        swalError("Gagal Presensi", res.error);
+        return;
+      }
+      swalSuccess(
+        type === "CHECK_IN" ? "Presensi Masuk Berhasil!" : "Presensi Pulang Berhasil!",
+        res.message || "Data kehadiran Anda telah tercatat secara resmi.",
+        2200
+      );
+      onRefresh();
+    } catch (err: any) {
+      swalClose();
+      swalError("Kesalahan Sistem", err.message || "Gagal menghubungkan ke server.");
+    }
+  };
+
   const handleStartAttendance = (type: "CHECK_IN" | "CHECK_OUT") => {
     if (!isInsideRadius) {
       swalError(
@@ -207,6 +246,14 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
       );
       return;
     }
+
+    if (!settings.requireSelfie) {
+      // Foto wajah dinonaktifkan di admin: Guru cukup klik absen maka langsung absen tanpa membuka kamera!
+      setCameraType(type);
+      handleSubmitDirect(type);
+      return;
+    }
+
     setCameraType(type);
     setIsCameraOpen(true);
   };
@@ -235,6 +282,106 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
       );
       onRefresh();
     } catch (err: any) {
+      swalClose();
+      swalError("Kesalahan Sistem", err.message || "Gagal menghubungkan ke server.");
+    }
+  };
+
+  // ── Backdated / Retroactive Attendance State ──
+  const [isBackdatedModalOpen, setIsBackdatedModalOpen] = useState(false);
+  const getYesterdayDateString = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  };
+  const [backdatedDate, setBackdatedDate] = useState<string>(getYesterdayDateString());
+  const [backdatedType, setBackdatedType] = useState<"FULL" | "CHECK_IN" | "CHECK_OUT">("FULL");
+  const [backdatedInTime, setBackdatedInTime] = useState<string>(settings.workStartTime || "07:00");
+  const [backdatedOutTime, setBackdatedOutTime] = useState<string>(settings.workEndTime || "14:00");
+  const [backdatedNotes, setBackdatedNotes] = useState<string>("Lupa absen saat kegiatan dinas");
+  const [isCheckingDateStatus, setIsCheckingDateStatus] = useState<boolean>(false);
+  const [existingDateLog, setExistingDateLog] = useState<{
+    id: string;
+    status: string;
+    checkInTime: string | null;
+    checkOutTime: string | null;
+    notes?: string | null;
+  } | null>(null);
+  const [dateHolidayInfo, setDateHolidayInfo] = useState<string | null>(null);
+  const [isSubmittingBackdated, setIsSubmittingBackdated] = useState<boolean>(false);
+
+  // Check existing log for chosen backdated date
+  const checkDateStatus = async (dateStr: string) => {
+    setIsCheckingDateStatus(true);
+    try {
+      const res = await getTeacherAttendanceForDateAction(dateStr, teacher.id);
+      setIsCheckingDateStatus(false);
+      if (res?.success) {
+        setExistingDateLog(res.log || null);
+        setDateHolidayInfo(res.holiday?.name || null);
+        // Smart preset mode based on date condition
+        if (!res.log || (!res.log.checkInTime && !res.log.checkOutTime)) {
+          setBackdatedType("FULL");
+        } else if (res.log.checkInTime && !res.log.checkOutTime) {
+          setBackdatedType("CHECK_OUT");
+        } else {
+          setBackdatedType("FULL");
+        }
+      }
+    } catch {
+      setIsCheckingDateStatus(false);
+    }
+  };
+
+  useEffect(() => {
+    if (isBackdatedModalOpen && backdatedDate) {
+      checkDateStatus(backdatedDate);
+    }
+  }, [isBackdatedModalOpen, backdatedDate]);
+
+  const handleSubmitBackdated = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!backdatedDate) {
+      swalError("Pilih Tanggal", "Silakan pilih tanggal yang akan dicatat presensinya.");
+      return;
+    }
+
+    setIsSubmittingBackdated(true);
+    swalLoading("Menyimpan Presensi Susulan...", `Mencatat presensi untuk tanggal ${backdatedDate}...`);
+
+    try {
+      const res = await recordMobileAttendanceAction({
+        userId: teacher.id,
+        type: backdatedType,
+        dateStr: backdatedDate,
+        customCheckInTime: backdatedInTime,
+        customCheckOutTime: backdatedOutTime,
+        lat: currentLat,
+        lng: currentLng,
+        distance: distanceMeters,
+        notes: backdatedNotes,
+      });
+
+      setIsSubmittingBackdated(false);
+      swalClose();
+
+      if (res?.error) {
+        swalError("Gagal Presensi Susulan", res.error);
+        return;
+      }
+
+      swalSuccess(
+        "Presensi Susulan Berhasil!",
+        res.message || "Data presensi tanggal terlewat telah berhasil dicatat.",
+        2500
+      );
+      setIsBackdatedModalOpen(false);
+      onRefresh();
+    } catch (err: any) {
+      setIsSubmittingBackdated(false);
       swalClose();
       swalError("Kesalahan Sistem", err.message || "Gagal menghubungkan ke server.");
     }
@@ -426,6 +573,38 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
         </div>
       )}
 
+      {/* ── BACKDATED ATTENDANCE BANNER (when enabled by Admin) ── */}
+      {settings.allowBackdatedAttendance && (
+        <div className="bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-sky-500/10 border border-emerald-500/30 rounded-xl p-3.5 shadow-xs flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-emerald-600/15 text-emerald-700 flex items-center justify-center shrink-0 border border-emerald-600/20">
+              <CalendarDays className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col min-w-0">
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-[13px] font-bold text-[#0b1c30] truncate">
+                  Presensi Tanggal Terlewat
+                </h4>
+                <span className="px-1.5 py-0.2 rounded bg-emerald-600/20 text-emerald-800 text-[10px] font-bold">
+                  Aktif
+                </span>
+              </div>
+              <p className="text-[11px] text-[#444653] truncate">
+                Lupa absen kemarin? Isi kehadiran susulan mandiri sekarang
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setIsBackdatedModalOpen(true)}
+            className="shrink-0 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[12px] font-bold shadow-sm transition-all active:scale-95 flex items-center gap-1 cursor-pointer"
+          >
+            <span>Isi Absen</span>
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* ── 5. PRESENSI CEPAT (MAIN CTA) ── */}
       <div className="bg-white rounded-xl p-4 shadow-sm flex flex-col gap-4">
         {/* Header */}
@@ -436,7 +615,11 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
             </div>
             <div>
               <h3 className="text-[14px] font-bold text-[#0b1c30]">Aksi Presensi Cepat</h3>
-              <p className="text-[12px] text-[#444653]">Verifikasi Wajah & Lokasi Biometrik</p>
+              <p className="text-[12px] text-[#444653]">
+                {settings.requireSelfie
+                  ? "Verifikasi Wajah & Lokasi Biometrik"
+                  : "Presensi Instan 1-Klik (Verifikasi GPS)"}
+              </p>
             </div>
           </div>
           <span className="px-2 py-0.5 rounded bg-[#e5eeff] text-[#444653] text-[11px] font-medium">
@@ -467,8 +650,10 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
             >
               {hasCheckedIn ? (
                 <CheckCircle2 className="w-6 h-6 text-[#006c4a]" />
-              ) : (
+              ) : settings.requireSelfie ? (
                 <Camera className="w-6 h-6" />
+              ) : (
+                <Fingerprint className="w-6 h-6" />
               )}
             </div>
             <span className="text-[13px] font-bold leading-tight">
@@ -482,7 +667,9 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
                 })} WIB
               </span>
             ) : (
-              <span className="text-[11px] text-[#85f8c4]/90">Buka Kamera & Liveness</span>
+              <span className="text-[11px] text-[#85f8c4]/90">
+                {settings.requireSelfie ? "Buka Kamera & Liveness" : "Klik Langsung Presensi"}
+              </span>
             )}
           </button>
 
@@ -510,7 +697,11 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
               {hasCheckedOut ? (
                 <CheckCircle2 className="w-6 h-6 text-[#006c4a]" />
               ) : hasCheckedIn ? (
-                <Camera className="w-6 h-6" />
+                settings.requireSelfie ? (
+                  <Camera className="w-6 h-6" />
+                ) : (
+                  <Fingerprint className="w-6 h-6" />
+                )
               ) : (
                 <Lock className="w-6 h-6" />
               )}
@@ -527,7 +718,11 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
               </span>
             ) : (
               <span className="text-[11px] opacity-80">
-                {hasCheckedIn ? "Selfie Kamera" : `Terkunci sd ${settings.workEndTime} WIB`}
+                {hasCheckedIn
+                  ? settings.requireSelfie
+                    ? "Selfie Kamera"
+                    : "Klik Langsung Pulang"
+                  : `Terkunci sd ${settings.workEndTime} WIB`}
               </span>
             )}
           </button>
@@ -542,10 +737,23 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
             <FileText className="w-4 h-4" />
             Izin / Dinas Luar
           </button>
+          {settings.allowBackdatedAttendance && (
+            <>
+              <span className="text-[#c4c5d5]">•</span>
+              <button
+                type="button"
+                onClick={() => setIsBackdatedModalOpen(true)}
+                className="flex items-center gap-1 text-[12px] text-emerald-700 font-semibold hover:underline"
+              >
+                <CalendarDays className="w-4 h-4" />
+                Tanggal Terlewat
+              </button>
+            </>
+          )}
           <span className="text-[#c4c5d5]">•</span>
           <button className="flex items-center gap-1 text-[12px] text-[#00288e] font-semibold hover:underline">
             <ArrowLeftRight className="w-4 h-4" />
-            Tukar Jadwal Mengajar
+            Tukar Jadwal
           </button>
         </div>
       </div>
@@ -830,6 +1038,287 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
               alt="Bukti Selfie"
               className="w-full h-auto rounded-2xl border border-[#1e40af]/30"
             />
+          </div>
+        </div>
+      )}
+
+      {/* ── BACKDATED ATTENDANCE MODAL ── */}
+      {isBackdatedModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div
+            className="bg-white rounded-t-3xl sm:rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden"
+            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+          >
+            {/* Header */}
+            <div className="px-5 py-4 bg-gradient-to-r from-emerald-600 to-teal-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
+                  <CalendarDays className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="text-[15px] font-bold leading-tight">Presensi Tanggal Terlewat</h3>
+                  <p className="text-[11px] text-emerald-100">Catat kehadiran susulan mandiri guru</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsBackdatedModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <form onSubmit={handleSubmitBackdated} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
+              {/* Quick Date Chips */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-bold text-[#0b1c30]">Pilih Tanggal Presensi</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { label: "Kemarin", offset: 1 },
+                    { label: "2 Hari Lalu", offset: 2 },
+                    { label: "3 Hari Lalu", offset: 3 },
+                  ].map((chip) => {
+                    const d = new Date();
+                    d.setDate(d.getDate() - chip.offset);
+                    const y = d.getFullYear();
+                    const m = String(d.getMonth() + 1).padStart(2, "0");
+                    const day = String(d.getDate()).padStart(2, "0");
+                    const ds = `${y}-${m}-${day}`;
+                    const isSelected = backdatedDate === ds;
+
+                    return (
+                      <button
+                        key={chip.label}
+                        type="button"
+                        onClick={() => setBackdatedDate(ds)}
+                        className={`py-1.5 px-2 rounded-lg text-[11px] font-semibold transition-all border ${
+                          isSelected
+                            ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                            : "bg-[#eff4ff] text-[#0b1c30] border-[#dde1ff] hover:bg-[#dce9ff]"
+                        }`}
+                      >
+                        {chip.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Date Input */}
+                <input
+                  type="date"
+                  max={getYesterdayDateString()}
+                  value={backdatedDate}
+                  onChange={(e) => setBackdatedDate(e.target.value)}
+                  required
+                  className="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-[#dde1ff] bg-[#f8f9ff] text-[#0b1c30] text-[13px] font-semibold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+
+              {/* Status Date Preview */}
+              <div className="rounded-xl border p-3 flex flex-col gap-1.5 bg-[#f8f9ff] border-[#dde1ff]">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-[#444653] uppercase tracking-wide">
+                    Status Tanggal Terpilih:
+                  </span>
+                  {isCheckingDateStatus && (
+                    <div className="flex items-center gap-1 text-[11px] text-emerald-700">
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>Memeriksa...</span>
+                    </div>
+                  )}
+                </div>
+
+                {dateHolidayInfo && (
+                  <div className="text-[12px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200 flex items-center gap-1.5">
+                    <span>🎉</span>
+                    <span>Hari Libur: {dateHolidayInfo}</span>
+                  </div>
+                )}
+
+                {existingDateLog ? (
+                  <div className="flex flex-col gap-1 text-[12px]">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-[#0b1c30]">
+                        Log Terdaftar: {existingDateLog.status}
+                      </span>
+                      <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold">
+                        {existingDateLog.checkInTime && existingDateLog.checkOutTime ? "Lengkap" : "Sebagian"}
+                      </span>
+                    </div>
+                    <div className="text-[11px] text-[#444653] flex items-center gap-3">
+                      <span>
+                        Masuk:{" "}
+                        <strong className="text-[#0b1c30]">
+                          {existingDateLog.checkInTime
+                            ? new Date(existingDateLog.checkInTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB"
+                            : "-"}
+                        </strong>
+                      </span>
+                      <span>•</span>
+                      <span>
+                        Pulang:{" "}
+                        <strong className="text-[#0b1c30]">
+                          {existingDateLog.checkOutTime
+                            ? new Date(existingDateLog.checkOutTime).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) + " WIB"
+                            : "-"}
+                        </strong>
+                      </span>
+                    </div>
+                    {existingDateLog.notes && (
+                      <span className="text-[10px] text-[#71727a] italic">
+                        Catatan: {existingDateLog.notes}
+                      </span>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-[12px] text-[#532a00] bg-orange-50 px-2.5 py-1.5 rounded-lg border border-orange-200">
+                    Belum ada presensi tercatat (Alpa). Anda dapat mengisi kehadiran lengkap.
+                  </div>
+                )}
+              </div>
+
+              {/* Mode Selection Tabs */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-bold text-[#0b1c30]">Jenis Presensi Susulan</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBackdatedType("FULL")}
+                    className={`py-2 px-1 rounded-xl text-[11px] font-bold transition-all border flex flex-col items-center gap-0.5 ${
+                      backdatedType === "FULL"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        : "bg-white text-[#444653] border-[#dde1ff] hover:bg-[#eff4ff]"
+                    }`}
+                  >
+                    <span>⚡ Lengkap</span>
+                    <span className="text-[9px] opacity-80 font-normal">Masuk & Pulang</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackdatedType("CHECK_IN")}
+                    className={`py-2 px-1 rounded-xl text-[11px] font-bold transition-all border flex flex-col items-center gap-0.5 ${
+                      backdatedType === "CHECK_IN"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        : "bg-white text-[#444653] border-[#dde1ff] hover:bg-[#eff4ff]"
+                    }`}
+                  >
+                    <span>🌅 Masuk Saja</span>
+                    <span className="text-[9px] opacity-80 font-normal">Jam Masuk</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setBackdatedType("CHECK_OUT")}
+                    className={`py-2 px-1 rounded-xl text-[11px] font-bold transition-all border flex flex-col items-center gap-0.5 ${
+                      backdatedType === "CHECK_OUT"
+                        ? "bg-emerald-600 text-white border-emerald-600 shadow-sm"
+                        : "bg-white text-[#444653] border-[#dde1ff] hover:bg-[#eff4ff]"
+                    }`}
+                  >
+                    <span>🌇 Pulang Saja</span>
+                    <span className="text-[9px] opacity-80 font-normal">Jam Pulang</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Time Inputs */}
+              <div className="grid grid-cols-2 gap-3">
+                {(backdatedType === "FULL" || backdatedType === "CHECK_IN") && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-[#0b1c30] flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-emerald-600" />
+                      <span>Jam Masuk</span>
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={backdatedInTime}
+                      onChange={(e) => setBackdatedInTime(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-[#dde1ff] bg-white text-[#0b1c30] text-[13px] font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+                )}
+
+                {(backdatedType === "FULL" || backdatedType === "CHECK_OUT") && (
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] font-bold text-[#0b1c30] flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5 text-indigo-600" />
+                      <span>Jam Pulang</span>
+                    </label>
+                    <input
+                      type="time"
+                      required
+                      value={backdatedOutTime}
+                      onChange={(e) => setBackdatedOutTime(e.target.value)}
+                      className="px-3 py-2 rounded-xl border border-[#dde1ff] bg-white text-[#0b1c30] text-[13px] font-mono font-bold focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Alasan / Catatan */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[12px] font-bold text-[#0b1c30]">Alasan / Keterangan Terlewat</label>
+                <div className="flex flex-wrap gap-1.5 mb-1">
+                  {[
+                    "Lupa absen saat kegiatan dinas",
+                    "Kendala jaringan / server",
+                    "Tugas luar madrasah",
+                  ].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => setBackdatedNotes(preset)}
+                      className="text-[10px] px-2 py-0.5 rounded-full bg-[#eff4ff] text-[#00288e] hover:bg-[#dce9ff] transition-colors"
+                    >
+                      {preset}
+                    </button>
+                  ))}
+                </div>
+                <input
+                  type="text"
+                  required
+                  placeholder="Misal: Lupa absen karena tugas luar madrasah"
+                  value={backdatedNotes}
+                  onChange={(e) => setBackdatedNotes(e.target.value)}
+                  className="px-3.5 py-2.5 rounded-xl border border-[#dde1ff] bg-white text-[#0b1c30] text-[12px] focus:outline-none focus:ring-2 focus:ring-emerald-600"
+                />
+              </div>
+
+              {/* Verification Info */}
+              <div className="p-3 rounded-xl bg-[#eff4ff] border border-[#dde1ff] flex items-center gap-2.5 text-[11px]">
+                <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                <span className="text-[#444653]">
+                  {settings.requireSelfie
+                    ? "Foto selfie diaktifkan di admin untuk presensi real-time."
+                    : "Presensi instan aktif tanpa perlu kamera (Kebijakan Admin)."}
+                </span>
+              </div>
+
+              {/* Submit & Cancel */}
+              <div className="pt-2 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setIsBackdatedModalOpen(false)}
+                  className="flex-1 py-2.5 rounded-xl border border-[#dde1ff] text-[#444653] font-bold text-[13px] hover:bg-[#f8f9ff] transition-colors"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isSubmittingBackdated}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[13px] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  {isSubmittingBackdated ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Check className="w-4 h-4" />
+                  )}
+                  <span>Simpan Presensi</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -26,6 +26,7 @@ interface MobileAppShellProps {
       lateThreshold: string;
       workEndTime: string;
       requireSelfie: boolean;
+      allowBackdatedAttendance?: boolean;
     };
     todayLog?: {
       id: string;

@@ -8,6 +8,7 @@ export interface AttendanceSettingsInput {
   workDays: string;
   dailySchedules?: string;
   requireSelfie: boolean;
+  allowBackdatedAttendance?: boolean;
   latitude: number;
   longitude: number;
   radiusMeters: number;
@@ -52,10 +53,11 @@ export async function updateMadrasahSettings(
       workDays: input.workDays,
       dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
+      allowBackdatedAttendance: input.allowBackdatedAttendance ?? false,
       latitude: input.latitude,
       longitude: input.longitude,
       radiusMeters: input.radiusMeters,
-    },
+    } as any,
     create: {
       madrasahId,
       workStartTime: input.workStartTime,
@@ -64,10 +66,11 @@ export async function updateMadrasahSettings(
       workDays: input.workDays,
       dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
+      allowBackdatedAttendance: input.allowBackdatedAttendance ?? false,
       latitude: input.latitude,
       longitude: input.longitude,
       radiusMeters: input.radiusMeters,
-    },
+    } as any,
   });
 }
 

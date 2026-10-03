@@ -87,6 +87,7 @@ interface SettingsData {
   workDays: string;
   dailySchedules?: string | null;
   requireSelfie: boolean;
+  allowBackdatedAttendance?: boolean;
   latitude: number;
   longitude: number;
   radiusMeters: number;
@@ -116,6 +117,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
 
   // Other Settings State
   const [requireSelfie, setRequireSelfie] = useState(initialData.requireSelfie ?? true);
+  const [allowBackdatedAttendance, setAllowBackdatedAttendance] = useState(initialData.allowBackdatedAttendance ?? false);
   const [latitude, setLatitude] = useState(String(initialData.latitude || -6.2615));
   const [longitude, setLongitude] = useState(String(initialData.longitude || 106.8106));
   const [radiusMeters, setRadiusMeters] = useState(String(initialData.radiusMeters || 50));
@@ -207,6 +209,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
       workDays: activeDaysList || "1,2,3,4,5",
       dailySchedules: JSON.stringify(dailySchedules),
       requireSelfie,
+      allowBackdatedAttendance,
       latitude: parseFloat(latitude) || -6.2615,
       longitude: parseFloat(longitude) || 106.8106,
       radiusMeters: parseFloat(radiusMeters) || 50,
@@ -589,7 +592,7 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
                     Wajib Foto Selfie Live Kamera Depan
                   </span>
                   <span className="text-[11px] text-muted-foreground block">
-                    Mewajibkan guru mengambil foto langsung saat clock-in di aplikasi mobile.
+                    Jika dinonaktifkan, guru dapat langsung klik absen (verifikasi GPS) tanpa perlu membuka kamera.
                   </span>
                 </div>
               </div>
@@ -599,6 +602,33 @@ export function AttendanceSettingsView({ initialData }: { initialData: SettingsD
                   type="checkbox"
                   checked={requireSelfie}
                   onChange={(e) => setRequireSelfie(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+              </label>
+            </div>
+
+            {/* Backdated Attendance Toggle */}
+            <div className="pt-4 border-t border-border/60 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="size-9 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
+                  <Calendar className="size-4.5" />
+                </div>
+                <div>
+                  <span className="text-xs font-bold text-foreground block">
+                    Izinkan Presensi Tanggal Terlewat (Susulan) oleh Guru
+                  </span>
+                  <span className="text-[11px] text-muted-foreground block">
+                    Memungkinkan guru mandiri memilih dan mengisi presensi masuk/pulang pada tanggal yang terlewat di aplikasi mobile.
+                  </span>
+                </div>
+              </div>
+
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={allowBackdatedAttendance}
+                  onChange={(e) => setAllowBackdatedAttendance(e.target.checked)}
                   className="sr-only peer"
                 />
                 <div className="w-11 h-6 bg-muted peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>

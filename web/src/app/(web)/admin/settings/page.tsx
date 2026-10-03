@@ -21,6 +21,7 @@ export default async function SettingsPage() {
     workDays: settings?.workDays || "1,2,3,4,5",
     dailySchedules: (settings as any)?.dailySchedules || null,
     requireSelfie: settings?.requireSelfie ?? true,
+    allowBackdatedAttendance: (settings as any)?.allowBackdatedAttendance ?? false,
     latitude: settings?.latitude || -6.2615,
     longitude: settings?.longitude || 106.8106,
     radiusMeters: settings?.radiusMeters || 50,

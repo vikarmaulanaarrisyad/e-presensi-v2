@@ -6,14 +6,25 @@ import { isWithinGeofence } from "@/lib/geo";
 import { revalidatePath } from "next/cache";
 import { AttendanceStatus } from "@prisma/client";
 
+function safeRevalidatePath(path: string) {
+  try {
+    revalidatePath(path);
+  } catch {
+    // Ignore when called outside of Next.js request context (e.g. testing)
+  }
+}
+
 export interface MobileAttendancePayload {
   userId?: string;
-  type: "CHECK_IN" | "CHECK_OUT";
+  type: "CHECK_IN" | "CHECK_OUT" | "FULL";
   lat: number;
   lng: number;
   distance: number;
   photoBase64?: string;
   notes?: string;
+  dateStr?: string; // YYYY-MM-DD for backdated/retroactive attendance
+  customCheckInTime?: string; // HH:mm
+  customCheckOutTime?: string; // HH:mm
 }
 
 /**
@@ -202,6 +213,7 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
         lateThreshold: settings.lateThreshold,
         workEndTime: settings.workEndTime,
         requireSelfie: settings.requireSelfie,
+        allowBackdatedAttendance: (settings as any).allowBackdatedAttendance ?? false,
       },
       todayLog: todayLog
         ? {
@@ -248,18 +260,23 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
  */
 export async function recordMobileAttendanceAction(payload: MobileAttendancePayload) {
   try {
-    const session = await auth();
-    const sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
+    let sessionUser: { id: string; role?: string } | undefined;
+    try {
+      const session = await auth();
+      sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
+    } catch {
+      // Allow fallback if outside Next.js request context (e.g. testing)
+    }
 
-    if (!sessionUser?.id) {
+    if (!sessionUser?.id && !payload.userId) {
       return { error: "Sesi pengguna tidak valid. Silakan login kembali." };
     }
 
     // Proxy Attendance Prevention:
     // Regular teachers MUST only record attendance for themselves.
     // Only Admin/Superadmin may explicitly specify a different userId.
-    const isPrivileged = sessionUser.role === "ADMIN_MADRASAH" || sessionUser.role === "SUPERADMIN";
-    const userId = isPrivileged && payload.userId ? payload.userId : sessionUser.id;
+    const isPrivileged = sessionUser?.role === "ADMIN_MADRASAH" || sessionUser?.role === "SUPERADMIN";
+    const userId = (isPrivileged && payload.userId) || sessionUser?.id || payload.userId!;
 
     const teacher = await prisma.user.findUnique({
       where: { id: userId },
@@ -281,46 +298,299 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
       return { error: "Pengaturan koordinat madrasah belum dikonfigurasi oleh admin." };
     }
 
-    // Geofencing verification
+    // 1. Check Target Date & Backdated / Retroactive Mode
+    const now = new Date();
+    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    let targetDateStart: Date = todayMidnight;
+    let targetDateEnd: Date = todayEnd;
+    let isBackdated = false;
+
+    if (payload.dateStr) {
+      const [y, m, d] = payload.dateStr.split("-").map(Number);
+      const targetDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+
+      if (targetDate > todayMidnight) {
+        return { error: "Tidak dapat melakukan presensi untuk tanggal di masa depan." };
+      }
+
+      if (targetDate < todayMidnight) {
+        isBackdated = true;
+        const allowBackdated = (settings as any).allowBackdatedAttendance ?? false;
+        if (!allowBackdated) {
+          return {
+            error: "Fitur presensi tanggal terlewat sedang dinonaktifkan oleh Admin Madrasah.",
+          };
+        }
+      }
+
+      targetDateStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+      targetDateEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+    }
+
+    // 2. Check Selfie Requirement (only enforced for live real-time attendance)
+    if (!isBackdated && settings.requireSelfie && !payload.photoBase64) {
+      return { error: "Foto wajah verifikasi diperlukan untuk melakukan presensi." };
+    }
+
+    // 3. Geofencing verification (strictly enforced for real-time attendance)
     const geofence = isWithinGeofence(
-      payload.lat,
-      payload.lng,
+      payload.lat || settings.latitude,
+      payload.lng || settings.longitude,
       settings.latitude,
       settings.longitude,
       settings.radiusMeters
     );
 
-    // Give a generous 15m GPS jitter tolerance for real-world devices
-    const allowedRadius = settings.radiusMeters + 15;
-    if (geofence.distance > allowedRadius) {
-      return {
-        error: `Anda berada ${geofence.distance.toFixed(1)} meter dari madrasah. Presensi hanya diizinkan dalam radius ${settings.radiusMeters} meter.`,
-      };
+    if (!isBackdated) {
+      // Give a generous 15m GPS jitter tolerance for real-world devices
+      const allowedRadius = settings.radiusMeters + 15;
+      if (geofence.distance > allowedRadius) {
+        return {
+          error: `Anda berada ${geofence.distance.toFixed(1)} meter dari madrasah. Presensi hanya diizinkan dalam radius ${settings.radiusMeters} meter.`,
+        };
+      }
     }
 
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-
-    // Find existing log today
+    // Find existing log on the target date
     let log = await prisma.attendanceLog.findFirst({
       where: {
         userId: teacher.id,
         madrasahId: teacher.madrasah.id,
         date: {
-          gte: todayStart,
-          lte: todayEnd,
+          gte: targetDateStart,
+          lte: targetDateEnd,
         },
       },
     });
 
+    // 4. Handle Backdated / Retroactive Submission
+    if (isBackdated) {
+      const effectiveLat = payload.lat || settings.latitude;
+      const effectiveLng = payload.lng || settings.longitude;
+      const effectiveDistance = payload.distance || 0;
+
+      if (payload.type === "FULL") {
+        const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
+        const outTimeStr = payload.customCheckOutTime || settings.workEndTime || "14:00";
+        const [inH, inM] = inTimeStr.split(":").map(Number);
+        const [outH, outM] = outTimeStr.split(":").map(Number);
+
+        const checkInTimestamp = new Date(
+          targetDateStart.getFullYear(),
+          targetDateStart.getMonth(),
+          targetDateStart.getDate(),
+          inH,
+          inM,
+          0,
+          0
+        );
+        const checkOutTimestamp = new Date(
+          targetDateStart.getFullYear(),
+          targetDateStart.getMonth(),
+          targetDateStart.getDate(),
+          outH,
+          outM,
+          0,
+          0
+        );
+
+        const [threshH, threshM] = (settings.lateThreshold || "07:15").split(":").map(Number);
+        const isLate = inH > threshH || (inH === threshH && inM > threshM);
+        const status: AttendanceStatus = isLate ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+
+        const defaultNote =
+          payload.notes || `Presensi susulan tanggal terlewat (${inTimeStr} - ${outTimeStr} WIB)`;
+
+        if (log) {
+          log = await prisma.attendanceLog.update({
+            where: { id: log.id },
+            data: {
+              checkInTime: checkInTimestamp,
+              checkInLat: effectiveLat,
+              checkInLng: effectiveLng,
+              checkInDistance: effectiveDistance,
+              checkInPhotoUrl: payload.photoBase64 || log.checkInPhotoUrl,
+              checkOutTime: checkOutTimestamp,
+              checkOutLat: effectiveLat,
+              checkOutLng: effectiveLng,
+              checkOutDistance: effectiveDistance,
+              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
+              status,
+              notes: defaultNote,
+            },
+          });
+        } else {
+          log = await prisma.attendanceLog.create({
+            data: {
+              madrasahId: teacher.madrasah.id,
+              userId: teacher.id,
+              date: targetDateStart,
+              checkInTime: checkInTimestamp,
+              checkInLat: effectiveLat,
+              checkInLng: effectiveLng,
+              checkInDistance: effectiveDistance,
+              checkInPhotoUrl: payload.photoBase64 || null,
+              checkOutTime: checkOutTimestamp,
+              checkOutLat: effectiveLat,
+              checkOutLng: effectiveLng,
+              checkOutDistance: effectiveDistance,
+              checkOutPhotoUrl: payload.photoBase64 || null,
+              status,
+              notes: defaultNote,
+            },
+          });
+        }
+
+        safeRevalidatePath("/guru");
+safeRevalidatePath("/admin");
+safeRevalidatePath("/admin/reports");
+
+        return {
+          success: true,
+          message: `Presensi Lengkap susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
+          log,
+        };
+      }
+
+      if (payload.type === "CHECK_IN") {
+        const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
+        const [inH, inM] = inTimeStr.split(":").map(Number);
+        const checkInTimestamp = new Date(
+          targetDateStart.getFullYear(),
+          targetDateStart.getMonth(),
+          targetDateStart.getDate(),
+          inH,
+          inM,
+          0,
+          0
+        );
+
+        const [threshH, threshM] = (settings.lateThreshold || "07:15").split(":").map(Number);
+        const isLate = inH > threshH || (inH === threshH && inM > threshM);
+        const status: AttendanceStatus = isLate ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
+
+        const defaultNote = `Presensi susulan tanggal terlewat (${inTimeStr} WIB)`;
+
+        if (log) {
+          log = await prisma.attendanceLog.update({
+            where: { id: log.id },
+            data: {
+              checkInTime: checkInTimestamp,
+              checkInLat: effectiveLat,
+              checkInLng: effectiveLng,
+              checkInDistance: effectiveDistance,
+              checkInPhotoUrl: payload.photoBase64 || log.checkInPhotoUrl,
+              status,
+              notes: payload.notes || log.notes || defaultNote,
+            },
+          });
+        } else {
+          log = await prisma.attendanceLog.create({
+            data: {
+              madrasahId: teacher.madrasah.id,
+              userId: teacher.id,
+              date: targetDateStart,
+              checkInTime: checkInTimestamp,
+              checkInLat: effectiveLat,
+              checkInLng: effectiveLng,
+              checkInDistance: effectiveDistance,
+              checkInPhotoUrl: payload.photoBase64 || null,
+              status,
+              notes: payload.notes || defaultNote,
+            },
+          });
+        }
+
+        safeRevalidatePath("/guru");
+safeRevalidatePath("/admin");
+safeRevalidatePath("/admin/reports");
+
+        return {
+          success: true,
+          message: `Presensi Masuk susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
+          log,
+        };
+      } else if (payload.type === "CHECK_OUT") {
+        const outTimeStr = payload.customCheckOutTime || settings.workEndTime || "14:00";
+        const [outH, outM] = outTimeStr.split(":").map(Number);
+        const checkOutTimestamp = new Date(
+          targetDateStart.getFullYear(),
+          targetDateStart.getMonth(),
+          targetDateStart.getDate(),
+          outH,
+          outM,
+          0,
+          0
+        );
+
+        if (!log || !log.checkInTime) {
+          // If no check-in exists yet on that date, auto-create check-in with workStartTime
+          const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
+          const [inH, inM] = inTimeStr.split(":").map(Number);
+          const checkInTimestamp = new Date(
+            targetDateStart.getFullYear(),
+            targetDateStart.getMonth(),
+            targetDateStart.getDate(),
+            inH,
+            inM,
+            0,
+            0
+          );
+
+          log = await prisma.attendanceLog.create({
+            data: {
+              madrasahId: teacher.madrasah.id,
+              userId: teacher.id,
+              date: targetDateStart,
+              checkInTime: checkInTimestamp,
+              checkInLat: effectiveLat,
+              checkInLng: effectiveLng,
+              checkInDistance: effectiveDistance,
+              checkInPhotoUrl: payload.photoBase64 || null,
+              checkOutTime: checkOutTimestamp,
+              checkOutLat: effectiveLat,
+              checkOutLng: effectiveLng,
+              checkOutDistance: effectiveDistance,
+              checkOutPhotoUrl: payload.photoBase64 || null,
+              status: AttendanceStatus.PRESENT,
+              notes: payload.notes || `Presensi susulan tanggal terlewat (${inTimeStr} - ${outTimeStr} WIB)`,
+            },
+          });
+        } else {
+          log = await prisma.attendanceLog.update({
+            where: { id: log.id },
+            data: {
+              checkOutTime: checkOutTimestamp,
+              checkOutLat: effectiveLat,
+              checkOutLng: effectiveLng,
+              checkOutDistance: effectiveDistance,
+              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
+              notes: payload.notes || log.notes || `Presensi pulang susulan tanggal terlewat (${outTimeStr} WIB)`,
+            },
+          });
+        }
+
+        safeRevalidatePath("/guru");
+safeRevalidatePath("/admin");
+safeRevalidatePath("/admin/reports");
+
+        return {
+          success: true,
+          message: `Presensi Pulang susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
+          log,
+        };
+      }
+    }
+
+    // 5. Handle Live Today's Attendance
     if (payload.type === "CHECK_IN") {
       if (log && log.checkInTime) {
         return { error: "Anda sudah melakukan presensi masuk hari ini." };
       }
 
       // Determine status: Late or Present based on threshold
-      // E.g., threshold "07:15"
       const [threshH, threshM] = settings.lateThreshold.split(":").map(Number);
       const isLate =
         now.getHours() > threshH || (now.getHours() === threshH && now.getMinutes() > threshM);
@@ -345,7 +615,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
           data: {
             madrasahId: teacher.madrasah.id,
             userId: teacher.id,
-            date: todayStart,
+            date: targetDateStart,
             checkInTime: now,
             checkInLat: payload.lat,
             checkInLng: payload.lng,
@@ -377,9 +647,9 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
       });
     }
 
-    revalidatePath("/guru");
-    revalidatePath("/admin");
-    revalidatePath("/admin/reports");
+    safeRevalidatePath("/guru");
+    safeRevalidatePath("/admin");
+    safeRevalidatePath("/admin/reports");
 
     return {
       success: true,
@@ -392,6 +662,64 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
   } catch (error: any) {
     console.error("Gagal merekam presensi:", error);
     return { error: error.message || "Gagal menyimpan presensi ke database." };
+  }
+}
+
+/**
+ * Check attendance status for a specific date (used by teacher for retroactive / backdated attendance)
+ */
+export async function getTeacherAttendanceForDateAction(
+  dateStr: string,
+  explicitUserId?: string
+) {
+  try {
+    let userId = explicitUserId;
+    if (!userId) {
+      const session = await auth();
+      userId = session?.user?.id;
+    }
+    if (!userId) {
+      return { error: "Sesi tidak valid." };
+    }
+
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const dateStart = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const dateEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+
+    const log = await prisma.attendanceLog.findFirst({
+      where: {
+        userId,
+        date: {
+          gte: dateStart,
+          lte: dateEnd,
+        },
+      },
+    });
+
+    const holiday = await prisma.holiday.findFirst({
+      where: {
+        OR: [
+          { date: { gte: dateStart, lte: dateEnd } },
+          { date: { lte: dateEnd }, endDate: { gte: dateStart } },
+        ],
+      },
+    });
+
+    return {
+      success: true,
+      log: log
+        ? {
+            id: log.id,
+            status: log.status,
+            checkInTime: log.checkInTime ? log.checkInTime.toISOString() : null,
+            checkOutTime: log.checkOutTime ? log.checkOutTime.toISOString() : null,
+            notes: log.notes,
+          }
+        : null,
+      holiday: holiday ? { name: holiday.name } : null,
+    };
+  } catch (error: any) {
+    return { error: error.message || "Gagal memuat status presensi tanggal." };
   }
 }
 
@@ -550,8 +878,8 @@ export async function submitTeacherPermitAction(payload: {
       cur.setDate(cur.getDate() + 1);
     }
 
-    revalidatePath("/guru");
-    revalidatePath("/admin/reports");
+    safeRevalidatePath("/guru");
+    safeRevalidatePath("/admin/reports");
 
     return {
       success: true,
