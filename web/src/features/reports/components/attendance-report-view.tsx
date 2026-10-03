@@ -552,8 +552,14 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
 
       {/* 4. Semester Break Modal */}
       {isSemesterModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-2xl overflow-hidden flex flex-col">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-in fade-in duration-150"
+          onClick={() => setIsSemesterModalOpen(false)}
+        >
+          <div 
+            className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] overflow-hidden flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="flex items-center justify-between p-5 border-b border-border/80 bg-muted/30">
               <div className="flex items-center gap-2.5">

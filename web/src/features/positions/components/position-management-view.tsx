@@ -580,8 +580,14 @@ export function PositionManagementView({ initialData }: PositionManagementViewPr
 
       {/* ── 5. MODAL FORM: TAMBAH / EDIT JABATAN ── */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200">
-          <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+        <div 
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div 
+            className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="p-5 border-b border-border/70 flex items-center justify-between bg-gradient-to-r from-[#042817] to-[#0A5C36] text-white">
               <div className="flex items-center gap-3">

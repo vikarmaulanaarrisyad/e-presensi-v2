@@ -359,8 +359,14 @@ export function MadrasahTable({ initialData }: MadrasahTableProps) {
 
       {/* Modal Dialog Tambah Madrasah */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-card border border-border/80 rounded-2xl max-w-lg w-full p-6 shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto">
+        <div 
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setIsModalOpen(false)}
+        >
+          <div 
+            className="bg-card border border-border/80 rounded-2xl max-w-lg w-full p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col gap-5 max-h-[90vh] overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <div className="flex items-center gap-2.5">
                 <div className="size-9 rounded-xl bg-primary/10 flex items-center justify-center text-primary">

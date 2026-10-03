@@ -335,8 +335,14 @@ export function AttendanceTable({
 
       {/* Detail Dialog Modal (If clicked) */}
       {selectedLog && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 shadow-2xl flex flex-col gap-5">
+        <div 
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 animate-in fade-in duration-150"
+          onClick={() => setSelectedLog(null)}
+        >
+          <div 
+            className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col gap-5"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
               <h3 className="font-bold text-base text-foreground flex items-center gap-2">
                 <MapPin className="size-4.5 text-primary" />

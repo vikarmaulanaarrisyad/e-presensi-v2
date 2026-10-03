@@ -714,6 +714,17 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
                 Presensi Massal ({selectedTeacherIds.size})
               </Button>
             )}
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsDateRangeModalOpen(true)}
+              leftIcon={<CalendarRange className="size-3.5 text-blue-600 dark:text-blue-400" />}
+              className="border-blue-500/30 hover:border-blue-500/60 bg-blue-500/5 hover:bg-blue-500/10 text-blue-800 dark:text-blue-300 font-bold shadow-2xs text-xs"
+            >
+              Presensi Rentang Tanggal
+            </Button>
           </div>
 
           {/* Search & Status Filter Tabs */}

@@ -114,11 +114,15 @@ export function GoogleLoginModal({ isOpen, onClose }: GoogleLoginModalProps) {
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-in fade-in duration-150"
+      onClick={onClose}
+    >
       <div 
-        className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-lg bg-white rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] border border-slate-100 overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200"
         role="dialog"
         aria-modal="true"
+        onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="p-5 sm:p-6 bg-gradient-to-br from-slate-50 to-emerald-50/50 border-b border-slate-100 flex items-start justify-between">

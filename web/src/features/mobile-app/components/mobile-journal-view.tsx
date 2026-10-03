@@ -482,10 +482,14 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
 
       {/* ── 4. MODAL FORM: WRITE / EDIT JOURNAL ── */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+        <div 
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-transparent p-0 sm:p-4 animate-in fade-in duration-150"
+          onClick={() => setIsFormOpen(false)}
+        >
           <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-200"
+            className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] border border-slate-200 overflow-hidden animate-in slide-in-from-bottom duration-200"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
             <div className="px-5 py-4 bg-gradient-to-r from-[#006c4a] to-[#005137] text-white flex items-center justify-between">

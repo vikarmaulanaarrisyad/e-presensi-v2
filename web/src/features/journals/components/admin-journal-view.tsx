@@ -866,8 +866,14 @@ export function AdminJournalView({ initialData }: AdminJournalViewProps) {
 
       {/* ── DETAIL MODAL JURNAL KBM (Matching Teacher Detail Modal) ── */}
       {journalDetail && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-          <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[90vh]">
+        <div 
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={() => setJournalDetail(null)}
+        >
+          <div 
+            className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden max-h-[90vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="p-4 border-b border-border bg-gradient-to-r from-[#00288E] to-[#0A5C36] text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -1024,8 +1030,17 @@ export function AdminJournalView({ initialData }: AdminJournalViewProps) {
 
       {/* ── CREATE / EDIT JURNAL FORM MODAL ── */}
       {isFormModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/70 backdrop-blur-xs flex items-center justify-center p-4 select-none animate-in fade-in duration-200">
-          <div className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-2xl flex flex-col overflow-hidden max-h-[92vh]">
+        <div 
+          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 select-none animate-in fade-in duration-150"
+          onClick={() => {
+            setIsFormModalOpen(false);
+            setJournalToEdit(null);
+          }}
+        >
+          <div 
+            className="bg-card border border-border w-full max-w-lg rounded-2xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col overflow-hidden max-h-[92vh]"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Modal Header */}
             <div className="p-4 border-b border-border bg-gradient-to-r from-[#00288E] to-[#0A5C36] text-white flex items-center justify-between">
               <div className="flex items-center gap-3">
