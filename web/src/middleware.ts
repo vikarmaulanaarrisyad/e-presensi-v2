@@ -16,6 +16,12 @@ export function middleware(request: NextRequest) {
     pathname.startsWith("/admin") ||
     pathname.startsWith("/superadmin");
 
+  // If this is a Server Action request, bypass page-level redirect so Next.js receives a valid RSC payload
+  // Server Actions handle authentication and return structured error messages via requireAuth()
+  if (request.headers.has("next-action")) {
+    return NextResponse.next();
+  }
+
   // If visiting protected admin/superadmin page without any session cookie, redirect to /login
   if (isProtectedPage && !sessionToken) {
     const loginUrl = new URL("/login", request.url);
