@@ -121,6 +121,21 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
     }
   };
 
+  const formatDateShort = (isoStr: string) => {
+    try {
+      const [y, m, d] = isoStr.split("-").map(Number);
+      const date = new Date(y, m - 1, d);
+      return date.toLocaleDateString("id-ID", {
+        weekday: "short",
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+    } catch {
+      return isoStr;
+    }
+  };
+
   // Quick date pickers
   const getTodayStr = () => {
     const d = new Date();
@@ -298,150 +313,308 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
                 </span>
               </h1>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Catat presensi kehadiran, izin dinas, atau dispensasi secara kolektif untuk seluruh atau beberapa guru terpilih.
+                Kelola presensi harian secara kolektif dengan sinkronisasi jam kerja, status kehadiran, dan jitter natural.
               </p>
             </div>
           </div>
         </div>
 
-        {/* Institution Info Badge */}
-        <div className="flex items-center gap-3 bg-card border border-border/80 p-3 rounded-2xl shadow-xs">
-          <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-            MIN
-          </div>
-          <div className="flex flex-col min-w-0 text-left">
-            <span className="text-xs font-bold text-foreground truncate">
-              {initialData.madrasahName}
-            </span>
-            <span className="text-[11px] text-muted-foreground font-mono">
-              NSM: {initialData.nsm}
-            </span>
+        {/* Institution Info Badge & Direct Range Action */}
+        <div className="flex items-center gap-2.5">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsDateRangeModalOpen(true)}
+            leftIcon={<CalendarRange className="size-3.5 text-emerald-600" />}
+            className="border-emerald-500/30 hover:border-emerald-500/60 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-bold shadow-2xs text-xs"
+          >
+            Presensi Rentang Tanggal
+          </Button>
+
+          <div className="flex items-center gap-3 bg-card border border-border/80 p-2.5 px-3 rounded-2xl shadow-xs">
+            <div className="size-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary font-bold text-xs shrink-0">
+              MIN
+            </div>
+            <div className="flex flex-col min-w-0 text-left">
+              <span className="text-xs font-bold text-foreground truncate max-w-[150px] sm:max-w-xs">
+                {initialData.madrasahName}
+              </span>
+              <span className="text-[11px] text-muted-foreground font-mono">
+                NSM: {initialData.nsm}
+              </span>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Date Selector & KPI Statistics Cards */}
-      <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-        {/* Date Control Card */}
-        <div className="lg:col-span-1 p-5 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between gap-4">
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Calendar className="size-3.5 text-primary" />
-                <span>Pilih Tanggal</span>
-              </span>
-              {isPending && (
-                <RefreshCw className="size-3.5 text-primary animate-spin" />
-              )}
+      {/* Date Selector & KPI Statistics Cards (Executive 5-Card Bento Row) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
+        {/* Card 1: Pilihan Tanggal */}
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-600 to-teal-500" />
+          
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <div className="size-8 rounded-xl bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 flex items-center justify-center font-bold">
+                <Calendar className="size-4" />
+              </div>
+              <div>
+                <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block">
+                  Pilih Tanggal
+                </span>
+                <span className="text-xs font-semibold text-foreground">
+                  {isToday ? "Presensi Hari Ini" : "Histori Tanggal"}
+                </span>
+              </div>
             </div>
+            {isPending && (
+              <RefreshCw className="size-3.5 text-primary animate-spin" />
+            )}
+          </div>
 
+          <div className="my-1.5">
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => loadDateData(e.target.value)}
-              className="w-full h-11 px-3 rounded-xl border border-border bg-background text-sm font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs cursor-pointer"
+              className="w-full h-9 px-3 rounded-xl border border-border/80 bg-background/80 hover:bg-background focus:bg-background text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-emerald-500/30 focus:border-emerald-500 transition-all cursor-pointer shadow-2xs"
             />
 
-            <div className="flex items-center gap-2 mt-2.5">
+            <div className="grid grid-cols-2 gap-1.5 mt-2">
               <button
                 type="button"
                 onClick={() => loadDateData(getTodayStr())}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   isToday
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-emerald-600 text-white shadow-xs"
                     : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                Hari Ini
+                <Clock className="size-3" />
+                <span>Hari Ini</span>
               </button>
               <button
                 type="button"
                 onClick={() => loadDateData(getYesterdayStr())}
-                className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                className={`py-1.5 px-2 rounded-lg text-[11px] font-bold transition-all cursor-pointer flex items-center justify-center gap-1 ${
                   selectedDate === getYesterdayStr()
-                    ? "bg-primary text-primary-foreground shadow-xs"
+                    ? "bg-emerald-600 text-white shadow-xs"
                     : "bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                Kemarin
+                <span>Kemarin</span>
               </button>
             </div>
           </div>
 
-          <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-950 dark:text-emerald-200">
-            <span className="text-[10px] font-bold uppercase tracking-wider block text-emerald-700 dark:text-emerald-400">
-              Tanggal Terpilih:
+          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+            <span className="font-bold text-foreground truncate" title={formatDateDisplay(selectedDate)}>
+              {formatDateShort(selectedDate)}
             </span>
-            <span className="text-xs font-bold block mt-0.5">
-              {formatDateDisplay(selectedDate)}
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
+              Aktif
             </span>
           </div>
         </div>
 
-        {/* 3 KPI Summary Cards */}
-        <div className="lg:col-span-3 grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {/* Card 1: Total Guru */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">Total Guru</span>
-              <Users className="size-4 text-primary" />
+        {/* Card 2: Total Guru */}
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-slate-400 to-slate-600 dark:from-slate-600 dark:to-slate-400" />
+          
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+              Total Guru
+            </span>
+            <div className="size-8 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center">
+              <Users className="size-4" />
             </div>
-            <div className="mt-3">
-              <span className="text-2xl sm:text-3xl font-extrabold text-foreground">
+          </div>
+
+          <div className="my-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-foreground tracking-tight">
                 {summary.totalTeachers}
               </span>
-              <span className="text-[11px] text-muted-foreground block mt-0.5">
-                Guru aktif terdaftar
+              <span className="text-xs font-semibold text-muted-foreground">
+                Guru Aktif
               </span>
+            </div>
+            
+            {/* Micro progress bar */}
+            <div className="w-full bg-muted/60 h-1.5 rounded-full mt-2.5 overflow-hidden">
+              <div 
+                className="bg-emerald-500 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${summary.percentage}%` }}
+              />
             </div>
           </div>
 
-          {/* Card 2: Belum Absen */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between text-rose-600 dark:text-rose-400">
-              <span className="text-xs font-bold">Belum Absen</span>
+          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium">Partisipasi</span>
+            <span className="font-bold text-emerald-600 dark:text-emerald-400">
+              {summary.percentage}% Tercatat
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Belum Absen */}
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
+          
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
+              Belum Absen
+            </span>
+            <div className="size-8 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center">
               <UserX className="size-4" />
             </div>
-            <div className="mt-3">
-              <span className="text-2xl sm:text-3xl font-extrabold text-rose-600 dark:text-rose-400">
+          </div>
+
+          <div className="my-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
                 {summary.unrecordedCount}
               </span>
-              <span className="text-[11px] text-muted-foreground block mt-0.5">
-                Belum ada catatan
+              <span className="text-xs font-semibold text-muted-foreground">
+                Guru
               </span>
+            </div>
+
+            {/* Micro progress bar */}
+            <div className="w-full bg-muted/60 h-1.5 rounded-full mt-2.5 overflow-hidden">
+              <div 
+                className="bg-rose-500 h-full rounded-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.unrecordedCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
             </div>
           </div>
 
-          {/* Card 3: Sudah Hadir */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between text-emerald-600 dark:text-emerald-400">
-              <span className="text-xs font-bold">Hadir / Telat</span>
+          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+            <span className="text-muted-foreground font-medium">Status</span>
+            {summary.unrecordedCount === 0 ? (
+              <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                <Check className="size-3" /> Lengkap 100%
+              </span>
+            ) : (
+              <span className="font-bold text-rose-600 dark:text-rose-400">
+                Perlu Presensi
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* Card 4: Hadir / Telat */}
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-emerald-500 to-teal-500" />
+          
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-wider">
+              Hadir / Telat
+            </span>
+            <div className="size-8 rounded-xl bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 flex items-center justify-center">
               <CheckCircle2 className="size-4" />
             </div>
-            <div className="mt-3">
-              <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600 dark:text-emerald-400">
+          </div>
+
+          <div className="my-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-emerald-600 dark:text-emerald-400 tracking-tight">
                 {summary.presentCount + summary.lateCount}
               </span>
-              <span className="text-[11px] text-muted-foreground block mt-0.5">
-                {summary.presentCount} tepat, {summary.lateCount} telat
+              <span className="text-xs font-semibold text-muted-foreground">
+                Guru Hadir
               </span>
+            </div>
+
+            {/* Micro dual progress bar */}
+            <div className="w-full bg-muted/60 h-1.5 rounded-full mt-2.5 overflow-hidden flex">
+              <div 
+                className="bg-emerald-500 h-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.presentCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
+              <div 
+                className="bg-amber-500 h-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.lateCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
             </div>
           </div>
 
-          {/* Card 4: Izin / Sakit / Alpa */}
-          <div className="p-4 rounded-2xl bg-card border border-border/80 shadow-xs flex flex-col justify-between">
-            <div className="flex items-center justify-between text-blue-600 dark:text-blue-400">
-              <span className="text-xs font-bold">Dispensasi</span>
+          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+              {summary.presentCount} tepat
+            </span>
+            <span className="text-muted-foreground font-medium">·</span>
+            <span className="font-semibold text-amber-600 dark:text-amber-400">
+              {summary.lateCount} telat
+            </span>
+          </div>
+        </div>
+
+        {/* Card 5: Dispensasi */}
+        <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
+          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-blue-500 to-indigo-500" />
+          
+          <div className="flex items-center justify-between">
+            <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400 uppercase tracking-wider">
+              Dispensasi
+            </span>
+            <div className="size-8 rounded-xl bg-blue-50 dark:bg-blue-950/50 text-blue-600 dark:text-blue-400 flex items-center justify-center">
               <FileText className="size-4" />
             </div>
-            <div className="mt-3">
-              <span className="text-2xl sm:text-3xl font-extrabold text-foreground">
-                {summary.permitCount + summary.sickCount}
+          </div>
+
+          <div className="my-1.5">
+            <div className="flex items-baseline gap-2">
+              <span className="text-3xl font-black text-foreground tracking-tight">
+                {summary.permitCount + summary.sickCount + summary.absentCount}
               </span>
-              <span className="text-[11px] text-muted-foreground block mt-0.5">
-                {summary.permitCount} izin, {summary.sickCount} sakit
+              <span className="text-xs font-semibold text-muted-foreground">
+                Guru
               </span>
             </div>
+
+            {/* Micro progress bar */}
+            <div className="w-full bg-muted/60 h-1.5 rounded-full mt-2.5 overflow-hidden flex">
+              <div 
+                className="bg-blue-500 h-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.permitCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
+              <div 
+                className="bg-purple-500 h-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.sickCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
+              <div 
+                className="bg-rose-500 h-full transition-all duration-500" 
+                style={{ 
+                  width: `${summary.totalTeachers > 0 ? (summary.absentCount / summary.totalTeachers) * 100 : 0}%` 
+                }}
+              />
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
+            <span className="font-semibold text-blue-600 dark:text-blue-400">
+              {summary.permitCount} izin
+            </span>
+            <span className="text-muted-foreground font-medium">·</span>
+            <span className="font-semibold text-purple-600 dark:text-purple-400">
+              {summary.sickCount} sakit
+            </span>
+            <span className="text-muted-foreground font-medium">·</span>
+            <span className="font-semibold text-rose-600 dark:text-rose-400">
+              {summary.absentCount} alpa
+            </span>
           </div>
         </div>
       </div>
