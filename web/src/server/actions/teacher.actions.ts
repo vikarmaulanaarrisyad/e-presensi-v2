@@ -13,47 +13,41 @@ import {
 } from "@/server/repositories/teacher.repo";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
+import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
 
-async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
-  if (madrasahId && madrasahId.trim().length > 0) return madrasahId;
-
-  const session = await auth();
-  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
-  if (sessionUser?.madrasahId) {
-    return sessionUser.madrasahId;
+/**
+ * Validates that the requested teacher exists and belongs to the caller's madrasah.
+ */
+async function assertTeacherBelongsToCaller(teacherId: string) {
+  const { user, madrasahId } = await requireMadrasahAdmin();
+  if (user.role === "SUPERADMIN") {
+    return;
   }
 
-  const firstMadrasah = await prisma.madrasah.findFirst({
-    where: { isActive: true },
-    select: { id: true },
+  const teacher = await prisma.user.findUnique({
+    where: { id: teacherId },
+    select: { madrasahId: true },
   });
 
-  return firstMadrasah?.id ?? null;
+  if (!teacher || teacher.madrasahId !== madrasahId) {
+    throw new Error("Akses ditolak: Data guru tidak ditemukan di madrasah Anda.");
+  }
 }
 
 export async function fetchTeachersData(madrasahId?: string) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
-
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
     const data = await getTeachersByMadrasah(targetMadrasahId);
     return { data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal memuat data guru:", error);
-    return { error: "Gagal memuat daftar guru madrasah." };
+    return { error: error?.message || "Gagal memuat daftar guru madrasah." };
   }
 }
 
 export async function createTeacherAction(madrasahId: string, input: TeacherInput) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     // Check if email already exists
     const existing = await prisma.user.findUnique({
@@ -76,6 +70,8 @@ export async function createTeacherAction(madrasahId: string, input: TeacherInpu
 
 export async function updateTeacherAction(teacherId: string, input: Partial<TeacherInput>) {
   try {
+    await assertTeacherBelongsToCaller(teacherId);
+
     if (input.email) {
       const existing = await prisma.user.findUnique({
         where: { email: input.email.trim().toLowerCase() },
@@ -97,35 +93,41 @@ export async function updateTeacherAction(teacherId: string, input: Partial<Teac
 
 export async function toggleTeacherStatusAction(teacherId: string, isActive: boolean) {
   try {
+    await assertTeacherBelongsToCaller(teacherId);
+
     const updated = await toggleTeacherStatus(teacherId, isActive);
     revalidatePath("/admin/teachers");
     revalidatePath("/admin");
     return { success: true, data: updated };
   } catch (error: any) {
     console.error("Gagal mengubah status guru:", error);
-    return { error: "Gagal mengubah status aktif guru." };
+    return { error: error?.message || "Gagal mengubah status aktif guru." };
   }
 }
 
 export async function resetTeacherPasswordAction(teacherId: string, newPassword?: string) {
   try {
+    await assertTeacherBelongsToCaller(teacherId);
+
     await resetTeacherPassword(teacherId, newPassword);
     return { success: true };
   } catch (error: any) {
     console.error("Gagal mereset password:", error);
-    return { error: "Gagal mereset kata sandi guru." };
+    return { error: error?.message || "Gagal mereset kata sandi guru." };
   }
 }
 
 export async function deleteTeacherAction(teacherId: string) {
   try {
+    await assertTeacherBelongsToCaller(teacherId);
+
     await deleteTeacher(teacherId);
     revalidatePath("/admin/teachers");
     revalidatePath("/admin");
     return { success: true };
   } catch (error: any) {
     console.error("Gagal menghapus guru:", error);
-    return { error: "Gagal menghapus guru dari sistem." };
+    return { error: error?.message || "Gagal menghapus guru dari sistem." };
   }
 }
 
@@ -138,10 +140,7 @@ export async function importTeachersAction(
       return { success: false as const, error: "Tidak ada data guru yang diunggah." };
     }
 
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { success: false as const, error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const result = await bulkImportTeachers(targetMadrasahId, teachersData);
     revalidatePath("/admin/teachers");

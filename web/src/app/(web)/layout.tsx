@@ -4,6 +4,7 @@ import { HeaderNavbar } from "@/components/organisms/header-navbar";
 import { Footer } from "@/components/organisms/footer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -14,6 +15,10 @@ export default async function WebLayout({
 }) {
   const session = await auth();
   const user = session?.user;
+
+  if (!user) {
+    redirect("/login");
+  }
 
   let madrasahName = user?.madrasahName ?? undefined;
   if (!madrasahName && user?.madrasahId) {

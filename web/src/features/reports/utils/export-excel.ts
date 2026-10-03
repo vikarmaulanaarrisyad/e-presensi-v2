@@ -1,7 +1,15 @@
-import * as XLSX from "xlsx";
 import { type AttendanceReportData } from "@/server/actions/report.actions";
 
-export function exportReportToExcel(data: AttendanceReportData) {
+function formatIndoTime(timeStr?: string | null): string {
+  if (!timeStr) return "";
+  return timeStr.replace(/:/g, ".");
+}
+
+export async function exportReportToExcel(
+  data: AttendanceReportData,
+  dateLanguage: "en" | "id" = "id"
+) {
+  const XLSX = await import("xlsx");
   const wb = XLSX.utils.book_new();
 
   // Prepare header rows
@@ -10,7 +18,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
   // Title Box
   wsData.push(["LAPORAN RINCIAN HARIAN"]);
   wsData.push([
-    `Nama Perusahaan : ${data.madrasah.name}`,
+    `Nama Madrasah : ${data.madrasah.name}`,
     "",
     "",
     "",
@@ -74,24 +82,29 @@ export function exportReportToExcel(data: AttendanceReportData) {
 
   // Data Rows
   data.rows.forEach((row) => {
+    const dateFormatted =
+      dateLanguage === "id"
+        ? `${row.dayNameId}, ${row.dayNumber.toString().padStart(2, "0")}/${data.period.month.toString().padStart(2, "0")}/${data.period.year}`
+        : row.dateFormatted;
+
     wsData.push([
-      row.dateFormatted,
+      dateFormatted,
       row.shiftName,
-      row.jamMasuk,
-      row.scanMasuk,
+      formatIndoTime(row.jamMasuk),
+      formatIndoTime(row.scanMasuk),
       row.terlambatMenit,
-      row.jamKeluar,
-      row.scanKeluar,
+      formatIndoTime(row.jamKeluar),
+      formatIndoTime(row.scanKeluar),
       row.pulangCepatMenit,
-      row.durasi,
-      row.lemburAwal,
-      row.lemburAkhir,
-      row.lemburAkhir2,
-      row.shiftLembur,
-      row.istirahat,
-      row.istirahatLebih,
-      row.istirahat2,
-      row.istirahatLebih2,
+      formatIndoTime(row.durasi),
+      formatIndoTime(row.lemburAwal),
+      formatIndoTime(row.lemburAkhir),
+      formatIndoTime(row.lemburAkhir2),
+      formatIndoTime(row.shiftLembur),
+      formatIndoTime(row.istirahat),
+      formatIndoTime(row.istirahatLebih),
+      formatIndoTime(row.istirahat2),
+      formatIndoTime(row.istirahatLebih2),
       row.keterangan,
     ]);
   });
@@ -106,7 +119,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
     "",
     "",
     "",
-    data.summary.totalDurationFormatted,
+    formatIndoTime(data.summary.totalDurationFormatted),
     "",
     "",
     "",
@@ -127,7 +140,7 @@ export function exportReportToExcel(data: AttendanceReportData) {
     "",
     "",
     "",
-    `Tgl. Cetak : ${data.summary.printedAt}`,
+    `Tgl. Cetak : ${formatIndoTime(data.summary.printedAt)}`,
     "",
     "",
     "",

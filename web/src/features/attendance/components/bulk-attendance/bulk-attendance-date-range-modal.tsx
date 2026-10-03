@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
   Users,
   CheckCircle2,
@@ -15,6 +15,11 @@ import {
   Check,
   CalendarRange,
   Info,
+  Zap,
+  ChevronDown,
+  ChevronUp,
+  RotateCcw,
+  Sliders,
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
@@ -26,6 +31,14 @@ import {
   swalClose,
   swalConfirm,
 } from "@/lib/swal";
+import {
+  type DayBulkSchedule,
+  parseDailySchedules,
+  DEFAULT_BULK_SCHEDULES,
+  calculateJitterRange,
+  getDayGroupCounts,
+  formatIndoTime,
+} from "@/features/attendance/lib/daily-schedule-helper";
 import type { SelectedTeacherInfo } from "./bulk-attendance-modal";
 
 interface BulkAttendanceDateRangeModalProps {
@@ -36,6 +49,7 @@ interface BulkAttendanceDateRangeModalProps {
   madrasahId: string;
   defaultStartTime?: string;
   defaultEndTime?: string;
+  dailySchedules?: string | null;
 }
 
 type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
@@ -162,6 +176,7 @@ export function BulkAttendanceDateRangeModal({
   madrasahId,
   defaultStartTime = "07:00",
   defaultEndTime = "14:00",
+  dailySchedules,
 }: BulkAttendanceDateRangeModalProps) {
   const today = getTodayStr();
 
@@ -172,7 +187,22 @@ export function BulkAttendanceDateRangeModal({
   // Status
   const [status, setStatus] = useState<AttendanceStatusType>("PRESENT");
 
-  // Time config
+  // Mode: per_day (Senin-Kamis 14:30, Jumat 11:30, Sabtu 15:00) vs uniform (seragam)
+  const [scheduleMode, setScheduleMode] = useState<"per_day" | "uniform">("per_day");
+  const [dailyConfigs, setDailyConfigs] = useState<DayBulkSchedule[]>(() =>
+    parseDailySchedules(dailySchedules)
+  );
+  const [saveAsMadrasahDefault, setSaveAsMadrasahDefault] = useState(false);
+  const [showDetailedDays, setShowDetailedDays] = useState(false);
+
+  // Sync dailyConfigs if dailySchedules prop or modal open state changes
+  useEffect(() => {
+    if (isOpen) {
+      setDailyConfigs(parseDailySchedules(dailySchedules));
+    }
+  }, [isOpen, dailySchedules]);
+
+  // Uniform fallback time config
   const [randomizeTime, setRandomizeTime] = useState(true);
   const [checkInTime, setCheckInTime]           = useState(defaultStartTime);
   const [checkInTimeStart, setCheckInTimeStart] = useState("06:38");
@@ -186,15 +216,121 @@ export function BulkAttendanceDateRangeModal({
   const [skipSunday, setSkipSunday]       = useState(true);
   const [skipSaturday, setSkipSaturday]   = useState(false);
   const [skipHolidays, setSkipHolidays]   = useState(true);
-  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [overwriteExisting, setOverwriteExisting] = useState(true); // Default true agar variasi jam diterapkan ke semua tanggal
   const [notes, setNotes]                 = useState("");
   const [isSubmitting, setIsSubmitting]   = useState(false);
+
+  // Group helpers
+  const monThuConfig = useMemo(() => {
+    return dailyConfigs.find((d) => d.day === 1) || dailyConfigs[0];
+  }, [dailyConfigs]);
+
+  const friConfig = useMemo(() => {
+    return dailyConfigs.find((d) => d.day === 5) || dailyConfigs[4];
+  }, [dailyConfigs]);
+
+  const satConfig = useMemo(() => {
+    return dailyConfigs.find((d) => d.day === 6) || dailyConfigs[5];
+  }, [dailyConfigs]);
+
+  const updateMonThuField = (field: keyof DayBulkSchedule, val: any) => {
+    setDailyConfigs((prev) =>
+      prev.map((item) => {
+        if (item.day >= 1 && item.day <= 4) {
+          const updated = { ...item, [field]: val };
+          if (field === "checkOutTime") {
+            const jit = calculateJitterRange(val, "out");
+            updated.checkOutTimeStart = jit.start;
+            updated.checkOutTimeEnd = jit.end;
+          } else if (field === "checkInTime") {
+            const jit = calculateJitterRange(val, "in");
+            updated.checkInTimeStart = jit.start;
+            updated.checkInTimeEnd = jit.end;
+          }
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateFriField = (field: keyof DayBulkSchedule, val: any) => {
+    setDailyConfigs((prev) =>
+      prev.map((item) => {
+        if (item.day === 5) {
+          const updated = { ...item, [field]: val };
+          if (field === "checkOutTime") {
+            const jit = calculateJitterRange(val, "out");
+            updated.checkOutTimeStart = jit.start;
+            updated.checkOutTimeEnd = jit.end;
+          } else if (field === "checkInTime") {
+            const jit = calculateJitterRange(val, "in");
+            updated.checkInTimeStart = jit.start;
+            updated.checkInTimeEnd = jit.end;
+          }
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateSatField = (field: keyof DayBulkSchedule, val: any) => {
+    setDailyConfigs((prev) =>
+      prev.map((item) => {
+        if (item.day === 6) {
+          const updated = { ...item, [field]: val };
+          if (field === "checkOutTime") {
+            const jit = calculateJitterRange(val, "out");
+            updated.checkOutTimeStart = jit.start;
+            updated.checkOutTimeEnd = jit.end;
+          } else if (field === "checkInTime") {
+            const jit = calculateJitterRange(val, "in");
+            updated.checkInTimeStart = jit.start;
+            updated.checkInTimeEnd = jit.end;
+          }
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  const updateSingleDay = (dayNum: number, field: keyof DayBulkSchedule, val: any) => {
+    setDailyConfigs((prev) =>
+      prev.map((item) => {
+        if (item.day === dayNum) {
+          const updated = { ...item, [field]: val };
+          if (field === "checkOutTime") {
+            const jit = calculateJitterRange(val, "out");
+            updated.checkOutTimeStart = jit.start;
+            updated.checkOutTimeEnd = jit.end;
+          } else if (field === "checkInTime") {
+            const jit = calculateJitterRange(val, "in");
+            updated.checkInTimeStart = jit.start;
+            updated.checkInTimeEnd = jit.end;
+          }
+          return updated;
+        }
+        return item;
+      })
+    );
+  };
+
+  const resetToStandardDefaults = () => {
+    setDailyConfigs(DEFAULT_BULK_SCHEDULES);
+  };
 
   // ALL hooks must be above early returns (Rules of Hooks)
   const count = selectedTeachers.length;
 
   const estimatedWorkDays = useMemo(
     () => countWorkDays(startDateStr, endDateStr, skipSunday, skipSaturday),
+    [startDateStr, endDateStr, skipSunday, skipSaturday]
+  );
+
+  const groupCounts = useMemo(
+    () => getDayGroupCounts(startDateStr, endDateStr, skipSunday, skipSaturday),
     [startDateStr, endDateStr, skipSunday, skipSaturday]
   );
 
@@ -230,11 +366,17 @@ export function BulkAttendanceDateRangeModal({
     }
 
     const statusLabel = STATUS_OPTIONS.find((s) => s.value === status)?.label || status;
-    const modeDesc = randomizeTime
-      ? `jam acak alami (${checkInTimeStart} – ${checkInTimeEnd} WIB)`
-      : `jam seragam ${checkInTime} WIB`;
+    const modeDesc =
+      scheduleMode === "per_day"
+        ? `Jadwal Harian (Senin-Kamis: ${formatIndoTime(monThuConfig.checkOutTime)}, Jumat: ${formatIndoTime(friConfig.checkOutTime)}, Sabtu: ${formatIndoTime(satConfig.checkOutTime)} WIB)`
+        : randomizeTime
+        ? `jam acak alami (${formatIndoTime(checkInTimeStart)} – ${formatIndoTime(checkInTimeEnd)} WIB)`
+        : `jam seragam ${formatIndoTime(checkInTime)} WIB`;
 
-    const confirmText = `Anda akan mencatat presensi massal status "${statusLabel}" dengan ${modeDesc} untuk ${count} guru pada rentang tanggal ${formatDateDisplay(startDateStr)} s/d ${formatDateDisplay(endDateStr)} (estimasi ~${estimatedWorkDays} hari kerja). Lanjutkan?`;
+    const confirmText =
+      scheduleMode === "per_day"
+        ? `Anda akan mencatat presensi massal status "${statusLabel}" dengan ${modeDesc} untuk ${count} guru pada rentang tanggal ${formatDateDisplay(startDateStr)} s/d ${formatDateDisplay(endDateStr)} (${groupCounts.totalWorkDays} hari kerja: ${groupCounts.monThuCount} hari Sen-Kam, ${groupCounts.friCount} hari Jum, ${groupCounts.satCount} hari Sab). Lanjutkan?`
+        : `Anda akan mencatat presensi massal status "${statusLabel}" dengan ${modeDesc} untuk ${count} guru pada rentang tanggal ${formatDateDisplay(startDateStr)} s/d ${formatDateDisplay(endDateStr)} (estimasi ~${estimatedWorkDays} hari kerja). Lanjutkan?`;
 
     const confirmed = await swalConfirm(
       "Konfirmasi Presensi Massal Rentang Tanggal",
@@ -248,7 +390,7 @@ export function BulkAttendanceDateRangeModal({
       setIsSubmitting(true);
       swalLoading(
         "Memproses Presensi Massal...",
-        `Sedang memproses ${count} guru selama ±${estimatedWorkDays} hari kerja. Mohon tunggu...`
+        `Sedang memproses ${count} guru selama ±${groupCounts.totalWorkDays || estimatedWorkDays} hari kerja. Mohon tunggu...`
       );
 
       const result = await bulkRecordAttendanceRangeAction({
@@ -270,6 +412,9 @@ export function BulkAttendanceDateRangeModal({
         skipSunday,
         skipSaturday,
         skipHolidays,
+        scheduleMode,
+        dailySchedulesConfig: dailyConfigs,
+        saveAsMadrasahDefault,
       });
 
       swalClose();
@@ -299,7 +444,7 @@ export function BulkAttendanceDateRangeModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
       <div
-        className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
+        className="relative w-full max-w-4xl xl:max-w-5xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* ── HEADER ── */}
@@ -335,21 +480,21 @@ export function BulkAttendanceDateRangeModal({
         </div>
 
         {/* ── FORM BODY ── */}
-        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 max-h-[78vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-5 sm:p-6 space-y-5 max-h-[82vh] overflow-y-auto">
 
           {/* Selected teachers pill list */}
           <div className="p-3 rounded-xl bg-muted/40 border border-border/60">
             <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
               <span className="font-semibold text-foreground">Daftar Guru Terpilih ({count}):</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 max-h-20 overflow-y-auto pr-1">
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
               {selectedTeachers.map((teacher) => (
                 <span
                   key={teacher.id}
                   className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-background border border-border/70 text-xs font-medium text-foreground shadow-2xs"
                 >
                   <span className="size-1.5 rounded-full bg-blue-500" />
-                  <span className="truncate max-w-[140px]">{teacher.name}</span>
+                  <span className="truncate max-w-[220px]">{teacher.name}</span>
                 </span>
               ))}
             </div>
@@ -551,140 +696,553 @@ export function BulkAttendanceDateRangeModal({
             </div>
           </div>
 
-          {/* 3. WAKTU (PRESENT / LATE only) */}
+          {/* 3. WAKTU & JAM KERJA PER HARI (PRESENT / LATE only) */}
           {(status === "PRESENT" || status === "LATE") && (
             <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
-                <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="size-3.5 text-primary" />
-                  <span>3. Waktu &amp; Variasi Kehadiran</span>
-                </label>
-                <label className="inline-flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs font-semibold cursor-pointer shadow-2xs">
-                  <input
-                    type="checkbox"
-                    checked={randomizeTime}
-                    onChange={(e) => setRandomizeTime(e.target.checked)}
-                    className="size-4 rounded border-emerald-400 text-primary focus:ring-primary cursor-pointer"
-                  />
-                  <Sparkles className="size-3.5 text-emerald-600" />
-                  <span>Acak Jam Alami</span>
-                </label>
-              </div>
+              {/* Header with Mode Switcher */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border/60">
+                <div>
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="size-3.5 text-primary" />
+                    <span>3. Pengaturan Jam Masuk &amp; Pulang</span>
+                  </label>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">
+                    Atur jam scan masuk &amp; keluar untuk tiap kelompok hari (Senin-Kamis, Jumat, Sabtu)
+                  </p>
+                </div>
 
-              {randomizeTime ? (
-                <div className="space-y-3">
-                  <div className="p-3 rounded-lg bg-background/80 border border-emerald-500/20 text-xs text-muted-foreground leading-relaxed flex items-start gap-2.5">
-                    <Sparkles className="size-4 text-emerald-600 shrink-0 mt-0.5" />
-                    <span>
-                      <strong className="text-foreground">Mode Alami Aktif:</strong> Jam tiap guru
-                      diacak dalam rentang yang Anda set, dengan detik unik berbeda-beda tiap hari.
-                      Di laporan PDF/F4 terlihat seperti presensi mandiri.
-                    </span>
+                <div className="flex items-center gap-2">
+                  {/* Mode Tab */}
+                  <div className="inline-flex rounded-lg border border-border/80 bg-background/80 p-0.5 shadow-2xs">
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("per_day")}
+                      className={`text-xs px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        scheduleMode === "per_day"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Zap className="size-3" />
+                      <span>Jam Per Hari</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScheduleMode("uniform")}
+                      className={`text-xs px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer flex items-center gap-1 ${
+                        scheduleMode === "uniform"
+                          ? "bg-primary text-primary-foreground shadow-2xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <Sliders className="size-3" />
+                      <span>Jam Seragam</span>
+                    </button>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                      <label className="block text-xs font-semibold text-foreground mb-1">
-                        Rentang Jam Masuk (Acak)
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={checkInTimeStart}
-                          onChange={(e) => setCheckInTimeStart(e.target.value)}
-                          className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
-                        />
-                        <span className="text-xs text-muted-foreground font-medium">s/d</span>
-                        <input
-                          type="time"
-                          value={checkInTimeEnd}
-                          onChange={(e) => setCheckInTimeEnd(e.target.value)}
-                          className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
-                        />
+                  {/* Randomize Time Toggle */}
+                  <label className="inline-flex items-center gap-1.5 p-1.5 px-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs font-semibold cursor-pointer shadow-2xs">
+                    <input
+                      type="checkbox"
+                      checked={randomizeTime}
+                      onChange={(e) => setRandomizeTime(e.target.checked)}
+                      className="size-4 rounded border-emerald-400 text-primary focus:ring-primary cursor-pointer"
+                    />
+                    <Sparkles className="size-3.5 text-emerald-600" />
+                    <span>Acak Alami (Jam Berbeda Tiap Hari)</span>
+                  </label>
+                </div>
+              </div>
+
+              {scheduleMode === "per_day" ? (
+                <div className="space-y-3.5">
+                  {/* Real-time date range distribution info banner */}
+                  <div className="p-3 rounded-lg bg-background/90 border border-emerald-500/25 text-xs text-foreground flex items-start gap-2.5 shadow-2xs">
+                    <Sparkles className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <div className="space-y-1.5">
+                      <div className="font-semibold text-emerald-950 dark:text-emerald-200 flex items-center gap-2">
+                        <span>Jadwal Otomatis Diterapkan Berdasarkan Hari:</span>
+                        <span className="text-[10px] font-normal px-2 py-0.5 rounded-md bg-emerald-500/20 text-emerald-800 dark:text-emerald-200">
+                          Variasi Jam Tiap Hari Aktif
+                        </span>
+                      </div>
+                      <div className="text-[11px] text-muted-foreground leading-relaxed flex flex-wrap gap-x-3 gap-y-1">
+                        <span>
+                          📅 <strong>{groupCounts.monThuCount} hari</strong> Senin–Kamis (Pulang:{" "}
+                          <strong className="text-foreground">{formatIndoTime(monThuConfig.checkOutTime)}</strong>)
+                        </span>
+                        <span>•</span>
+                        <span>
+                          🕌 <strong>{groupCounts.friCount} hari</strong> Jumat (Pulang:{" "}
+                          <strong className="text-foreground">{formatIndoTime(friConfig.checkOutTime)}</strong>)
+                        </span>
+                        <span>•</span>
+                        <span>
+                          🏫 <strong>{groupCounts.satCount} hari</strong> Sabtu (Pulang:{" "}
+                          <strong className="text-foreground">{formatIndoTime(satConfig.checkOutTime)}</strong>)
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-emerald-700 dark:text-emerald-300 font-medium pt-0.5 border-t border-emerald-500/15">
+                        ✨ Jam Scan Masuk &amp; Pulang akan otomatis bervariasi secara alami dan berbeda-beda pada setiap tanggal (misal: Tgl 1 Masuk 06.42, Tgl 2 Masuk 06.51, Tgl 3 Masuk 06.39, dst).
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* 3 Group Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                    {/* 1. SENIN - KAMIS */}
+                    <div className="p-3.5 rounded-xl border border-border/80 bg-background/70 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div>
+                          <div className="text-xs font-bold text-foreground">Senin – Kamis</div>
+                          <div className="text-[10px] text-muted-foreground">KBM Penuh Madrasah</div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                          {groupCounts.monThuCount} Hari
+                        </span>
+                      </div>
+
+                      {/* Jam Masuk */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Jam Masuk {randomizeTime ? "(Rentang Acak)" : "Seragam"}
+                        </label>
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={monThuConfig.checkInTimeStart}
+                              onChange={(e) => updateMonThuField("checkInTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={monThuConfig.checkInTimeEnd}
+                              onChange={(e) => updateMonThuField("checkInTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="time"
+                            value={monThuConfig.checkInTime}
+                            onChange={(e) => updateMonThuField("checkInTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                          />
+                        )}
+                      </div>
+
+                      {/* Jam Pulang */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-muted-foreground">
+                            Jam Pulang {randomizeTime ? "(Rentang Acak)" : "Seragam"}
+                          </label>
+                          <label className="flex items-center gap-1 text-[11px] text-primary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={monThuConfig.setCheckOut}
+                              onChange={(e) => updateMonThuField("setCheckOut", e.target.checked)}
+                              className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                            />
+                            <span>Absen Pulang</span>
+                          </label>
+                        </div>
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={monThuConfig.checkOutTimeStart}
+                              disabled={!monThuConfig.setCheckOut}
+                              onChange={(e) => updateMonThuField("checkOutTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={monThuConfig.checkOutTimeEnd}
+                              disabled={!monThuConfig.setCheckOut}
+                              onChange={(e) => updateMonThuField("checkOutTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="time"
+                            value={monThuConfig.checkOutTime}
+                            disabled={!monThuConfig.setCheckOut}
+                            onChange={(e) => updateMonThuField("checkOutTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                          />
+                        )}
+                        <span className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-1 block font-medium">
+                          Jam pulang standar: {formatIndoTime(monThuConfig.checkOutTime)} WIB
+                        </span>
                       </div>
                     </div>
 
-                    <div>
-                      <div className="flex items-center justify-between mb-1">
-                        <label className="text-xs font-semibold text-foreground">
-                          Rentang Jam Pulang
+                    {/* 2. JUMAT */}
+                    <div className="p-3.5 rounded-xl border border-blue-500/30 bg-blue-500/5 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div>
+                          <div className="text-xs font-bold text-foreground">Hari Jumat</div>
+                          <div className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">Sholat Jumat / Pulang Awal</div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/30">
+                          {groupCounts.friCount} Hari
+                        </span>
+                      </div>
+
+                      {/* Jam Masuk */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Jam Masuk {randomizeTime ? "(Rentang Acak)" : "Seragam"}
                         </label>
-                        <label className="flex items-center gap-1.5 text-xs text-primary font-medium cursor-pointer">
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={friConfig.checkInTimeStart}
+                              onChange={(e) => updateFriField("checkInTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={friConfig.checkInTimeEnd}
+                              onChange={(e) => updateFriField("checkInTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+                        ) : (
                           <input
-                            type="checkbox"
-                            checked={setCheckOut}
-                            onChange={(e) => setSetCheckOut(e.target.checked)}
-                            className="rounded border-border text-primary focus:ring-primary"
+                            type="time"
+                            value={friConfig.checkInTime}
+                            onChange={(e) => updateFriField("checkInTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
                           />
-                          <span>Sertakan Pulang</span>
-                        </label>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="time"
-                          value={checkOutTimeStart}
-                          disabled={!setCheckOut}
-                          onChange={(e) => setCheckOutTimeStart(e.target.value)}
-                          className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
-                        />
-                        <span className="text-xs text-muted-foreground font-medium">s/d</span>
-                        <input
-                          type="time"
-                          value={checkOutTimeEnd}
-                          disabled={!setCheckOut}
-                          onChange={(e) => setCheckOutTimeEnd(e.target.value)}
-                          className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
-                        />
+
+                      {/* Jam Pulang */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-muted-foreground">
+                            Jam Pulang {randomizeTime ? "(Rentang Acak)" : "Seragam"}
+                          </label>
+                          <label className="flex items-center gap-1 text-[11px] text-primary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={friConfig.setCheckOut}
+                              onChange={(e) => updateFriField("setCheckOut", e.target.checked)}
+                              className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                            />
+                            <span>Absen Pulang</span>
+                          </label>
+                        </div>
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={friConfig.checkOutTimeStart}
+                              disabled={!friConfig.setCheckOut}
+                              onChange={(e) => updateFriField("checkOutTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={friConfig.checkOutTimeEnd}
+                              disabled={!friConfig.setCheckOut}
+                              onChange={(e) => updateFriField("checkOutTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="time"
+                            value={friConfig.checkOutTime}
+                            disabled={!friConfig.setCheckOut}
+                            onChange={(e) => updateFriField("checkOutTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                          />
+                        )}
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 mt-1 block font-medium">
+                          Jam pulang standar: {formatIndoTime(friConfig.checkOutTime)} WIB
+                        </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground mt-1 block">
-                        {setCheckOut
-                          ? "Jam pulang juga diacak alami tiap hari"
-                          : "Jam pulang tidak diisi"}
-                      </span>
                     </div>
+
+                    {/* 3. SABTU */}
+                    <div className="p-3.5 rounded-xl border border-amber-500/30 bg-amber-500/5 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between pb-2 border-b border-border/50">
+                        <div>
+                          <div className="text-xs font-bold text-foreground">Hari Sabtu</div>
+                          <div className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">KBM / Ekstrakurikuler</div>
+                        </div>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30">
+                          {groupCounts.satCount} Hari
+                        </span>
+                      </div>
+
+                      {/* Jam Masuk */}
+                      <div>
+                        <label className="block text-[11px] font-semibold text-muted-foreground mb-1">
+                          Jam Masuk {randomizeTime ? "(Rentang Acak)" : "Seragam"}
+                        </label>
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={satConfig.checkInTimeStart}
+                              onChange={(e) => updateSatField("checkInTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={satConfig.checkInTimeEnd}
+                              onChange={(e) => updateSatField("checkInTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="time"
+                            value={satConfig.checkInTime}
+                            onChange={(e) => updateSatField("checkInTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs"
+                          />
+                        )}
+                      </div>
+
+                      {/* Jam Pulang */}
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-[11px] font-semibold text-muted-foreground">
+                            Jam Pulang {randomizeTime ? "(Rentang Acak)" : "Seragam"}
+                          </label>
+                          <label className="flex items-center gap-1 text-[11px] text-primary cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={satConfig.setCheckOut}
+                              onChange={(e) => updateSatField("setCheckOut", e.target.checked)}
+                              className="size-3.5 rounded border-border text-primary focus:ring-primary"
+                            />
+                            <span>Absen Pulang</span>
+                          </label>
+                        </div>
+                        {randomizeTime ? (
+                          <div className="flex items-center gap-1.5">
+                            <input
+                              type="time"
+                              value={satConfig.checkOutTimeStart}
+                              disabled={!satConfig.setCheckOut}
+                              onChange={(e) => updateSatField("checkOutTimeStart", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                            <span className="text-[10px] text-muted-foreground">s/d</span>
+                            <input
+                              type="time"
+                              value={satConfig.checkOutTimeEnd}
+                              disabled={!satConfig.setCheckOut}
+                              onChange={(e) => updateSatField("checkOutTimeEnd", e.target.value)}
+                              className="flex-1 h-8 px-2 rounded-lg border border-border bg-card text-[11px] font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                            />
+                          </div>
+                        ) : (
+                          <input
+                            type="time"
+                            value={satConfig.checkOutTime}
+                            disabled={!satConfig.setCheckOut}
+                            onChange={(e) => updateSatField("checkOutTime", e.target.value)}
+                            className="w-full h-8 px-2 rounded-lg border border-border bg-card text-xs font-mono font-medium text-foreground outline-none focus:ring-1 focus:ring-primary shadow-2xs disabled:opacity-40"
+                          />
+                        )}
+                        <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block font-medium">
+                          Jam pulang standar: {formatIndoTime(satConfig.checkOutTime)} WIB
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expandable Individual 7 Days Detail */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowDetailedDays(!showDetailedDays)}
+                      className="text-xs text-muted-foreground hover:text-foreground inline-flex items-center gap-1.5 font-medium cursor-pointer"
+                    >
+                      {showDetailedDays ? <ChevronUp className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+                      <span>{showDetailedDays ? "Sembunyikan Rincian 7 Hari" : "Lihat / Ubah Rincian Setiap Hari (Senin s/d Minggu)"}</span>
+                    </button>
+
+                    {showDetailedDays && (
+                      <div className="mt-2.5 p-3 rounded-xl border border-border/80 bg-background/80 space-y-2 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+                          {dailyConfigs.map((cfg) => (
+                            <div key={cfg.day} className="p-2.5 rounded-lg border border-border/60 bg-muted/20 space-y-1.5">
+                              <div className="flex items-center justify-between font-bold text-foreground">
+                                <span>{cfg.dayName}</span>
+                                <span className="text-[10px] font-normal text-muted-foreground">Hari ke-{cfg.day}</span>
+                              </div>
+                              <div className="grid grid-cols-2 gap-1.5">
+                                <div>
+                                  <label className="text-[10px] text-muted-foreground block">Masuk</label>
+                                  <input
+                                    type="time"
+                                    value={cfg.checkInTime}
+                                    onChange={(e) => updateSingleDay(cfg.day, "checkInTime", e.target.value)}
+                                    className="w-full h-7 px-1.5 rounded border border-border text-[11px] font-mono bg-card"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="text-[10px] text-muted-foreground block">Pulang</label>
+                                  <input
+                                    type="time"
+                                    value={cfg.checkOutTime}
+                                    onChange={(e) => updateSingleDay(cfg.day, "checkOutTime", e.target.value)}
+                                    className="w-full h-7 px-1.5 rounded border border-border text-[11px] font-mono bg-card"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions & Persistence */}
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-border/50 text-xs">
+                    <button
+                      type="button"
+                      onClick={resetToStandardDefaults}
+                      className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground cursor-pointer font-medium"
+                    >
+                      <RotateCcw className="size-3.5 text-primary" />
+                      <span>Reset Jam Default (Senin-Kamis 14.30, Jumat 11.30, Sabtu 15.00)</span>
+                    </button>
+
+                    <label className="inline-flex items-center gap-1.5 text-foreground cursor-pointer font-medium">
+                      <input
+                        type="checkbox"
+                        checked={saveAsMadrasahDefault}
+                        onChange={(e) => setSaveAsMadrasahDefault(e.target.checked)}
+                        className="rounded border-border text-primary focus:ring-primary"
+                      />
+                      <span>💾 Simpan jam ini ke Pengaturan Jadwal Madrasah</span>
+                    </label>
                   </div>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-foreground mb-1">
-                      Jam Masuk Seragam <span className="text-rose-500">*</span>
-                    </label>
-                    <input
-                      type="time"
-                      value={checkInTime}
-                      onChange={(e) => setCheckInTime(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
-                      required
-                    />
-                    <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block">
-                      Semua guru & semua hari akan memiliki jam scan yang sama persis.
+                /* Uniform Fallback Mode */
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-background/80 border border-emerald-500/20 text-xs text-muted-foreground leading-relaxed flex items-start gap-2.5">
+                    <Info className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                    <span>
+                      <strong className="text-foreground">Mode Jam Seragam:</strong> Seluruh hari dalam rentang tanggal akan menggunakan jam yang sama persis tanpa membedakan hari Jumat / Sabtu.
                     </span>
                   </div>
 
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-foreground">
-                        Jam Pulang Seragam
-                      </label>
-                      <label className="flex items-center gap-1.5 text-xs text-primary font-medium cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={setCheckOut}
-                          onChange={(e) => setSetCheckOut(e.target.checked)}
-                          className="rounded border-border text-primary focus:ring-primary"
-                        />
-                        <span>Sertakan Pulang</span>
-                      </label>
+                  {randomizeTime ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Rentang Jam Masuk (Acak)
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={checkInTimeStart}
+                            onChange={(e) => setCheckInTimeStart(e.target.value)}
+                            className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
+                          />
+                          <span className="text-xs text-muted-foreground font-medium">s/d</span>
+                          <input
+                            type="time"
+                            value={checkInTimeEnd}
+                            onChange={(e) => setCheckInTimeEnd(e.target.value)}
+                            className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-foreground">
+                            Rentang Jam Pulang
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-primary font-medium cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={setCheckOut}
+                              onChange={(e) => setSetCheckOut(e.target.checked)}
+                              className="rounded border-border text-primary focus:ring-primary"
+                            />
+                            <span>Sertakan Pulang</span>
+                          </label>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="time"
+                            value={checkOutTimeStart}
+                            disabled={!setCheckOut}
+                            onChange={(e) => setCheckOutTimeStart(e.target.value)}
+                            className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
+                          />
+                          <span className="text-xs text-muted-foreground font-medium">s/d</span>
+                          <input
+                            type="time"
+                            value={checkOutTimeEnd}
+                            disabled={!setCheckOut}
+                            onChange={(e) => setCheckOutTimeEnd(e.target.value)}
+                            className="flex-1 h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
+                          />
+                        </div>
+                      </div>
                     </div>
-                    <input
-                      type="time"
-                      value={checkOutTime}
-                      disabled={!setCheckOut}
-                      onChange={(e) => setCheckOutTime(e.target.value)}
-                      className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
-                    />
-                  </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-foreground mb-1">
+                          Jam Masuk Seragam <span className="text-rose-500">*</span>
+                        </label>
+                        <input
+                          type="time"
+                          value={checkInTime}
+                          onChange={(e) => setCheckInTime(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
+                          required
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <label className="text-xs font-semibold text-foreground">
+                            Jam Pulang Seragam
+                          </label>
+                          <label className="flex items-center gap-1.5 text-xs text-primary font-medium cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={setCheckOut}
+                              onChange={(e) => setSetCheckOut(e.target.checked)}
+                              className="rounded border-border text-primary focus:ring-primary"
+                            />
+                            <span>Sertakan Pulang</span>
+                          </label>
+                        </div>
+                        <input
+                          type="time"
+                          value={checkOutTime}
+                          disabled={!setCheckOut}
+                          onChange={(e) => setCheckOutTime(e.target.value)}
+                          className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -731,6 +1289,26 @@ export function BulkAttendanceDateRangeModal({
               <span>5. Aturan Penimpaan Data</span>
             </label>
             <div className="space-y-2 pt-1">
+              <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer transition-colors">
+                <input
+                  type="radio"
+                  name="rangeOverwriteMode"
+                  checked={overwriteExisting}
+                  onChange={() => setOverwriteExisting(true)}
+                  className="mt-0.5 text-primary focus:ring-primary"
+                />
+                <div className="flex flex-col text-xs">
+                  <span className="font-semibold text-foreground flex items-center gap-1.5">
+                    <span>Perbarui &amp; Terapkan variasi jam scan ke seluruh tanggal (Direkomendasikan)</span>
+                    <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                      Disarankan
+                    </Badge>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    Memastikan setiap tanggal dalam 1 bulan memiliki jam scan masuk dan pulang yang berbeda-beda secara alami.
+                  </span>
+                </div>
+              </label>
               <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background hover:bg-muted/30 cursor-pointer transition-colors">
                 <input
                   type="radio"
@@ -741,27 +1319,10 @@ export function BulkAttendanceDateRangeModal({
                 />
                 <div className="flex flex-col text-xs">
                   <span className="font-semibold text-foreground">
-                    Hanya proses guru yang BELUM absen pada hari tersebut (Direkomendasikan)
+                    Hanya proses tanggal yang BELUM ada data presensi
                   </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Data guru yang sudah scan mandiri di mobile app tidak akan tertimpa.
-                  </span>
-                </div>
-              </label>
-              <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <input
-                  type="radio"
-                  name="rangeOverwriteMode"
-                  checked={overwriteExisting}
-                  onChange={() => setOverwriteExisting(true)}
-                  className="mt-0.5 text-primary focus:ring-primary"
-                />
-                <div className="flex flex-col text-xs">
-                  <span className="font-semibold text-foreground">
-                    Timpa semua guru yang dipilih (meski sudah absen)
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Akan memperbarui seluruh data presensi guru yang dipilih pada setiap tanggal.
+                  <span className="text-[11px] text-muted-foreground mt-0.5">
+                    Data tanggal yang sudah tercatat sebelumnya tidak akan disentuh/diperbarui.
                   </span>
                 </div>
               </label>

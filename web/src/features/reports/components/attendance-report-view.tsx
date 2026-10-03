@@ -30,7 +30,7 @@ import {
   saveSemesterHolidayAction,
   type AttendanceReportData 
 } from "@/server/actions/report.actions";
-import { exportReportToPdf } from "../utils/export-pdf";
+import { exportReportToPdf, printReportPdf } from "../utils/export-pdf";
 import { exportReportToExcel } from "../utils/export-excel";
 import { printAttendanceReport } from "../utils/print-sheet";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
@@ -87,7 +87,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
   const [filterType, setFilterType] = useState<string>("all");
-  const [dateLanguage, setDateLanguage] = useState<"en" | "id">("en");
+  const [dateLanguage, setDateLanguage] = useState<"en" | "id">("id");
 
   // Semester break modal state
   const [isSemesterModalOpen, setIsSemesterModalOpen] = useState<boolean>(false);
@@ -129,9 +129,15 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     loadReport();
   }, [selectedTeacherId, selectedMonth, selectedYear, filterType]);
 
-  // Direct Print Handler with 100% Preview Fidelity
-  const handlePrint = () => {
-    printAttendanceReport("printable-attendance-sheet");
+  // Direct Print Handler with 100% PDF Fidelity (identical size to exported PDF)
+  const handlePrint = async () => {
+    if (!reportData) return;
+    try {
+      await printReportPdf(reportData, dateLanguage);
+    } catch (err) {
+      console.error("Fallback ke cetak DOM:", err);
+      printAttendanceReport("printable-attendance-sheet");
+    }
   };
 
   // PDF Export Handler
@@ -147,7 +153,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
       const sanitizedName = reportData.employee.name.replace(/[^a-zA-Z0-9]/g, "_");
       const filename = `Laporan_Rincian_Harian_${sanitizedName}_${reportData.period.month}_${reportData.period.year}.pdf`;
 
-      exportReportToPdf(reportData, filename, dateLanguage);
+      await exportReportToPdf(reportData, filename, dateLanguage);
       swalClose();
       swalSuccess("PDF Berhasil Diunduh", `File ${filename} telah tersimpan di komputer Anda.`);
     } catch (err: any) {
@@ -159,11 +165,11 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   };
 
   // Excel Export Handler
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
     if (!reportData) return;
     try {
       swalLoading("Menyiapkan Spreadsheet...", "Mengonversi rincian presensi ke format Excel...");
-      exportReportToExcel(reportData);
+      await exportReportToExcel(reportData, dateLanguage);
       swalClose();
       swalSuccess("Excel Berhasil Diunduh", "File laporan rincian harian telah siap.");
     } catch (err: any) {
@@ -238,7 +244,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     setSelectedMonth(1);
     setSelectedYear(2025);
     setFilterType("all");
-    setDateLanguage("en");
+    setDateLanguage("id");
   };
 
   return (

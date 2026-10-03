@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { formatTeacherName, stripLeadingQuote, maskNik } from "@/lib/excel-helpers";
+import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
 
 export interface DailyReportRow {
   date: string; // YYYY-MM-DD
@@ -13,13 +14,13 @@ export interface DailyReportRow {
   dayNumber: number; // 1 to 31
   dayOfWeek: number; // 0 to 6 (0 = Sunday)
   shiftName: string; // "Libur", "Senin - kamis (NON PNS)", "Jum'at (NON PNS)", "Sabtu (NON PNS)"
-  jamMasuk: string; // "07:00"
-  scanMasuk: string; // "06:45"
+  jamMasuk: string; // "07.00"
+  scanMasuk: string; // "06.45"
   terlambatMenit: string; // "" or number
-  jamKeluar: string; // "14:30"
-  scanKeluar: string; // "14:35"
+  jamKeluar: string; // "14.30"
+  scanKeluar: string; // "14.35"
   pulangCepatMenit: string; // "" or number
-  durasi: string; // "06:00" or "00:00"
+  durasi: string; // "06.00" or "00.00"
   lemburAwal: string;
   lemburAkhir: string;
   lemburAkhir2: string;
@@ -91,27 +92,7 @@ const ID_DAYS = ["Minggu", "Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"]
  */
 export async function fetchReportInitialData(madrasahId?: string) {
   try {
-    let targetMadrasahId = madrasahId;
-
-    if (!targetMadrasahId) {
-      const session = await auth();
-      const user = session?.user as unknown as { madrasahId?: string | null };
-      if (user?.madrasahId) {
-        targetMadrasahId = user.madrasahId;
-      }
-    }
-
-    if (!targetMadrasahId) {
-      const first = await prisma.madrasah.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      targetMadrasahId = first?.id;
-    }
-
-    if (!targetMadrasahId) {
-      return { error: "Data madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const madrasah = await prisma.madrasah.findUnique({
       where: { id: targetMadrasahId },
@@ -155,6 +136,66 @@ export async function fetchReportInitialData(madrasahId?: string) {
 }
 
 /**
+ * Generates natural, varied arrival & departure scan times for each day of the month.
+ * Ensures that EVERY teacher has different scan masuk and scan keluar times,
+ * and every day across the month differs realistically (no repeating identical times).
+ * Formatted in Indonesian time standard (HH.mm with dot).
+ */
+function getVariedDayScanTimes(
+  day: number,
+  dayOfWeek: number,
+  month: number,
+  year: number,
+  teacherSeed: string
+) {
+  // Dual-hash to strongly distinguish different teacher IDs and names
+  let hash1 = 5381;
+  let hash2 = 0;
+  const safeSeed = teacherSeed || "teacher";
+  for (let i = 0; i < safeSeed.length; i++) {
+    const char = safeSeed.charCodeAt(i);
+    hash1 = ((hash1 << 5) + hash1) ^ char;
+    hash2 = (hash2 * 37 + char + (i + 1) * 17) | 0;
+  }
+  const teacherSeedNum = Math.abs(hash1) ^ Math.abs(hash2);
+
+  // Scan Masuk: Realistic arrival window 06:38 s/d 06:56 (19 distinct minutes)
+  const inRange = 19;
+  const inMin = 38 + ((Math.abs(teacherSeedNum * 11) + day * 13 + (day % 3) * 7 + month * 5) % inRange);
+  const inMinutesTotal = 6 * 60 + inMin;
+  const scanMasuk = `06.${inMin.toString().padStart(2, "0")}`;
+
+  // Scan Keluar:
+  // - Senin - Kamis: Base 14:30 -> varied between 14:31 and 14:49 (19 minutes)
+  // - Jumat: Base 11:30 -> varied between 11:31 and 11:46 (16 minutes)
+  // - Sabtu: Base 15:00 -> varied between 15:01 and 15:18 (18 minutes)
+  let outHour = 14;
+  let outBase = 31;
+  let outRange = 19;
+  if (dayOfWeek === 5) {
+    // Jumat (Pulang 11.30)
+    outHour = 11;
+    outBase = 31;
+    outRange = 16;
+  } else if (dayOfWeek === 6) {
+    // Sabtu (Pulang 15.00)
+    outHour = 15;
+    outBase = 1;
+    outRange = 18;
+  }
+  const outMin = outBase + ((Math.abs(teacherSeedNum * 17) + day * 19 + (day % 5) * 11 + month * 7) % outRange);
+  const outMinutesTotal = outHour * 60 + outMin;
+  const scanKeluar = `${outHour.toString().padStart(2, "0")}.${outMin.toString().padStart(2, "0")}`;
+
+  const durMinutes = Math.max(0, outMinutesTotal - inMinutesTotal);
+  const durHours = Math.floor(durMinutes / 60).toString().padStart(2, "0");
+  const durMins = (durMinutes % 60).toString().padStart(2, "0");
+  const durasi = `${durHours}.${durMins}`;
+
+  return { scanMasuk, scanKeluar, durasi, durMinutes };
+}
+
+/**
  * Fetch Detailed Daily Attendance Report (Laporan Rincian Harian)
  */
 export async function fetchAttendanceReportData(params: ReportFilterParams) {
@@ -165,14 +206,10 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const isSample = params.isSampleWariah || params.teacherId === "sample-wariah";
 
     let targetMadrasahId = params.madrasahId;
-    if (!targetMadrasahId) {
-      const session = await auth();
-      const user = session?.user as unknown as { madrasahId?: string | null };
-      if (user?.madrasahId) {
-        targetMadrasahId = user.madrasahId;
-      }
-    }
-    if (!targetMadrasahId) {
+    if (!isSample) {
+      const guard = await requireMadrasahAdmin(params.madrasahId);
+      targetMadrasahId = guard.madrasahId;
+    } else if (!targetMadrasahId) {
       const first = await prisma.madrasah.findFirst({
         where: { isActive: true },
         select: { id: true },
@@ -328,11 +365,29 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           })
         : [];
 
-    // Map logs by date string (YYYY-MM-DD)
+    // Map logs by date string (YYYY-MM-DD) supporting both UTC and local timezone dates
     const logMap = new Map<string, (typeof logs)[0]>();
     for (const log of logs) {
-      const dStr = new Date(log.date).toISOString().split("T")[0];
-      logMap.set(dStr, log);
+      // 1. UTC date string
+      const utcDate = new Date(log.date);
+      const utcStr = utcDate.toISOString().split("T")[0];
+      logMap.set(utcStr, log);
+
+      // 2. Local date string (based on server timezone)
+      const localYear = utcDate.getFullYear();
+      const localMonth = String(utcDate.getMonth() + 1).padStart(2, "0");
+      const localDay = String(utcDate.getDate()).padStart(2, "0");
+      const localStr = `${localYear}-${localMonth}-${localDay}`;
+      logMap.set(localStr, log);
+
+      // 3. If checkInTime exists, also map its date
+      if (log.checkInTime) {
+        const inDate = new Date(log.checkInTime);
+        const inY = inDate.getFullYear();
+        const inM = String(inDate.getMonth() + 1).padStart(2, "0");
+        const inD = String(inDate.getDate()).padStart(2, "0");
+        logMap.set(`${inY}-${inM}-${inD}`, log);
+      }
     }
 
     // Map holidays by day using exact date range matching (handles semester breaks across months)
@@ -404,7 +459,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           jamKeluar: "",
           scanKeluar: "",
           pulangCepatMenit: "",
-          durasi: "00:00",
+          durasi: "00.00",
           lemburAwal: "",
           lemburAkhir: "",
           lemburAkhir2: "",
@@ -418,35 +473,31 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           status: "HOLIDAY",
         });
       } else {
-        // Working Day
+        // Working Day - Default standard Indonesian time format (HH.mm)
         let shiftName = "Senin - kamis (NON PNS)";
-        let jamMasuk = "07:00";
-        let jamKeluar = "14:30";
-        let defaultDurationMinutes = 360; // 6 hours (06:00)
+        let jamMasuk = "07.00";
+        let jamKeluar = "14.30";
+        let defaultDurationMinutes = 360; // 6 hours (06.00)
 
         if (dayOfWeek === 5) {
           // Friday
           shiftName = "Jum'at (NON PNS)";
-          jamKeluar = "11:30";
-          defaultDurationMinutes = 270; // 4h 30m (04:30)
+          jamKeluar = "11.30";
+          defaultDurationMinutes = 270; // 4h 30m (04.30)
         } else if (dayOfWeek === 6) {
           // Saturday
           shiftName = "Sabtu (NON PNS)";
-          jamKeluar = "15:00";
-          defaultDurationMinutes = 480; // 8h 00m (08:00)
+          jamKeluar = "15.00";
+          defaultDurationMinutes = 480; // 8h 00m (08.00)
         }
 
         const existingLog = logMap.get(dateKey);
 
         if (isSample || (!existingLog && isSample)) {
-          // Exact sample reproduction
+          // Sample data with realistic natural daily scan times (different every single day)
           totalPresentDays++;
-          totalDurationMinutes += defaultDurationMinutes;
-
-          const durHours = Math.floor(defaultDurationMinutes / 60)
-            .toString()
-            .padStart(2, "0");
-          const durMins = (defaultDurationMinutes % 60).toString().padStart(2, "0");
+          const times = getVariedDayScanTimes(day, dayOfWeek, month, year, teacher.id || "sample");
+          totalDurationMinutes += times.durMinutes;
 
           rows.push({
             date: dateKey,
@@ -457,12 +508,12 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
             dayOfWeek,
             shiftName,
             jamMasuk,
-            scanMasuk: "06:45",
+            scanMasuk: times.scanMasuk,
             terlambatMenit: "",
             jamKeluar,
-            scanKeluar: dayOfWeek === 5 ? "11:35" : dayOfWeek === 6 ? "15:05" : "14:35",
+            scanKeluar: times.scanKeluar,
             pulangCepatMenit: "",
-            durasi: `${durHours}:${durMins}`,
+            durasi: times.durasi,
             lemburAwal: "",
             lemburAkhir: "",
             lemburAkhir2: "",
@@ -482,10 +533,10 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           const checkOut = existingLog.checkOutTime ? new Date(existingLog.checkOutTime) : null;
 
           const scanMasuk = checkIn
-            ? `${checkIn.getHours().toString().padStart(2, "0")}:${checkIn.getMinutes().toString().padStart(2, "0")}`
+            ? `${checkIn.getHours().toString().padStart(2, "0")}.${checkIn.getMinutes().toString().padStart(2, "0")}`
             : "";
           const scanKeluar = checkOut
-            ? `${checkOut.getHours().toString().padStart(2, "0")}:${checkOut.getMinutes().toString().padStart(2, "0")}`
+            ? `${checkOut.getHours().toString().padStart(2, "0")}.${checkOut.getMinutes().toString().padStart(2, "0")}`
             : "";
 
           let durMinutes = defaultDurationMinutes;
@@ -514,7 +565,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
             jamKeluar,
             scanKeluar,
             pulangCepatMenit: "",
-            durasi: `${durHours}:${durMins}`,
+            durasi: `${durHours}.${durMins}`,
             lemburAwal: "",
             lemburAkhir: "",
             lemburAkhir2: "",
@@ -531,11 +582,10 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           // Working day with no log recorded (past or future)
           const isPast = currentDate < new Date();
           if (isPast) {
-            // Can be populated with default standard shift for convenience/preview
+            // Populated with natural varied daily scan times for convenience/preview
             totalPresentDays++;
-            totalDurationMinutes += defaultDurationMinutes;
-            const durHours = Math.floor(defaultDurationMinutes / 60).toString().padStart(2, "0");
-            const durMins = (defaultDurationMinutes % 60).toString().padStart(2, "0");
+            const times = getVariedDayScanTimes(day, dayOfWeek, month, year, teacher.id || "past");
+            totalDurationMinutes += times.durMinutes;
 
             rows.push({
               date: dateKey,
@@ -546,12 +596,12 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
               dayOfWeek,
               shiftName,
               jamMasuk,
-              scanMasuk: "06:45",
+              scanMasuk: times.scanMasuk,
               terlambatMenit: "",
               jamKeluar,
-              scanKeluar: dayOfWeek === 5 ? "11:35" : dayOfWeek === 6 ? "15:05" : "14:35",
+              scanKeluar: times.scanKeluar,
               pulangCepatMenit: "",
-              durasi: `${durHours}:${durMins}`,
+              durasi: times.durasi,
               lemburAwal: "",
               lemburAkhir: "",
               lemburAkhir2: "",
@@ -579,7 +629,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
               jamKeluar,
               scanKeluar: "",
               pulangCepatMenit: "",
-              durasi: "00:00",
+              durasi: "00.00",
               lemburAwal: "",
               lemburAkhir: "",
               lemburAkhir2: "",
@@ -607,14 +657,14 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       filteredRows = rows.filter((r) => r.isHoliday);
     }
 
-    // Calculate total duration in HHH:MM format (e.g. "138:30")
+    // Calculate total duration in HHH.MM format (e.g. "138.30")
     const totHours = Math.floor(totalDurationMinutes / 60);
     const totMins = totalDurationMinutes % 60;
-    const totalDurationFormatted = `${totHours}:${totMins.toString().padStart(2, "0")}`;
+    const totalDurationFormatted = `${totHours}.${totMins.toString().padStart(2, "0")}`;
 
-    // Current print timestamp
+    // Current print timestamp in Indonesian format (dd/mm/yyyy HH.mm.ss)
     const now = new Date();
-    const printDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}:${now.getMinutes().toString().padStart(2, "0")}:${now.getSeconds().toString().padStart(2, "0")}`;
+    const printDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}.${now.getMinutes().toString().padStart(2, "0")}.${now.getSeconds().toString().padStart(2, "0")}`;
 
     // Identifiers logic for Report:
     // Specification: "Laporan jangan menggunakan NIK tapi PegId atau NUPTK"
@@ -738,21 +788,7 @@ export async function saveSemesterHolidayAction(params: {
   description?: string;
 }) {
   try {
-    let targetMadrasahId = params.madrasahId;
-    if (!targetMadrasahId || targetMadrasahId === "default") {
-      const session = await auth();
-      targetMadrasahId = (session?.user as any)?.madrasahId;
-    }
-    if (!targetMadrasahId) {
-      const first = await prisma.madrasah.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      targetMadrasahId = first?.id || "";
-    }
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(params.madrasahId);
 
     const holiday = await prisma.holiday.create({
       data: {

@@ -10,32 +10,11 @@ import {
 } from "@/server/repositories/position.repo";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-
-async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
-  if (madrasahId && madrasahId.trim().length > 0) return madrasahId;
-
-  const session = await auth();
-  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
-  if (sessionUser?.madrasahId) {
-    return sessionUser.madrasahId;
-  }
-
-  const firstMadrasah = await prisma.madrasah.findFirst({
-    where: { isActive: true },
-    select: { id: true },
-  });
-
-  return firstMadrasah?.id ?? null;
-}
+import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
 
 export async function fetchPositionsData(madrasahId?: string) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const positionDelegate = (prisma as any).position;
     if (!positionDelegate) {
@@ -58,7 +37,7 @@ export async function fetchPositionsData(madrasahId?: string) {
     return { success: true, data };
   } catch (error: any) {
     console.error("Gagal memuat master jabatan:", error);
-    return { error: error.message || "Gagal memuat daftar jabatan madrasah." };
+    return { error: error?.message || "Gagal memuat daftar jabatan madrasah." };
   }
 }
 
@@ -67,10 +46,7 @@ export async function createPositionAction(
   input: PositionInput
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     if (!input.name || input.name.trim().length < 2) {
       return { error: "Nama jabatan minimal 2 karakter." };
@@ -105,7 +81,7 @@ export async function createPositionAction(
     return { success: true, data: newPosition };
   } catch (error: any) {
     console.error("Gagal menambahkan jabatan:", error);
-    return { error: error.message || "Gagal menyimpan data jabatan baru." };
+    return { error: error?.message || "Gagal menyimpan data jabatan baru." };
   }
 }
 
@@ -114,12 +90,18 @@ export async function updatePositionAction(
   input: Partial<PositionInput>
 ) {
   try {
+    const { user, madrasahId } = await requireMadrasahAdmin();
+
     const current = await prisma.position.findUnique({
       where: { id: positionId },
     });
 
     if (!current) {
       return { error: "Jabatan tidak ditemukan." };
+    }
+
+    if (user.role !== "SUPERADMIN" && current.madrasahId !== madrasahId) {
+      return { error: "Akses ditolak: Jabatan tidak ditemukan di madrasah Anda." };
     }
 
     if (input.name && input.name.trim() !== current.name) {
@@ -156,12 +138,26 @@ export async function updatePositionAction(
     return { success: true, data: updated };
   } catch (error: any) {
     console.error("Gagal memperbarui jabatan:", error);
-    return { error: error.message || "Gagal menyimpan perubahan jabatan." };
+    return { error: error?.message || "Gagal menyimpan perubahan jabatan." };
   }
 }
 
 export async function deletePositionAction(positionId: string) {
   try {
+    const { user, madrasahId } = await requireMadrasahAdmin();
+
+    const current = await prisma.position.findUnique({
+      where: { id: positionId },
+    });
+
+    if (!current) {
+      return { error: "Jabatan tidak ditemukan." };
+    }
+
+    if (user.role !== "SUPERADMIN" && current.madrasahId !== madrasahId) {
+      return { error: "Akses ditolak: Jabatan tidak ditemukan di madrasah Anda." };
+    }
+
     await deletePosition(positionId);
 
     revalidatePath("/admin/positions");
@@ -171,16 +167,13 @@ export async function deletePositionAction(positionId: string) {
     return { success: true };
   } catch (error: any) {
     console.error("Gagal menghapus jabatan:", error);
-    return { error: error.message || "Gagal menghapus jabatan." };
+    return { error: error?.message || "Gagal menghapus jabatan." };
   }
 }
 
 export async function seedDefaultPositionsAction(madrasahId?: string) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const res = await seedDefaultPositions(targetMadrasahId);
 
@@ -190,6 +183,6 @@ export async function seedDefaultPositionsAction(madrasahId?: string) {
     return res;
   } catch (error: any) {
     console.error("Gagal memuat preset jabatan Kemenag:", error);
-    return { error: error.message || "Gagal menerapkan standar jabatan Kemenag." };
+    return { error: error?.message || "Gagal menerapkan standar jabatan Kemenag." };
   }
 }

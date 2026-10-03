@@ -46,6 +46,7 @@ export default async function BulkAttendancePage() {
           radiusMeters: settings.radiusMeters,
           latitude: settings.latitude,
           longitude: settings.longitude,
+          dailySchedules: settings.dailySchedules || null,
         }
       : null,
     dateStr: todayStr,

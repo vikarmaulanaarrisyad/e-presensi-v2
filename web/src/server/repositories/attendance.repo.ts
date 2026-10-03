@@ -30,7 +30,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
     },
   });
 
-  // 3. Today's attendance logs
+  // 3. Today's attendance logs (optimized select to prevent massive base64 photo overhead)
   const todayLogs = await prisma.attendanceLog.findMany({
     where: {
       madrasahId,
@@ -39,7 +39,17 @@ export async function getMadrasahDashboardData(madrasahId: string) {
         lt: tomorrow,
       },
     },
-    include: {
+    select: {
+      id: true,
+      userId: true,
+      date: true,
+      status: true,
+      checkInTime: true,
+      checkInDistance: true,
+      checkInLat: true,
+      checkInLng: true,
+      checkInPhotoUrl: true,
+      notes: true,
       user: {
         select: {
           id: true,
@@ -83,6 +93,11 @@ export async function getMadrasahDashboardData(madrasahId: string) {
         gte: startOfWeek,
         lte: endOfWeek,
       },
+    },
+    select: {
+      id: true,
+      date: true,
+      status: true,
     },
   });
 
@@ -374,44 +389,59 @@ function generateRandomTimes(
   count: number,
   year: number,
   month: number,
-  day: number
+  day: number,
+  daySeed = day
 ): Date[] {
   const [sH, sM] = startHHMM.split(":").map(Number);
   const [eH, eM] = endHHMM.split(":").map(Number);
 
-  let startTotalSec = sH * 3600 + sM * 60;
-  let endTotalSec = eH * 3600 + eM * 60;
+  let startTotalMin = sH * 60 + sM;
+  let endTotalMin = eH * 60 + eM;
 
-  if (endTotalSec <= startTotalSec) {
-    endTotalSec = startTotalSec + 20 * 60; // 20 min range
+  if (endTotalMin <= startTotalMin) {
+    endTotalMin = startTotalMin + 20; // 20 min range
   }
 
-  const rangeSec = Math.max(endTotalSec - startTotalSec, 60);
+  let availableMinutes = endTotalMin - startTotalMin + 1;
+  let effectiveStartMin = startTotalMin;
+  let effectiveEndMin = endTotalMin;
+
+  // If there are more teachers than available minutes, widen window slightly earlier
+  // so each teacher can have their own distinct minute
+  if (count > availableMinutes) {
+    effectiveStartMin = Math.max(0, effectiveEndMin - count - 3);
+    availableMinutes = effectiveEndMin - effectiveStartMin + 1;
+  }
+
+  const allMinuteOffsets: number[] = [];
+  for (let m = 0; m < availableMinutes; m++) {
+    allMinuteOffsets.push(m);
+  }
+
+  // Shuffle minute offsets so teachers don't arrive in strict alphabetical order
+  for (let i = allMinuteOffsets.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [allMinuteOffsets[i], allMinuteOffsets[j]] = [allMinuteOffsets[j], allMinuteOffsets[i]];
+  }
 
   const results: Date[] = [];
-  const usedSeconds = new Set<number>();
-
   for (let i = 0; i < count; i++) {
-    let secOffset = Math.floor(Math.random() * rangeSec);
-    let attempts = 0;
-    while (usedSeconds.has(secOffset) && attempts < 25) {
-      secOffset = Math.floor(Math.random() * rangeSec);
-      attempts++;
+    let minuteOffset: number;
+    if (count === 1 && availableMinutes > 2) {
+      // 1 teacher day-to-day: scatter using daySeed so consecutive days jump across the window
+      minuteOffset = (Math.abs(daySeed * 7 + Math.floor(Math.random() * 4)) % availableMinutes);
+    } else {
+      // Multiple teachers on the same date: each teacher gets a unique minute offset
+      minuteOffset = allMinuteOffsets[i % allMinuteOffsets.length];
     }
-    usedSeconds.add(secOffset);
+    const totalMin = effectiveStartMin + minuteOffset;
+    const randomSec = Math.floor(Math.random() * 60);
 
-    const totalSec = startTotalSec + secOffset;
-    const h = Math.floor(totalSec / 3600) % 24;
-    const m = Math.floor((totalSec % 3600) / 60);
-    const s = totalSec % 60;
+    const h = Math.floor(totalMin / 60) % 24;
+    const m = totalMin % 60;
+    const s = randomSec;
 
     results.push(new Date(year, month - 1, day, h, m, s, 0));
-  }
-
-  // Shuffle order so teachers don't arrive in strict alphabetical sequence
-  for (let i = results.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [results[i], results[j]] = [results[j], results[i]];
   }
 
   return results;
@@ -448,6 +478,36 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
     input.status === "PRESENT" || input.status === "LATE";
   const shouldRandomize = input.randomizeTime !== false;
 
+  // Resolve day of week to determine default day-specific work hours (1=Senin..7=Minggu)
+  const dateObj = new Date(year, month - 1, day);
+  const jsDow = dateObj.getDay();
+  const dayNum = jsDow === 0 ? 7 : jsDow;
+
+  let resolvedStartTime = "07:00";
+  let resolvedEndTime = "14:30"; // default Senin - Kamis 14:30
+  if (dayNum === 5) {
+    resolvedEndTime = "11:30"; // Jumat 11:30
+  } else if (dayNum === 6) {
+    resolvedEndTime = "15:00"; // Sabtu 15:00
+  } else if (dayNum === 7) {
+    resolvedEndTime = "12:00"; // Minggu
+  }
+
+  if (settings?.dailySchedules) {
+    try {
+      const parsed = JSON.parse(settings.dailySchedules);
+      if (Array.isArray(parsed)) {
+        const found = parsed.find((p: { day?: number; startTime?: string; endTime?: string }) => p.day === dayNum);
+        if (found) {
+          if (found.startTime) resolvedStartTime = found.startTime;
+          if (found.endTime) resolvedEndTime = found.endTime;
+        }
+      }
+    } catch {}
+  } else if (settings?.workStartTime) {
+    resolvedStartTime = settings.workStartTime;
+  }
+
   // Pre-generate arrays of timestamps if PRESENT or LATE
   let checkInDates: (Date | null)[] = [];
   let checkOutDates: (Date | null)[] = [];
@@ -457,12 +517,31 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
       // Natural randomized time window
       const inStart = input.checkInTimeStart || (input.status === "LATE" ? "07:16" : "06:38");
       const inEnd = input.checkInTimeEnd || (input.status === "LATE" ? "07:35" : "06:56");
-      checkInDates = generateRandomTimes(inStart, inEnd, count, year, month, day);
+      checkInDates = generateRandomTimes(inStart, inEnd, count, year, month, day, day);
 
       if (input.setCheckOut) {
-        const outStart = input.checkOutTimeStart || "14:03";
-        const outEnd = input.checkOutTimeEnd || "14:26";
-        checkOutDates = generateRandomTimes(outStart, outEnd, count, year, month, day);
+        // Natural jitter calculated around resolved checkout time
+        let fallbackOutStart = "14:31";
+        let fallbackOutEnd = "14:52";
+        if (resolvedEndTime === "11:30") {
+          fallbackOutStart = "11:31";
+          fallbackOutEnd = "11:52";
+        } else if (resolvedEndTime === "15:00") {
+          fallbackOutStart = "15:01";
+          fallbackOutEnd = "15:22";
+        } else {
+          const [outH, outM] = resolvedEndTime.split(":").map(Number);
+          if (!isNaN(outH) && !isNaN(outM)) {
+            const startM = outH * 60 + outM + 1;
+            const endM = outH * 60 + outM + 22;
+            fallbackOutStart = `${String(Math.floor(startM / 60) % 24).padStart(2, "0")}:${String(startM % 60).padStart(2, "0")}`;
+            fallbackOutEnd = `${String(Math.floor(endM / 60) % 24).padStart(2, "0")}:${String(endM % 60).padStart(2, "0")}`;
+          }
+        }
+
+        const outStart = input.checkOutTimeStart || fallbackOutStart;
+        const outEnd = input.checkOutTimeEnd || fallbackOutEnd;
+        checkOutDates = generateRandomTimes(outStart, outEnd, count, year, month, day, day + 5);
       }
     } else {
       // Fixed uniform time
@@ -471,14 +550,15 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
         const [inH, inM] = input.checkInTime.split(":").map(Number);
         fixedIn = new Date(year, month - 1, day, inH, inM, 0, 0);
       } else {
-        const defaultStart = settings?.workStartTime || "07:00";
+        const defaultStart = resolvedStartTime || settings?.workStartTime || "07:00";
         const [inH, inM] = defaultStart.split(":").map(Number);
         fixedIn = new Date(year, month - 1, day, inH, inM, 0, 0);
       }
       checkInDates = Array(count).fill(fixedIn);
 
-      if (input.setCheckOut && input.checkOutTime) {
-        const [outH, outM] = input.checkOutTime.split(":").map(Number);
+      if (input.setCheckOut) {
+        const targetCheckOut = input.checkOutTime || resolvedEndTime;
+        const [outH, outM] = targetCheckOut.split(":").map(Number);
         const fixedOut = new Date(year, month - 1, day, outH, outM, 0, 0);
         checkOutDates = Array(count).fill(fixedOut);
       }
@@ -521,7 +601,7 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
     finalNotes = null; // Clean empty note for Hadir Tepat Waktu!
   }
 
-  // Find all existing logs for this date for the selected teachers
+  // Find all existing logs for this date for the selected teachers (select only required fields)
   const existingLogs = await prisma.attendanceLog.findMany({
     where: {
       madrasahId: input.madrasahId,
@@ -530,6 +610,13 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
         gte: startOfDay,
         lte: endOfDay,
       },
+    },
+    select: {
+      id: true,
+      userId: true,
+      checkOutLat: true,
+      checkOutLng: true,
+      checkOutDistance: true,
     },
   });
 
@@ -541,6 +628,7 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
   let createdCount = 0;
   let updatedCount = 0;
   let skippedCount = 0;
+  const dbOperations: any[] = [];
 
   for (let i = 0; i < input.teacherIds.length; i++) {
     const teacherId = input.teacherIds[i];
@@ -560,42 +648,50 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
         continue;
       }
 
-      await prisma.attendanceLog.update({
-        where: { id: existing.id },
-        data: {
-          status: input.status,
-          checkInTime: checkInDateTime,
-          checkInLat: coords.lat,
-          checkInLng: coords.lng,
-          checkInDistance: coords.distance,
-          checkOutTime: checkOutDateTime,
-          checkOutLat: checkOutDateTime ? coords.lat : existing.checkOutLat,
-          checkOutLng: checkOutDateTime ? coords.lng : existing.checkOutLng,
-          checkOutDistance: checkOutDateTime ? coords.distance : existing.checkOutDistance,
-          notes: finalNotes,
-        },
-      });
+      dbOperations.push(
+        prisma.attendanceLog.update({
+          where: { id: existing.id },
+          data: {
+            status: input.status,
+            checkInTime: checkInDateTime,
+            checkInLat: coords.lat,
+            checkInLng: coords.lng,
+            checkInDistance: coords.distance,
+            checkOutTime: checkOutDateTime,
+            checkOutLat: checkOutDateTime ? coords.lat : existing.checkOutLat,
+            checkOutLng: checkOutDateTime ? coords.lng : existing.checkOutLng,
+            checkOutDistance: checkOutDateTime ? coords.distance : existing.checkOutDistance,
+            notes: finalNotes,
+          },
+        })
+      );
       updatedCount++;
     } else {
-      await prisma.attendanceLog.create({
-        data: {
-          madrasahId: input.madrasahId,
-          userId: teacherId,
-          date: startOfDay,
-          status: input.status,
-          checkInTime: checkInDateTime,
-          checkInLat: coords.lat,
-          checkInLng: coords.lng,
-          checkInDistance: coords.distance,
-          checkOutTime: checkOutDateTime,
-          checkOutLat: checkOutDateTime ? coords.lat : null,
-          checkOutLng: checkOutDateTime ? coords.lng : null,
-          checkOutDistance: checkOutDateTime ? coords.distance : null,
-          notes: finalNotes,
-        },
-      });
+      dbOperations.push(
+        prisma.attendanceLog.create({
+          data: {
+            madrasahId: input.madrasahId,
+            userId: teacherId,
+            date: startOfDay,
+            status: input.status,
+            checkInTime: checkInDateTime,
+            checkInLat: coords.lat,
+            checkInLng: coords.lng,
+            checkInDistance: coords.distance,
+            checkOutTime: checkOutDateTime,
+            checkOutLat: checkOutDateTime ? coords.lat : null,
+            checkOutLng: checkOutDateTime ? coords.lng : null,
+            checkOutDistance: checkOutDateTime ? coords.distance : null,
+            notes: finalNotes,
+          },
+        })
+      );
       createdCount++;
     }
+  }
+
+  if (dbOperations.length > 0) {
+    await prisma.$transaction(dbOperations);
   }
 
   return {
@@ -612,17 +708,23 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
 }
 
 /**
- * Delete a specific attendance log record
+ * Delete a specific attendance log record with tenant safety check
  */
 export async function deleteAttendanceLog(
   logId: string,
   madrasahId: string
 ) {
+  const log = await prisma.attendanceLog.findUnique({
+    where: { id: logId },
+    select: { id: true, madrasahId: true },
+  });
+
+  if (!log || log.madrasahId !== madrasahId) {
+    throw new Error("Data presensi tidak ditemukan atau Anda tidak memiliki akses.");
+  }
+
   return await prisma.attendanceLog.delete({
-    where: {
-      id: logId,
-      madrasahId,
-    },
+    where: { id: logId },
   });
 }
 

@@ -248,15 +248,18 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
  */
 export async function recordMobileAttendanceAction(payload: MobileAttendancePayload) {
   try {
-    let userId = payload.userId;
-    if (!userId) {
-      const session = await auth();
-      userId = session?.user?.id;
-    }
+    const session = await auth();
+    const sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
 
-    if (!userId) {
+    if (!sessionUser?.id) {
       return { error: "Sesi pengguna tidak valid. Silakan login kembali." };
     }
+
+    // Proxy Attendance Prevention:
+    // Regular teachers MUST only record attendance for themselves.
+    // Only Admin/Superadmin may explicitly specify a different userId.
+    const isPrivileged = sessionUser.role === "ADMIN_MADRASAH" || sessionUser.role === "SUPERADMIN";
+    const userId = isPrivileged && payload.userId ? payload.userId : sessionUser.id;
 
     const teacher = await prisma.user.findUnique({
       where: { id: userId },

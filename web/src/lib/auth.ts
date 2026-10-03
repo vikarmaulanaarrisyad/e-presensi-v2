@@ -42,15 +42,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null;
         }
 
-        let isValid = await bcrypt.compare(
+        const isValid = await bcrypt.compare(
           parsed.data.password,
           user.passwordHash
         );
-
-        // Fallback for default password
-        if (!isValid && (parsed.data.password === "Password123!" || parsed.data.password === "12345678")) {
-          isValid = true;
-        }
 
         if (!isValid) {
           return null;

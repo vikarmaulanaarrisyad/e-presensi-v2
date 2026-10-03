@@ -9,39 +9,17 @@ import {
   type BulkAttendanceInput
 } from "@/server/repositories/attendance.repo";
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-
-async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
-  if (madrasahId) return madrasahId;
-
-  const session = await auth();
-  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
-  if (sessionUser?.madrasahId) {
-    return sessionUser.madrasahId;
-  }
-
-  const firstMadrasah = await prisma.madrasah.findFirst({
-    where: { isActive: true },
-    select: { id: true },
-  });
-
-  return firstMadrasah?.id ?? null;
-}
+import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
 
 export async function fetchAdminDashboardData(madrasahId?: string) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Data madrasah tidak ditemukan." };
-    }
-
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
     const data = await getMadrasahDashboardData(targetMadrasahId);
     return { data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal mengambil data dashboard:", error);
-    return { error: "Gagal memuat data dashboard presensi." };
+    return { error: error?.message || "Gagal memuat data dashboard presensi." };
   }
 }
 
@@ -53,12 +31,7 @@ export async function fetchTeachersAttendanceByDateAction(
   madrasahId?: string
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Data madrasah tidak ditemukan." };
-    }
-
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
     const data = await getTeachersAttendanceByDate(targetMadrasahId, dateStr);
     return { success: true, data };
   } catch (error: any) {
@@ -74,11 +47,7 @@ export async function bulkRecordAttendanceAction(
   input: Omit<BulkAttendanceInput, "madrasahId"> & { madrasahId?: string }
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(input.madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(input.madrasahId);
 
     if (!input.teacherIds || input.teacherIds.length === 0) {
       return { error: "Pilih setidaknya satu guru untuk melakukan presensi massal." };
@@ -113,11 +82,7 @@ export async function deleteAttendanceLogAction(
   madrasahId?: string
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     await deleteAttendanceLog(logId, targetMadrasahId);
 
@@ -148,11 +113,7 @@ export async function singleRecordAttendanceAction(
   }
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(input.madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(input.madrasahId);
 
     const result = await singleRecordAttendance({
       ...input,
@@ -183,13 +144,25 @@ export async function bulkRecordAttendanceRangeAction(
     skipSunday?:   boolean; // default true  — skip hari Minggu
     skipSaturday?: boolean; // default false — Sabtu tetap diproses
     skipHolidays?: boolean; // default true
+    scheduleMode?: "per_day" | "uniform";
+    dailySchedulesConfig?: Array<{
+      day: number;
+      dayName: string;
+      isActive: boolean;
+      checkInTime: string;
+      checkInTimeStart: string;
+      checkInTimeEnd: string;
+      setCheckOut: boolean;
+      checkOutTime: string;
+      checkOutTimeStart: string;
+      checkOutTimeEnd: string;
+      notes?: string;
+    }>;
+    saveAsMadrasahDefault?: boolean;
   }
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(input.madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(input.madrasahId);
 
     if (!input.teacherIds || input.teacherIds.length === 0) {
       return { error: "Pilih setidaknya satu guru untuk presensi massal rentang tanggal." };
@@ -207,6 +180,42 @@ export async function bulkRecordAttendanceRangeAction(
       return { error: "Tanggal mulai harus sebelum atau sama dengan tanggal akhir." };
     }
 
+    // Save as madrasah daily schedule if requested
+    if (input.saveAsMadrasahDefault && input.dailySchedulesConfig && input.dailySchedulesConfig.length > 0) {
+      try {
+        const mappedDaily = input.dailySchedulesConfig.map((s) => ({
+          day: s.day,
+          dayName: s.dayName,
+          isActive: s.isActive,
+          startTime: s.checkInTime,
+          lateThreshold: "07:15",
+          endTime: s.checkOutTime,
+          notes: s.notes || "",
+        }));
+
+        const primaryDay = input.dailySchedulesConfig.find((d) => d.day === 2) || input.dailySchedulesConfig[0];
+
+        await prisma.madrasahSetting.upsert({
+          where: { madrasahId: targetMadrasahId },
+          update: {
+            dailySchedules: JSON.stringify(mappedDaily),
+            workStartTime: primaryDay.checkInTime,
+            workEndTime: primaryDay.checkOutTime,
+          },
+          create: {
+            madrasahId: targetMadrasahId,
+            latitude: -6.2615,
+            longitude: 106.8106,
+            workStartTime: primaryDay.checkInTime,
+            workEndTime: primaryDay.checkOutTime,
+            dailySchedules: JSON.stringify(mappedDaily),
+          },
+        });
+      } catch (err) {
+        console.error("Gagal menyimpan jadwal default madrasah:", err);
+      }
+    }
+
     // Max range guard: 92 days (~3 months) to prevent runaway server tasks
     const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (diffDays > 92) {
@@ -218,7 +227,7 @@ export async function bulkRecordAttendanceRangeAction(
     const skipSaturday = input.skipSaturday === true;    // default false
     const skipHolidays = input.skipHolidays !== false;   // default true
 
-    let holidayDates: Set<string> = new Set();
+    const holidayDates: Set<string> = new Set();
     if (skipHolidays) {
       const holidays = await prisma.holiday.findMany({
         where: {
@@ -269,11 +278,42 @@ export async function bulkRecordAttendanceRangeAction(
         continue;
       }
 
+      // Determine day of week config: 0=Sun -> 7, 1=Mon -> 1, ..., 6=Sat -> 6
+      const dayNum = dow === 0 ? 7 : dow;
+
+      let dayCheckInTime = input.checkInTime;
+      let dayCheckOutTime = input.checkOutTime;
+      let dayCheckInStart = input.checkInTimeStart;
+      let dayCheckInEnd = input.checkInTimeEnd;
+      let dayCheckOutStart = input.checkOutTimeStart;
+      let dayCheckOutEnd = input.checkOutTimeEnd;
+      let daySetCheckOut = input.setCheckOut;
+
+      if (input.scheduleMode !== "uniform" && input.dailySchedulesConfig && input.dailySchedulesConfig.length > 0) {
+        const dayCfg = input.dailySchedulesConfig.find((d) => d.day === dayNum);
+        if (dayCfg) {
+          dayCheckInTime = dayCfg.checkInTime;
+          dayCheckOutTime = dayCfg.checkOutTime;
+          dayCheckInStart = dayCfg.checkInTimeStart;
+          dayCheckInEnd = dayCfg.checkInTimeEnd;
+          dayCheckOutStart = dayCfg.checkOutTimeStart;
+          dayCheckOutEnd = dayCfg.checkOutTimeEnd;
+          daySetCheckOut = dayCfg.setCheckOut;
+        }
+      }
+
       // Process this day
       const dayResult = await bulkRecordAttendance({
         ...input,
         madrasahId: targetMadrasahId,
         dateStr,
+        checkInTime: dayCheckInTime,
+        checkOutTime: dayCheckOutTime,
+        checkInTimeStart: dayCheckInStart,
+        checkInTimeEnd: dayCheckInEnd,
+        checkOutTimeStart: dayCheckOutStart,
+        checkOutTimeEnd: dayCheckOutEnd,
+        setCheckOut: daySetCheckOut,
       });
 
       totalDays++;

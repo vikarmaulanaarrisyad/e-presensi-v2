@@ -1,14 +1,23 @@
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
+import type { jsPDF } from "jspdf";
 import { type AttendanceReportData } from "@/server/actions/report.actions";
 
-export function exportReportToPdf(
+/**
+ * Helper to ensure time strings use the standard Indonesian dot separator (e.g. 07.00, 14.30)
+ */
+export function formatIndoTime(timeStr?: string | null): string {
+  if (!timeStr) return "";
+  return timeStr.replace(/:/g, ".");
+}
+
+export async function createReportPdfDoc(
   data: AttendanceReportData,
-  filename: string,
-  dateLanguage: "en" | "id" = "en"
-) {
+  dateLanguage: "en" | "id" = "id"
+): Promise<jsPDF> {
+  const { default: jsPDFClass } = await import("jspdf");
+  const { default: autoTable } = await import("jspdf-autotable");
+
   // F4 / Folio Landscape: 330 mm width x 215 mm height
-  const doc = new jsPDF({
+  const doc = new jsPDFClass({
     orientation: "landscape",
     unit: "mm",
     format: [215, 330],
@@ -44,14 +53,14 @@ export function exportReportToPdf(
   doc.setLineWidth(0.25);
   doc.line(margin, divY, margin + cW, divY);
 
-  // Sub-info row: Nama Perusahaan | Filter Jenis | Tgl. Periode
+  // Sub-info row: Nama Madrasah | Filter Jenis | Tgl. Periode
   // Match preview layout: left / centre / right, font-medium for labels, font-bold for value
   const subInfoY = hBoxY + 11;
   setNormal(7.5);
 
-  // Left: "Nama Perusahaan : [bold value]"
-  doc.text("Nama Perusahaan : ", margin + 2, subInfoY);
-  const labelWidthL = doc.getTextWidth("Nama Perusahaan : ");
+  // Left: "Nama Madrasah : [bold value]"
+  doc.text("Nama Madrasah : ", margin + 2, subInfoY);
+  const labelWidthL = doc.getTextWidth("Nama Madrasah : ");
   setBold(7.5);
   doc.text(data.madrasah.name, margin + 2 + labelWidthL, subInfoY);
 
@@ -91,31 +100,37 @@ export function exportReportToPdf(
   const c2 = margin + cW * 0.30;
   const c3 = margin + cW * 0.66;
 
-  // Helper: draw label (normal) + colon + value (bold) inline
-  const drawLabelValue = (
+  // Fixed colon X offsets for perfectly straight, aligned colons across both rows
+  const col1ColonX = c1 + 14;
+  const col2ColonX = c2 + 23;
+  const col3ColonX = c3 + 13;
+
+  // Helper: draw label (normal) + aligned colon + value (bold/normal) inline
+  const drawAlignedLabelValue = (
     label: string,
     value: string,
-    x: number,
+    startX: number,
+    colonX: number,
     y: number,
     valueBold = true,
     labelFontSize = 7.5
   ) => {
     setNormal(labelFontSize);
-    const lw = doc.getTextWidth(`${label} : `);
-    doc.text(`${label} : `, x, y);
+    doc.text(label, startX, y);
+    doc.text(":", colonX, y);
     if (valueBold) setBold(labelFontSize); else setNormal(labelFontSize);
-    doc.text(value, x + lw, y);
+    doc.text(value, colonX + 2.5, y);
   };
 
   // Row 1
-  drawLabelValue(data.employee.idType || "NUPTK", data.employee.idNumber || data.employee.nuptk || "-", c1, empRow1, true);
-  drawLabelValue("Nama Karyawan", data.employee.name,       c2, empRow1, true);
-  drawLabelValue("Jabatan",       data.employee.jabatan,    c3, empRow1, false);
+  drawAlignedLabelValue(data.employee.idType || "NUPTK", data.employee.idNumber || data.employee.nuptk || "-", c1, col1ColonX, empRow1, true);
+  drawAlignedLabelValue("Nama Karyawan", data.employee.name,       c2, col2ColonX, empRow1, true);
+  drawAlignedLabelValue("Jabatan",       data.employee.jabatan,    c3, col3ColonX, empRow1, false);
 
   // Row 2
-  drawLabelValue(data.employee.secondaryIdType || "Peg ID", data.employee.secondaryIdNumber || "-", c1, empRow2, true);
-  drawLabelValue("Departemen",    data.employee.departemen, c2, empRow2, false);
-  drawLabelValue("Status",        data.employee.status,     c3, empRow2, false);
+  drawAlignedLabelValue(data.employee.secondaryIdType || "Peg ID", data.employee.secondaryIdNumber || "-", c1, col1ColonX, empRow2, true);
+  drawAlignedLabelValue("Departemen",    data.employee.departemen, c2, col2ColonX, empRow2, false);
+  drawAlignedLabelValue("Status",        data.employee.status,     c3, col3ColonX, empRow2, false);
 
   // ═══════════════════════════════════════════════════════════════════════════
   // 3. DYNAMIC TABLE HEIGHT CALCULATION
@@ -159,21 +174,21 @@ export function exportReportToPdf(
     return [
       dateFormatted,
       row.shiftName,
-      row.jamMasuk,
-      row.scanMasuk,
+      formatIndoTime(row.jamMasuk),
+      formatIndoTime(row.scanMasuk),
       row.terlambatMenit,
-      row.jamKeluar,
-      row.scanKeluar,
+      formatIndoTime(row.jamKeluar),
+      formatIndoTime(row.scanKeluar),
       row.pulangCepatMenit,
-      row.durasi,
-      row.lemburAwal,
-      row.lemburAkhir,
-      row.lemburAkhir2,
-      row.shiftLembur,
-      row.istirahat,
-      row.istirahatLebih,
-      row.istirahat2,
-      row.istirahatLebih2,
+      formatIndoTime(row.durasi),
+      formatIndoTime(row.lemburAwal),
+      formatIndoTime(row.lemburAkhir),
+      formatIndoTime(row.lemburAkhir2),
+      formatIndoTime(row.shiftLembur),
+      formatIndoTime(row.istirahat),
+      formatIndoTime(row.istirahatLebih),
+      formatIndoTime(row.istirahat2),
+      formatIndoTime(row.istirahatLebih2),
       row.keterangan,
     ];
   });
@@ -183,7 +198,7 @@ export function exportReportToPdf(
       { content: "Total :", colSpan: 2, styles: { fontStyle: "bold", halign: "left", font: "helvetica" } },
       { content: data.summary.totalPresent.toString(), styles: { fontStyle: "bold", halign: "center" } },
       "", "", "", "", "",
-      { content: data.summary.totalDurationFormatted, styles: { fontStyle: "bold", halign: "center" } },
+      { content: formatIndoTime(data.summary.totalDurationFormatted), styles: { fontStyle: "bold", halign: "center" } },
       "", "", "", "", "", "", "", "", "",
     ],
   ];
@@ -283,10 +298,66 @@ export function exportReportToPdf(
   setNormal(7);
   const footTextY = footerY + 3.5;
   doc.text("Halaman : 1    dari : 1",      margin + 2,              footTextY);
-  doc.text(`Tgl. Cetak : ${data.summary.printedAt}`, pageWidth / 2, footTextY, { align: "center" });
+  doc.text(`Tgl. Cetak : ${formatIndoTime(data.summary.printedAt)}`, pageWidth / 2, footTextY, { align: "center" });
   doc.text(`Oleh : ${data.summary.printedBy}`,       margin + cW - 2, footTextY, { align: "right" });
 
-  // Save
+  return doc;
+}
+
+/**
+ * Downloads the F4 Landscape PDF file
+ */
+export async function exportReportToPdf(
+  data: AttendanceReportData,
+  filename: string,
+  dateLanguage: "en" | "id" = "id"
+) {
+  const doc = await createReportPdfDoc(data, dateLanguage);
   const finalFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
   doc.save(finalFilename);
+}
+
+/**
+ * Sends the exact F4 Landscape PDF document directly to the printer
+ * Ensures the print size is 100% identical to the exported PDF document.
+ */
+export async function printReportPdf(
+  data: AttendanceReportData,
+  dateLanguage: "en" | "id" = "id"
+) {
+  const doc = await createReportPdfDoc(data, dateLanguage);
+  doc.autoPrint();
+
+  const pdfBlob = doc.output("blob");
+  const blobUrl = URL.createObjectURL(pdfBlob);
+
+  const iframeId = "epresensi-direct-pdf-print-frame";
+  let iframe = document.getElementById(iframeId) as HTMLIFrameElement;
+  if (iframe) {
+    iframe.remove();
+  }
+
+  iframe = document.createElement("iframe");
+  iframe.id = iframeId;
+  iframe.style.position = "fixed";
+  iframe.style.top = "-9999px";
+  iframe.style.left = "-9999px";
+  iframe.style.width = "0";
+  iframe.style.height = "0";
+  iframe.style.border = "none";
+  iframe.src = blobUrl;
+  document.body.appendChild(iframe);
+
+  iframe.onload = () => {
+    setTimeout(() => {
+      try {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+      } catch (err) {
+        console.error("Gagal print via iframe terisolasi, membuka jendela print:", err);
+        const win = window.open(blobUrl, "_blank");
+        if (win) win.focus();
+      }
+    }, 250);
+  };
 }

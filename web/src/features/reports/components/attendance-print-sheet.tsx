@@ -3,13 +3,18 @@
 import React, { forwardRef } from "react";
 import { type AttendanceReportData } from "@/server/actions/report.actions";
 
+function formatIndoTime(timeStr?: string | null): string {
+  if (!timeStr) return "";
+  return timeStr.replace(/:/g, ".");
+}
+
 interface AttendancePrintSheetProps {
   data: AttendanceReportData;
   dateLanguage?: "en" | "id";
 }
 
 export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSheetProps>(
-  ({ data, dateLanguage = "en" }, ref) => {
+  ({ data, dateLanguage = "id" }, ref) => {
     return (
       <div
         id="printable-attendance-sheet"
@@ -26,8 +31,8 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           dangerouslySetInnerHTML={{
             __html: `
               @page {
-                size: landscape;
-                margin: 5mm 8mm;
+                size: 330mm 215mm landscape;
+                margin: 1mm;
               }
               @media print {
                 html, body {
@@ -43,15 +48,15 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
                   display: none !important;
                 }
                 #printable-attendance-sheet {
-                  width: 100% !important;
-                  max-width: 100% !important;
-                  margin: 0 !important;
+                  width: 300mm !important;
+                  max-width: 300mm !important;
+                  margin: 0 auto !important;
                   padding: 0 !important;
                   border: none !important;
                   box-shadow: none !important;
                   border-radius: 0 !important;
                   transform: none !important;
-                  zoom: 0.93 !important;
+                  zoom: 1 !important;
                   page-break-inside: avoid !important;
                   break-inside: avoid !important;
                 }
@@ -97,7 +102,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           </div>
           <div className="flex flex-wrap items-center justify-between gap-1 text-[10px] sm:text-[11px] font-medium px-1">
             <div className="flex items-center gap-1">
-              <span>Nama Perusahaan</span>
+              <span>Nama Madrasah</span>
               <span>:</span>
               <span className="font-bold">{data.madrasah.name}</span>
             </div>
@@ -116,40 +121,46 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           </div>
         </div>
 
-        {/* 2. Employee Details Subheader */}
+        {/* 2. Employee Details Subheader - Colons strictly aligned vertically */}
         <div className="emp-details border-t border-b border-black py-1 px-1 mb-1 text-[10px] sm:text-[11px] leading-tight">
           <div className="grid grid-cols-3 gap-2">
-            <div className="flex items-center gap-1">
-              <span className="w-16 font-medium">{data.employee.idType || "NUPTK"}</span>
-              <span>:</span>
-              <span className="font-semibold">{data.employee.idNumber || data.employee.nuptk || "-"}</span>
+            {/* Col 1 */}
+            <div className="flex items-center">
+              <span className="w-14 inline-block shrink-0 font-medium">{data.employee.idType || "NUPTK"}</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="font-semibold truncate">{data.employee.idNumber || data.employee.nuptk || "-"}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-24 font-medium">Nama Karyawan</span>
-              <span>:</span>
-              <span className="font-bold">{data.employee.name}</span>
+            {/* Col 2 */}
+            <div className="flex items-center">
+              <span className="w-24 inline-block shrink-0 font-medium">Nama Karyawan</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="font-bold truncate">{data.employee.name}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-16 font-medium">Jabatan</span>
-              <span>:</span>
-              <span>{data.employee.jabatan}</span>
+            {/* Col 3 */}
+            <div className="flex items-center">
+              <span className="w-14 inline-block shrink-0 font-medium">Jabatan</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="truncate">{data.employee.jabatan}</span>
             </div>
           </div>
           <div className="grid grid-cols-3 gap-2 mt-0.5">
-            <div className="flex items-center gap-1">
-              <span className="w-16 font-medium">{data.employee.secondaryIdType || "Peg ID"}</span>
-              <span>:</span>
-              <span className="font-semibold">{data.employee.secondaryIdNumber || "-"}</span>
+            {/* Col 1 */}
+            <div className="flex items-center">
+              <span className="w-14 inline-block shrink-0 font-medium">{data.employee.secondaryIdType || "Peg ID"}</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="font-semibold truncate">{data.employee.secondaryIdNumber || "-"}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-24 font-medium">Departemen</span>
-              <span>:</span>
-              <span>{data.employee.departemen}</span>
+            {/* Col 2 */}
+            <div className="flex items-center">
+              <span className="w-24 inline-block shrink-0 font-medium">Departemen</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="truncate">{data.employee.departemen}</span>
             </div>
-            <div className="flex items-center gap-1">
-              <span className="w-16 font-medium">Status</span>
-              <span>:</span>
-              <span>{data.employee.status}</span>
+            {/* Col 3 */}
+            <div className="flex items-center">
+              <span className="w-14 inline-block shrink-0 font-medium">Status</span>
+              <span className="w-3 text-center shrink-0 font-medium">:</span>
+              <span className="truncate">{data.employee.status}</span>
             </div>
           </div>
         </div>
@@ -247,12 +258,12 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
 
                     {/* Jam Masuk */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.jamMasuk}
+                      {formatIndoTime(row.jamMasuk)}
                     </td>
 
                     {/* Scan Masuk */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono">
-                      {row.scanMasuk}
+                      {formatIndoTime(row.scanMasuk)}
                     </td>
 
                     {/* Terlambat (Menit) */}
@@ -262,12 +273,12 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
 
                     {/* Jam Keluar */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.jamKeluar}
+                      {formatIndoTime(row.jamKeluar)}
                     </td>
 
                     {/* Scan Keluar */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono">
-                      {row.scanKeluar}
+                      {formatIndoTime(row.scanKeluar)}
                     </td>
 
                     {/* Pulang Cepat (Menit) */}
@@ -277,47 +288,47 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
 
                     {/* Durasi */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center font-mono font-medium">
-                      {row.durasi}
+                      {formatIndoTime(row.durasi)}
                     </td>
 
                     {/* Lembur Awal */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.lemburAwal}
+                      {formatIndoTime(row.lemburAwal)}
                     </td>
 
                     {/* Lembur Akhir */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.lemburAkhir}
+                      {formatIndoTime(row.lemburAkhir)}
                     </td>
 
                     {/* Lembur Akhir 2 */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.lemburAkhir2}
+                      {formatIndoTime(row.lemburAkhir2)}
                     </td>
 
                     {/* Shift Lembur */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.shiftLembur}
+                      {formatIndoTime(row.shiftLembur)}
                     </td>
 
                     {/* Istirahat */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.istirahat}
+                      {formatIndoTime(row.istirahat)}
                     </td>
 
                     {/* Istirahat Lebih */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.istirahatLebih}
+                      {formatIndoTime(row.istirahatLebih)}
                     </td>
 
                     {/* Istirahat 2 */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.istirahat2}
+                      {formatIndoTime(row.istirahat2)}
                     </td>
 
                     {/* Istirahat Lebih 2 */}
                     <td className="border border-black px-1 py-1 print:py-[3.5px] text-center">
-                      {row.istirahatLebih2}
+                      {formatIndoTime(row.istirahatLebih2)}
                     </td>
 
                     {/* Keterangan */}
@@ -345,7 +356,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
                 <td className="border border-black px-1 py-1"></td>
                 <td className="border border-black px-1 py-1"></td>
                 <td className="border border-black px-1 py-1 text-center font-bold font-mono">
-                  {data.summary.totalDurationFormatted}
+                  {formatIndoTime(data.summary.totalDurationFormatted)}
                 </td>
                 <td className="border border-black px-1 py-1"></td>
                 <td className="border border-black px-1 py-1"></td>
@@ -369,7 +380,7 @@ export const AttendancePrintSheet = forwardRef<HTMLDivElement, AttendancePrintSh
           </div>
           <div className="w-1/3 text-center">
             <span>Tgl. Cetak : </span>
-            <span className="font-mono">{data.summary.printedAt}</span>
+            <span className="font-mono">{formatIndoTime(data.summary.printedAt)}</span>
           </div>
           <div className="w-1/3 text-right">
             <span>Oleh : </span>

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   User, 
   Clock, 
@@ -11,11 +11,16 @@ import {
   Trash2, 
   X,
   Calendar,
-  MapPin
+  MapPin,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
 import { singleRecordAttendanceAction, deleteAttendanceLogAction } from "@/server/actions/attendance.actions";
+import { 
+  parseDailySchedules, 
+  getDayScheduleForDate 
+} from "@/features/attendance/lib/daily-schedule-helper";
 import { 
   swalLoading, 
   swalSuccess, 
@@ -34,6 +39,7 @@ interface SingleAttendanceModalProps {
   madrasahId: string;
   defaultStartTime?: string;
   defaultEndTime?: string;
+  dailySchedules?: string | null;
 }
 
 type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
@@ -47,10 +53,16 @@ export function SingleAttendanceModal({
   madrasahId,
   defaultStartTime = "07:00",
   defaultEndTime = "14:00",
+  dailySchedules,
 }: SingleAttendanceModalProps) {
+  const daySchedule = useMemo(() => {
+    const allSchedules = parseDailySchedules(dailySchedules);
+    return getDayScheduleForDate(dateStr, allSchedules);
+  }, [dateStr, dailySchedules]);
+
   const [status, setStatus] = useState<AttendanceStatusType>("PRESENT");
-  const [checkInTime, setCheckInTime] = useState(defaultStartTime);
-  const [checkOutTime, setCheckOutTime] = useState("");
+  const [checkInTime, setCheckInTime] = useState(daySchedule.checkInTime);
+  const [checkOutTime, setCheckOutTime] = useState(daySchedule.checkOutTime);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -65,7 +77,7 @@ export function SingleAttendanceModal({
         const mm = d.getMinutes().toString().padStart(2, "0");
         setCheckInTime(`${hh}:${mm}`);
       } else {
-        setCheckInTime(defaultStartTime);
+        setCheckInTime(daySchedule.checkInTime);
       }
 
       if (log.checkOutTime) {
@@ -74,17 +86,17 @@ export function SingleAttendanceModal({
         const mm = d.getMinutes().toString().padStart(2, "0");
         setCheckOutTime(`${hh}:${mm}`);
       } else {
-        setCheckOutTime("");
+        setCheckOutTime(daySchedule.checkOutTime);
       }
 
       setNotes(log.notes || "");
     } else {
       setStatus("PRESENT");
-      setCheckInTime(defaultStartTime);
-      setCheckOutTime("");
+      setCheckInTime(daySchedule.checkInTime);
+      setCheckOutTime(daySchedule.checkOutTime);
       setNotes("");
     }
-  }, [teacher, defaultStartTime]);
+  }, [teacher, daySchedule]);
 
   if (!isOpen || !teacher) return null;
 
@@ -235,31 +247,81 @@ export function SingleAttendanceModal({
 
           {/* Time inputs for PRESENT & LATE */}
           {(status === "PRESENT" || status === "LATE") && (
-            <div className="grid grid-cols-2 gap-3 p-3 rounded-xl border border-border/80 bg-muted/20">
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Jam Masuk <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="time"
-                  value={checkInTime}
-                  onChange={(e) => setCheckInTime(e.target.value)}
-                  className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground outline-none focus:ring-2 focus:ring-primary"
-                  required
-                />
+            <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-3">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-semibold text-foreground">Waktu Kehadiran:</span>
+                <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                  Hari {daySchedule.dayName}
+                </span>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-foreground mb-1">
-                  Jam Pulang
-                </label>
-                <input
-                  type="time"
-                  value={checkOutTime}
-                  onChange={(e) => setCheckOutTime(e.target.value)}
-                  placeholder="Opsional"
-                  className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground outline-none focus:ring-2 focus:ring-primary"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Jam Masuk <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="time"
+                    value={checkInTime}
+                    onChange={(e) => setCheckInTime(e.target.value)}
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-foreground mb-1">
+                    Jam Pulang
+                  </label>
+                  <input
+                    type="time"
+                    value={checkOutTime}
+                    onChange={(e) => setCheckOutTime(e.target.value)}
+                    placeholder="Opsional"
+                    className="w-full h-9 px-2.5 rounded-lg border border-border bg-background text-xs font-mono text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
+                  />
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-border/60">
+                <span className="text-[11px] text-muted-foreground flex items-center gap-1">
+                  <Zap className="size-3 text-amber-500" />
+                  Preset Pulang:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCheckOutTime("14:30")}
+                  className={`text-[10px] px-2 py-0.5 rounded-md border font-medium cursor-pointer ${
+                    checkOutTime === "14:30"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border/80 text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Senin-Kamis (14.30)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckOutTime("11:30")}
+                  className={`text-[10px] px-2 py-0.5 rounded-md border font-medium cursor-pointer ${
+                    checkOutTime === "11:30"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border/80 text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Jumat (11.30)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCheckOutTime("15:00")}
+                  className={`text-[10px] px-2 py-0.5 rounded-md border font-medium cursor-pointer ${
+                    checkOutTime === "15:00"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background border-border/80 text-foreground hover:bg-muted"
+                  }`}
+                >
+                  Sabtu (15.00)
+                </button>
               </div>
             </div>
           )}

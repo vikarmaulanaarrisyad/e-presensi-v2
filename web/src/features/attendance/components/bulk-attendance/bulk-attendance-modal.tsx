@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { 
   Users, 
   CheckCircle2, 
@@ -13,11 +13,18 @@ import {
   Sparkles, 
   HelpCircle,
   ShieldCheck,
-  Check
+  Check,
+  Zap
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
 import { bulkRecordAttendanceAction } from "@/server/actions/attendance.actions";
+import { 
+  parseDailySchedules, 
+  getDayScheduleForDate, 
+  calculateJitterRange,
+  formatIndoTime
+} from "@/features/attendance/lib/daily-schedule-helper";
 import { 
   swalLoading, 
   swalSuccess, 
@@ -42,6 +49,7 @@ interface BulkAttendanceModalProps {
   madrasahId: string;
   defaultStartTime?: string;
   defaultEndTime?: string;
+  dailySchedules?: string | null;
 }
 
 type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
@@ -120,19 +128,76 @@ export function BulkAttendanceModal({
   madrasahId,
   defaultStartTime = "07:00",
   defaultEndTime = "14:00",
+  dailySchedules,
 }: BulkAttendanceModalProps) {
+  const daySchedule = useMemo(() => {
+    const allSchedules = parseDailySchedules(dailySchedules);
+    return getDayScheduleForDate(dateStr, allSchedules);
+  }, [dateStr, dailySchedules]);
+
   const [status, setStatus] = useState<AttendanceStatusType>("PRESENT");
   const [randomizeTime, setRandomizeTime] = useState(true);
-  const [checkInTime, setCheckInTime] = useState(defaultStartTime);
-  const [checkInTimeStart, setCheckInTimeStart] = useState("06:38");
-  const [checkInTimeEnd, setCheckInTimeEnd] = useState("06:56");
-  const [setCheckOut, setSetCheckOut] = useState(false);
-  const [checkOutTime, setCheckOutTime] = useState(defaultEndTime);
-  const [checkOutTimeStart, setCheckOutTimeStart] = useState("14:03");
-  const [checkOutTimeEnd, setCheckOutTimeEnd] = useState("14:26");
+  const [checkInTime, setCheckInTime] = useState(daySchedule.checkInTime);
+  const [checkInTimeStart, setCheckInTimeStart] = useState(daySchedule.checkInTimeStart);
+  const [checkInTimeEnd, setCheckInTimeEnd] = useState(daySchedule.checkInTimeEnd);
+  const [setCheckOut, setSetCheckOut] = useState(true);
+  const [checkOutTime, setCheckOutTime] = useState(daySchedule.checkOutTime);
+  const [checkOutTimeStart, setCheckOutTimeStart] = useState(daySchedule.checkOutTimeStart);
+  const [checkOutTimeEnd, setCheckOutTimeEnd] = useState(daySchedule.checkOutTimeEnd);
   const [notes, setNotes] = useState("");
-  const [overwriteExisting, setOverwriteExisting] = useState(false);
+  const [overwriteExisting, setOverwriteExisting] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Sync with daySchedule when dateStr or modal opens
+  useEffect(() => {
+    if (isOpen) {
+      setCheckInTime(daySchedule.checkInTime);
+      setCheckInTimeStart(daySchedule.checkInTimeStart);
+      setCheckInTimeEnd(daySchedule.checkInTimeEnd);
+      setCheckOutTime(daySchedule.checkOutTime);
+      setCheckOutTimeStart(daySchedule.checkOutTimeStart);
+      setCheckOutTimeEnd(daySchedule.checkOutTimeEnd);
+      setSetCheckOut(true);
+    }
+  }, [isOpen, dateStr, daySchedule]);
+
+  const applyPreset = (preset: "mon_thu" | "fri" | "sat" | "madrasah") => {
+    if (preset === "fri") {
+      setCheckOutTime("11:30");
+      setCheckOutTimeStart("11:31");
+      setCheckOutTimeEnd("11:52");
+    } else if (preset === "sat") {
+      setCheckOutTime("15:00");
+      setCheckOutTimeStart("15:01");
+      setCheckOutTimeEnd("15:22");
+    } else if (preset === "mon_thu") {
+      setCheckOutTime("14:30");
+      setCheckOutTimeStart("14:31");
+      setCheckOutTimeEnd("14:52");
+    } else {
+      setCheckOutTime(daySchedule.checkOutTime);
+      setCheckOutTimeStart(daySchedule.checkOutTimeStart);
+      setCheckOutTimeEnd(daySchedule.checkOutTimeEnd);
+      setCheckInTime(daySchedule.checkInTime);
+      setCheckInTimeStart(daySchedule.checkInTimeStart);
+      setCheckInTimeEnd(daySchedule.checkInTimeEnd);
+    }
+    setSetCheckOut(true);
+  };
+
+  const handleCheckInTimeChange = (newVal: string) => {
+    setCheckInTime(newVal);
+    const jit = calculateJitterRange(newVal, "in");
+    setCheckInTimeStart(jit.start);
+    setCheckInTimeEnd(jit.end);
+  };
+
+  const handleCheckOutTimeChange = (newVal: string) => {
+    setCheckOutTime(newVal);
+    const jit = calculateJitterRange(newVal, "out");
+    setCheckOutTimeStart(jit.start);
+    setCheckOutTimeEnd(jit.end);
+  };
 
   if (!isOpen) return null;
 
@@ -145,9 +210,9 @@ export function BulkAttendanceModal({
       setCheckInTimeEnd("07:35");
       setCheckInTime("07:20");
     } else if (newStatus === "PRESENT") {
-      setCheckInTimeStart("06:38");
-      setCheckInTimeEnd("06:56");
-      setCheckInTime(defaultStartTime);
+      setCheckInTimeStart(daySchedule.checkInTimeStart);
+      setCheckInTimeEnd(daySchedule.checkInTimeEnd);
+      setCheckInTime(daySchedule.checkInTime);
     }
   };
 
@@ -181,8 +246,8 @@ export function BulkAttendanceModal({
 
     const statusLabel = STATUS_OPTIONS.find((s) => s.value === status)?.label || status;
     const modeDesc = randomizeTime
-      ? `dengan jam acak alami (${checkInTimeStart} - ${checkInTimeEnd} WIB)`
-      : `pada jam seragam ${checkInTime} WIB`;
+      ? `dengan jam acak alami (${formatIndoTime(checkInTimeStart)} - ${formatIndoTime(checkInTimeEnd)} WIB)`
+      : `pada jam seragam ${formatIndoTime(checkInTime)} WIB`;
     const confirmText = `Anda akan mencatat presensi massal status "${statusLabel}" ${modeDesc} untuk ${count} guru pada ${formatDateDisplay(dateStr)}. Lanjutkan?`;
 
     const confirmed = await swalConfirm(
@@ -241,7 +306,7 @@ export function BulkAttendanceModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/60 backdrop-blur-xs overflow-y-auto">
       <div 
-        className="relative w-full max-w-2xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
+        className="relative w-full max-w-4xl xl:max-w-5xl bg-card border border-border rounded-2xl shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in-95 duration-150"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal Header */}
@@ -340,10 +405,15 @@ export function BulkAttendanceModal({
           {(status === "PRESENT" || status === "LATE") && (
             <div className="p-4 rounded-xl border border-emerald-500/30 bg-emerald-500/5 space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border/60">
-                <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
-                  <Clock className="size-3.5 text-primary" />
-                  <span>2. Waktu & Variasi Kehadiran</span>
-                </label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                    <Clock className="size-3.5 text-primary" />
+                    <span>2. Waktu & Variasi Kehadiran</span>
+                  </label>
+                  <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30">
+                    Hari {daySchedule.dayName} (Pulang: {formatIndoTime(daySchedule.checkOutTime)} WIB)
+                  </span>
+                </div>
 
                 {/* Randomize Time Toggle */}
                 <label className="inline-flex items-center gap-2 p-1.5 px-2.5 rounded-lg bg-emerald-500/15 border border-emerald-500/30 text-emerald-900 dark:text-emerald-200 text-xs font-semibold cursor-pointer shadow-2xs">
@@ -358,12 +428,62 @@ export function BulkAttendanceModal({
                 </label>
               </div>
 
+              {/* Quick Schedule Presets */}
+              <div className="p-2.5 rounded-xl bg-background/70 border border-emerald-500/20 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <Zap className="size-3.5 text-amber-500" />
+                  Preset Jam Pulang:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("mon_thu")}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all cursor-pointer ${
+                      checkOutTime === "14:30"
+                        ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                        : "bg-muted/50 border-border/80 text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Senin - Kamis (14.30)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("fri")}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all cursor-pointer ${
+                      checkOutTime === "11:30"
+                        ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                        : "bg-muted/50 border-border/80 text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Jumat (11.30)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("sat")}
+                    className={`text-[11px] px-2.5 py-1 rounded-lg border font-medium transition-all cursor-pointer ${
+                      checkOutTime === "15:00"
+                        ? "bg-primary text-primary-foreground border-primary shadow-2xs"
+                        : "bg-muted/50 border-border/80 text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    Sabtu (15.00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => applyPreset("madrasah")}
+                    className="text-[11px] px-2.5 py-1 rounded-lg border border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 font-medium hover:bg-emerald-500/20 transition-all cursor-pointer"
+                  >
+                    Jadwal {daySchedule.dayName}
+                  </button>
+                </div>
+              </div>
+
               {randomizeTime ? (
                 <div className="space-y-3">
                   <div className="p-3 rounded-lg bg-background/80 border border-emerald-500/20 text-xs text-muted-foreground leading-relaxed flex items-start gap-2.5">
                     <Sparkles className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                     <span>
-                      <strong className="text-foreground">Mode Alami Aktif:</strong> Jam presensi setiap guru akan diacak otomatis dalam rentang waktu di bawah dengan detik unik (contoh: <em>06:41:22, 06:48:15, 06:53:40</em>). Saat dicetak di laporan PDF / F4 Kemenag, waktu kehadiran terlihat alami seperti presensi mandiri.
+                      <strong className="text-foreground">Mode Alami Aktif:</strong> Jam presensi setiap guru akan diacak otomatis dalam rentang waktu di bawah dengan detik unik (contoh: <em>{checkInTimeStart}:22, {checkInTimeEnd}:15</em>). Di laporan PDF / F4 Kemenag terlihat seperti scan mandiri.
                     </span>
                   </div>
 
@@ -425,7 +545,7 @@ export function BulkAttendanceModal({
                         />
                       </div>
                       <span className="text-[10px] text-muted-foreground mt-1 block">
-                        {setCheckOut ? "Jam pulang juga diacak alami dengan menit & detik berbeda" : "Jam pulang tidak diisi"}
+                        {setCheckOut ? `Jam pulang diacak alami (rekomendasi: ${formatIndoTime(checkOutTime)})` : "Jam pulang tidak diisi"}
                       </span>
                     </div>
                   </div>
@@ -439,12 +559,12 @@ export function BulkAttendanceModal({
                     <input
                       type="time"
                       value={checkInTime}
-                      onChange={(e) => setCheckInTime(e.target.value)}
+                      onChange={(e) => handleCheckInTimeChange(e.target.value)}
                       className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs"
                       required
                     />
                     <span className="text-[10px] text-amber-600 dark:text-amber-400 mt-1 block">
-                      Perhatian: Seluruh guru terpilih akan memiliki jam scan yang sama persis ({checkInTime} WIB).
+                      Perhatian: Seluruh guru terpilih akan memiliki jam scan yang sama persis ({formatIndoTime(checkInTime)} WIB).
                     </span>
                   </div>
 
@@ -467,11 +587,11 @@ export function BulkAttendanceModal({
                       type="time"
                       value={checkOutTime}
                       disabled={!setCheckOut}
-                      onChange={(e) => setCheckOutTime(e.target.value)}
+                      onChange={(e) => handleCheckOutTimeChange(e.target.value)}
                       className="w-full h-10 px-3 rounded-lg border border-border bg-background text-sm font-mono font-medium text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs disabled:opacity-50 disabled:bg-muted/50"
                     />
                     <span className="text-[10px] text-muted-foreground mt-1 block">
-                      {setCheckOut ? "Akan langsung menandai jam pulang seragam" : "Check-out tidak diisi"}
+                      {setCheckOut ? `Akan langsung menandai jam pulang ${formatIndoTime(checkOutTime)} WIB` : "Check-out tidak diisi"}
                     </span>
                   </div>
                 </div>
@@ -524,6 +644,24 @@ export function BulkAttendanceModal({
             </label>
 
             <div className="space-y-2 pt-1">
+              <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-emerald-500/40 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer transition-colors">
+                <input
+                  type="radio"
+                  name="overwriteMode"
+                  checked={overwriteExisting}
+                  onChange={() => setOverwriteExisting(true)}
+                  className="mt-0.5 text-primary focus:ring-primary"
+                />
+                <div className="flex flex-col text-xs">
+                  <span className="font-semibold text-foreground">
+                    Perbarui / Timpa data presensi guru yang dipilih (Direkomendasikan)
+                  </span>
+                  <span className="text-[11px] text-muted-foreground">
+                    Akan memperbarui data presensi guru yang dipilih dengan variasi waktu scan alami.
+                  </span>
+                </div>
+              </label>
+
               <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background hover:bg-muted/30 cursor-pointer transition-colors">
                 <input
                   type="radio"
@@ -534,28 +672,10 @@ export function BulkAttendanceModal({
                 />
                 <div className="flex flex-col text-xs">
                   <span className="font-semibold text-foreground">
-                    Hanya proses guru yang BELUM absen (Direkomendasikan)
+                    Hanya proses guru yang BELUM absen
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    Menjaga data guru yang sudah melakukan scan mandiri di mobile app agar tidak tertimpa.
-                  </span>
-                </div>
-              </label>
-
-              <label className="flex items-start gap-2.5 p-2.5 rounded-lg border border-border/60 bg-background hover:bg-muted/30 cursor-pointer transition-colors">
-                <input
-                  type="radio"
-                  name="overwriteMode"
-                  checked={overwriteExisting}
-                  onChange={() => setOverwriteExisting(true)}
-                  className="mt-0.5 text-primary focus:ring-primary"
-                />
-                <div className="flex flex-col text-xs">
-                  <span className="font-semibold text-foreground">
-                    Perbarui / Timpa semua guru yang dipilih
-                  </span>
-                  <span className="text-[11px] text-muted-foreground">
-                    Akan memperbarui data presensi guru yang dipilih meskipun sudah memiliki catatan kehadiran pada tanggal ini.
+                    Menjaga data guru yang sudah memiliki catatan kehadiran agar tidak tertimpa.
                   </span>
                 </div>
               </label>

@@ -50,6 +50,7 @@ interface BulkAttendanceViewProps {
       radiusMeters: number;
       latitude: number;
       longitude: number;
+      dailySchedules?: string | null;
     } | null;
     dateStr: string;
     teachers: TeacherWithAttendance[];
@@ -704,6 +705,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
         madrasahId={madrasahId}
         defaultStartTime={workStartTime}
         defaultEndTime={workEndTime}
+        dailySchedules={settings?.dailySchedules}
       />
 
       {/* Date Range Bulk Attendance Modal */}
@@ -715,6 +717,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
         madrasahId={madrasahId}
         defaultStartTime={workStartTime}
         defaultEndTime={workEndTime}
+        dailySchedules={settings?.dailySchedules}
       />
 
       {/* Single Attendance Modal */}

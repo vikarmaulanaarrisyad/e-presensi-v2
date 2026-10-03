@@ -12,6 +12,7 @@ import {
 import { revalidatePath } from "next/cache";
 import bcrypt from "bcryptjs";
 import { z } from "zod";
+import { requireSuperadmin } from "@/server/utils/auth-guard";
 
 const registerSchoolSchema = z.object({
   // Data Sekolah
@@ -81,36 +82,42 @@ export async function registerSchoolAction(formData: RegisterSchoolFormData) {
 
 export async function fetchSuperadminDashboard() {
   try {
+    await requireSuperadmin();
+
     const [madrasahs, stats] = await Promise.all([
       getAllMadrasahs(),
       getSuperadminStats(),
     ]);
 
     return { data: { madrasahs, stats } };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal mengambil data superadmin:", error);
-    return { error: "Gagal memuat data manajemen madrasah." };
+    return { error: error?.message || "Gagal memuat data manajemen madrasah." };
   }
 }
 
 export async function toggleMadrasahAction(id: string, currentStatus: boolean) {
   try {
+    await requireSuperadmin();
+
     await toggleMadrasahStatus(id, !currentStatus);
     revalidatePath("/superadmin");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal mengubah status madrasah:", error);
-    return { error: "Gagal mengubah status madrasah." };
+    return { error: error?.message || "Gagal mengubah status madrasah." };
   }
 }
 
 export async function createMadrasahAction(data: CreateMadrasahInput) {
   try {
+    await requireSuperadmin();
+
     const newMadrasah = await createMadrasahWithSettings(data);
     revalidatePath("/superadmin");
     return { success: true, data: newMadrasah };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal menambahkan madrasah:", error);
-    return { error: "Gagal menambahkan madrasah baru. Pastikan NSM belum terdaftar." };
+    return { error: error?.message || "Gagal menambahkan madrasah baru. Pastikan NSM belum terdaftar." };
   }
 }

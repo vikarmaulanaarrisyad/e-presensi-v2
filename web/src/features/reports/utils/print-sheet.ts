@@ -65,8 +65,8 @@ export function printAttendanceReport(targetElementId = "printable-attendance-sh
         ${styles}
         <style>
           @page {
-            size: landscape;
-            margin: 5mm 8mm; /* Compact margins to guarantee 1 single page fit */
+            size: 330mm 215mm landscape;
+            margin: 15mm;
           }
 
           *, *::before, *::after {
@@ -87,9 +87,9 @@ export function printAttendanceReport(targetElementId = "printable-attendance-sh
           }
 
           #${targetElementId} {
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
+            width: 300mm !important;
+            max-width: 300mm !important;
+            margin: 0 auto !important;
             padding: 0 !important;
             border: none !important;
             box-shadow: none !important;
@@ -99,7 +99,7 @@ export function printAttendanceReport(targetElementId = "printable-attendance-sh
             color: #000000 !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
-            zoom: 0.93 !important; /* Scale factor to ensure 31 days fit comfortably on 1 page */
+            zoom: 1 !important;
           }
 
           /* Header box */

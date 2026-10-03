@@ -11,38 +11,16 @@ import {
 } from "@/server/repositories/settings.repo";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { auth } from "@/lib/auth";
-
-async function resolveMadrasahId(madrasahId?: string): Promise<string | null> {
-  if (madrasahId && madrasahId.trim().length > 0) return madrasahId;
-
-  const session = await auth();
-  const sessionUser = session?.user as unknown as { madrasahId?: string | null } | undefined;
-  if (sessionUser?.madrasahId) {
-    return sessionUser.madrasahId;
-  }
-
-  const firstMadrasah = await prisma.madrasah.findFirst({
-    where: { isActive: true },
-    select: { id: true },
-  });
-
-  return firstMadrasah?.id ?? null;
-}
+import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
 
 export async function fetchSettingsData(madrasahId?: string) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
-
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
     const data = await getMadrasahSettingsAndHolidays(targetMadrasahId);
     return { data };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal memuat pengaturan:", error);
-    return { error: "Gagal memuat data pengaturan kehadiran." };
+    return { error: error?.message || "Gagal memuat data pengaturan kehadiran." };
   }
 }
 
@@ -51,10 +29,7 @@ export async function saveAttendanceSettingsAction(
   input: AttendanceSettingsInput
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const updated = await updateMadrasahSettings(targetMadrasahId, input);
     revalidatePath("/admin/settings");
@@ -62,18 +37,15 @@ export async function saveAttendanceSettingsAction(
     revalidatePath("/admin/geofence");
     revalidatePath("/guru");
     return { success: true, data: updated };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal menyimpan pengaturan:", error);
-    return { error: "Gagal menyimpan perubahan pengaturan kehadiran." };
+    return { error: error?.message || "Gagal menyimpan perubahan pengaturan kehadiran." };
   }
 }
 
 export async function addHolidayAction(madrasahId: string, input: HolidayInput) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const newHoliday = await createHoliday(targetMadrasahId, input);
     revalidatePath("/admin/settings");
@@ -81,9 +53,9 @@ export async function addHolidayAction(madrasahId: string, input: HolidayInput) 
     revalidatePath("/admin/reports");
     revalidatePath("/guru");
     return { success: true, data: newHoliday };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal menambahkan hari libur:", error);
-    return { error: "Gagal menambahkan hari libur baru." };
+    return { error: error?.message || "Gagal menambahkan hari libur baru." };
   }
 }
 
@@ -92,10 +64,7 @@ export async function syncKemenagHolidaysAction(
   year: number | "all" = "all"
 ) {
   try {
-    const targetMadrasahId = await resolveMadrasahId(madrasahId);
-    if (!targetMadrasahId) {
-      return { success: false as const, error: "Madrasah tidak ditemukan." };
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const res = await syncKemenagHolidays(targetMadrasahId, year);
     revalidatePath("/admin/settings");
@@ -103,20 +72,32 @@ export async function syncKemenagHolidaysAction(
     revalidatePath("/admin/reports");
     revalidatePath("/guru");
     return { success: true as const, ...res };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal sinkronisasi hari libur Kemenag:", error);
-    return { success: false as const, error: "Gagal menyinkronkan kalender hari libur Kemenag & Nasional." };
+    return { success: false as const, error: error?.message || "Gagal menyinkronkan kalender hari libur Kemenag & Nasional." };
   }
 }
 
 export async function deleteHolidayAction(holidayId: string) {
   try {
+    const { user, madrasahId } = await requireMadrasahAdmin();
+
+    if (user.role !== "SUPERADMIN") {
+      const holiday = await prisma.holiday.findUnique({
+        where: { id: holidayId },
+        select: { madrasahId: true },
+      });
+      if (!holiday || holiday.madrasahId !== madrasahId) {
+        return { error: "Akses ditolak: Hari libur tidak ditemukan di madrasah Anda." };
+      }
+    }
+
     await removeHoliday(holidayId);
     revalidatePath("/admin/settings");
     revalidatePath("/admin");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Gagal menghapus hari libur:", error);
-    return { error: "Gagal menghapus hari libur." };
+    return { error: error?.message || "Gagal menghapus hari libur." };
   }
 }
