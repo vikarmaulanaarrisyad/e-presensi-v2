@@ -9,7 +9,6 @@ import {
   MapPin,
   Fingerprint,
   BarChart3,
-  BookOpen,
   Megaphone,
   Headphones,
   ChevronRight,
@@ -870,90 +869,7 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
         </div>
       </div>
 
-      {/* ── 7. JADWAL MENGAJAR HARI INI ── */}
-      <div className="flex flex-col gap-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5">
-            <BookOpen className="w-5 h-5 text-[#00288e]" />
-            <h3 className="text-[14px] font-bold text-[#0b1c30]">Jadwal Mengajar Hari Ini</h3>
-          </div>
-          <span className="text-[12px] text-[#00288e] font-semibold">3 Agenda</span>
-        </div>
 
-        <div className="flex flex-col gap-2">
-          {/* Sesi 1 */}
-          <div className="bg-white p-3 rounded-xl shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-lg bg-[#dde1ff]/60 text-[#00288e] flex flex-col items-center justify-center shrink-0 font-bold">
-                <span className="text-[10px] leading-none">JAM</span>
-                <span className="text-[14px] leading-none">1-3</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <h4 className="text-[13px] font-bold text-[#0b1c30] truncate">XII MIPA 1 (Matematika Wajib)</h4>
-                <div className="flex items-center gap-2 mt-0.5 text-[#444653] text-[11px]">
-                  <span className="flex items-center gap-0.5">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-                    Ruang R.12
-                  </span>
-                  <span>•</span>
-                  <span>07.30 - 09.45 WIB</span>
-                </div>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 rounded-full bg-[#82f5c1]/40 text-[#005137] text-[11px] font-semibold shrink-0">
-              Siap Mulai
-            </span>
-          </div>
-
-          {/* Sesi 2 */}
-          <div className="bg-white p-3 rounded-xl shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-lg bg-[#e5eeff] text-[#444653] flex flex-col items-center justify-center shrink-0 font-bold">
-                <span className="text-[10px] leading-none">JAM</span>
-                <span className="text-[14px] leading-none">5-6</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <h4 className="text-[13px] font-bold text-[#0b1c30] truncate">XI MIPA 3 (Matematika Peminatan)</h4>
-                <div className="flex items-center gap-2 mt-0.5 text-[#444653] text-[11px]">
-                  <span className="flex items-center gap-0.5">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-                    Lab Komputer
-                  </span>
-                  <span>•</span>
-                  <span>10.15 - 11.45 WIB</span>
-                </div>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 rounded-full bg-[#e5eeff] text-[#444653] text-[11px] font-medium shrink-0">
-              Berikutnya
-            </span>
-          </div>
-
-          {/* Sesi 3 / Tugas GTK */}
-          <div className="bg-white p-3 rounded-xl shadow-sm flex items-center justify-between gap-3">
-            <div className="flex items-center gap-3 min-w-0">
-              <div className="w-11 h-11 rounded-lg bg-[#ffdcc3] text-[#532a00] flex flex-col items-center justify-center shrink-0 font-bold">
-                <span className="text-[9px] leading-none">TUGAS</span>
-                <span className="text-[14px] leading-none">GTK</span>
-              </div>
-              <div className="flex flex-col min-w-0">
-                <h4 className="text-[13px] font-bold text-[#0b1c30] truncate">Piket Pembina OSIS / Ekstrakurikuler</h4>
-                <div className="flex items-center gap-2 mt-0.5 text-[#444653] text-[11px]">
-                  <span className="flex items-center gap-0.5">
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" y1="22" x2="4" y2="15"/></svg>
-                    Ruang OSIS
-                  </span>
-                  <span>•</span>
-                  <span>13.00 - 14.30 WIB</span>
-                </div>
-              </div>
-            </div>
-            <span className="px-2.5 py-1 rounded-full bg-[#eff4ff] text-[#444653] text-[11px] font-medium shrink-0">
-              Nanti Siang
-            </span>
-          </div>
-        </div>
-      </div>
 
       {/* ── 8. PENGUMUMAN & AGENDA GTK ── */}
       <div className="bg-white rounded-xl p-4 shadow-sm flex flex-col gap-2 relative overflow-hidden">
