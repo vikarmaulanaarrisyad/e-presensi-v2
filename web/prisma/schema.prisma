@@ -48,6 +48,7 @@ model Madrasah {
   attendanceLogs  AttendanceLog[]
   holidays        Holiday[]
   positions       Position[]
+  teachingJournals TeachingJournal[]
 
   @@map("madrasahs")
 }
@@ -148,6 +149,7 @@ model User {
   madrasah        Madrasah?       @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
   position        Position?       @relation(fields: [positionId], references: [id], onDelete: SetNull)
   attendanceLogs  AttendanceLog[]
+  teachingJournals TeachingJournal[]
 
   @@index([madrasahId])
   @@index([positionId])
@@ -191,4 +193,31 @@ model AttendanceLog {
   @@index([madrasahId, date])
   @@index([userId])
   @@map("attendance_logs")
+}
+
+model TeachingJournal {
+  id              String   @id @default(uuid())
+  madrasahId      String   @map("madrasah_id")
+  userId          String   @map("user_id")
+  date            DateTime @db.Date // YYYY-MM-DD
+  className       String   @map("class_name") // e.g. "X MIPA 1", "VII A", "Kelas 1", dll
+  subjectName     String   @map("subject_name") // e.g. "Matematika", "Fiqih", "Bahasa Arab"
+  sessionHours    String   @map("session_hours") // e.g. "Jam 1-2 (07:30 - 09:00)"
+  topicTitle      String   @map("topic_title") // Materi Pokok / Bahasan
+  activities      String   @db.Text // Uraian Aktivitas KBM
+  studentPresence String?  @map("student_presence") // e.g. "Hadir: 32, Izin: 1, Alpa: 0"
+  notes           String?  @db.Text // Catatan hambatan / tindak lanjut
+  photoUrl        String?  @map("photo_url") // Foto dokumentasi KBM
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  madrasah        Madrasah @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([madrasahId])
+  @@index([madrasahId, date])
+  @@index([userId])
+  @@index([userId, date])
+  @@map("teaching_journals")
 }

@@ -17,7 +17,8 @@ import {
   Sparkles,
   Smartphone,
   UserCheck,
-  Briefcase
+  Briefcase,
+  BookOpen
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -131,6 +132,12 @@ export function Sidebar({
               href: "/admin/reports",
               icon: FileText,
               badge: "Cetak F4",
+            },
+            {
+              title: "Jurnal KBM Guru",
+              href: "/admin/journals",
+              icon: BookOpen,
+              badge: "Baru",
             },
           ],
         },

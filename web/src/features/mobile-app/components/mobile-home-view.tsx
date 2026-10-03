@@ -24,7 +24,8 @@ import {
   CalendarDays,
   Calendar,
   X,
-  Check
+  Check,
+  BookOpen
 } from "lucide-react";
 import { MobileCameraModal } from "./mobile-camera-modal";
 import { calculateDistanceMeters } from "@/lib/geo";
@@ -88,6 +89,7 @@ interface MobileHomeViewProps {
   };
   onRefresh: () => void;
   onOpenHistoryTab: () => void;
+  onOpenJournalTab?: () => void;
 }
 
 function getGreeting(): string {
@@ -106,7 +108,7 @@ function getGreetingEmoji(name: string): string {
   return "🌙";
 }
 
-export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHomeViewProps) {
+export function MobileHomeView({ data, onRefresh, onOpenHistoryTab, onOpenJournalTab }: MobileHomeViewProps) {
   const { teacher, settings, todayLog, holiday, monthlyStats } = data;
 
   // Clock state
@@ -756,6 +758,34 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab }: MobileHome
           </button>
         </div>
       </div>
+
+      {/* ── CARD JURNAL KBM CEPAT ── */}
+      {onOpenJournalTab && (
+        <div className="bg-linear-to-r from-[#00288e]/5 via-[#00288e]/10 to-indigo-50 border border-[#00288e]/15 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-xl bg-[#00288e] text-white flex items-center justify-center shrink-0 shadow-sm">
+              <BookOpen className="w-5 h-5" />
+            </div>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-1.5">
+                <h4 className="text-[13px] font-bold text-[#0b1c30]">Jurnal KBM Harian</h4>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#00288e] text-white">Baru</span>
+              </div>
+              <p className="text-[11px] text-[#444653] leading-snug">
+                Dokumentasikan materi, aktivitas, & absensi siswa hari ini
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onOpenJournalTab}
+            className="px-3.5 py-2 rounded-xl bg-[#00288e] text-white text-[12px] font-bold shrink-0 hover:bg-[#002070] transition-all active:scale-95 shadow-xs flex items-center gap-1"
+          >
+            Tulis
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        </div>
+      )}
 
       {/* ── 6. KEHADIRAN BULAN INI ── */}
       <div className="flex flex-col gap-3">

@@ -5,6 +5,7 @@ import { MobileHomeView } from "./mobile-home-view";
 import { MobileHistoryView } from "./mobile-history-view";
 import { MobilePermitView } from "./mobile-permit-view";
 import { MobileProfileView } from "./mobile-profile-view";
+import { MobileJournalView } from "./mobile-journal-view";
 
 interface MobileAppShellProps {
   data: {
@@ -51,7 +52,7 @@ interface MobileAppShellProps {
   onRefresh: () => void;
 }
 
-type TabId = "home" | "presensi" | "history" | "permit" | "profile";
+type TabId = "home" | "journal" | "history" | "permit" | "profile";
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   {
@@ -65,12 +66,14 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     ),
   },
   {
-    id: "presensi",
-    label: "Presensi",
+    id: "journal",
+    label: "Jurnal KBM",
     icon: (
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-        <circle cx="12" cy="13" r="4"/>
+        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        <line x1="8" y1="7" x2="16" y2="7"/>
+        <line x1="8" y1="11" x2="14" y2="11"/>
       </svg>
     ),
   },
@@ -108,8 +111,19 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   },
 ];
 
+const tabOrder: TabId[] = ["home", "journal", "history", "permit", "profile"];
+
 export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
   const [activeTab, setActiveTab] = useState<TabId>("home");
+  const [animationClass, setAnimationClass] = useState<string>("animate-tab-fade-up");
+
+  const handleTabChange = (nextTab: TabId) => {
+    if (nextTab === activeTab) return;
+    const currentIndex = tabOrder.indexOf(activeTab);
+    const nextIndex = tabOrder.indexOf(nextTab);
+    setAnimationClass(nextIndex > currentIndex ? "animate-tab-slide-right" : "animate-tab-slide-left");
+    setActiveTab(nextTab);
+  };
 
   return (
     <div
@@ -123,7 +137,7 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
       <header
         className="fixed top-0 w-full z-50 pt-safe"
         style={{
-          background: "rgba(248,249,255,0.85)",
+          background: "rgba(248,249,255,0.88)",
           backdropFilter: "blur(16px)",
           WebkitBackdropFilter: "blur(16px)",
           boxShadow: "0 1px 8px rgba(0,0,0,0.04)",
@@ -131,7 +145,7 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
         }}
       >
         <div className="h-16 px-4 flex items-center justify-between">
-          {/* Logo + Title */}
+          {/* Logo + Title with Animated Crossfade */}
           <div className="flex items-center gap-2">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -140,12 +154,12 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
               src="/icons/app-logo.png"
               onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
             />
-            <div className="flex flex-col">
+            <div key={activeTab} className="flex flex-col animate-title-fade">
               <span className="text-[11px] text-[#444653] font-semibold leading-none">E-Presensi Guru</span>
               <h1 className="text-[14px] font-bold text-[#0b1c30] leading-tight">
                 {activeTab === "home" && "Beranda"}
-                {activeTab === "presensi" && "Presensi"}
-                {activeTab === "history" && "Riwayat"}
+                {activeTab === "journal" && "Jurnal Pembelajaran KBM"}
+                {activeTab === "history" && "Riwayat Kehadiran"}
                 {activeTab === "permit" && "Pengajuan Izin"}
                 {activeTab === "profile" && "Profil Pengguna"}
               </h1>
@@ -157,7 +171,7 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
             {/* Notif bell */}
             <button
               aria-label="Notifikasi"
-              className="w-11 h-11 relative flex items-center justify-center rounded-full text-[#0b1c30] hover:bg-[#e5eeff] transition-colors"
+              className="w-11 h-11 relative flex items-center justify-center rounded-full text-[#0b1c30] hover:bg-[#e5eeff] transition-colors active:scale-95"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
@@ -168,8 +182,8 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
             {/* Avatar Button */}
             <button
               type="button"
-              onClick={() => setActiveTab("profile")}
-              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ml-1 transition-all ${
+              onClick={() => handleTabChange("profile")}
+              className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ml-1 transition-all active:scale-95 ${
                 activeTab === "profile" ? "ring-2 ring-[#00288e] bg-[#00288e]" : "bg-[#00288e] hover:opacity-90"
               }`}
               title="Profil Guru"
@@ -182,25 +196,22 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
         </div>
       </header>
 
-      {/* ── SCROLLABLE BODY ── */}
+      {/* ── SCROLLABLE BODY WITH DIRECTIONAL ANIMATION ── */}
       <main
         className="flex-1 overflow-y-auto"
         style={{ paddingTop: "64px", paddingBottom: "80px" }}
       >
-        <div className="px-4 py-4">
+        <div key={activeTab} className={`px-4 py-4 ${animationClass}`}>
           {activeTab === "home" && (
             <MobileHomeView
               data={data}
               onRefresh={onRefresh}
-              onOpenHistoryTab={() => setActiveTab("permit")}
+              onOpenHistoryTab={() => handleTabChange("permit")}
+              onOpenJournalTab={() => handleTabChange("journal")}
             />
           )}
-          {activeTab === "presensi" && (
-            <MobileHomeView
-              data={data}
-              onRefresh={onRefresh}
-              onOpenHistoryTab={() => setActiveTab("permit")}
-            />
+          {activeTab === "journal" && (
+            <MobileJournalView userId={data.teacher.id} />
           )}
           {activeTab === "history" && (
             <MobileHistoryView userId={data.teacher.id} />
@@ -210,7 +221,7 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
               userId={data.teacher.id}
               onSuccess={() => {
                 onRefresh();
-                setActiveTab("history");
+                handleTabChange("history");
               }}
             />
           )}
@@ -242,28 +253,35 @@ export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
               <button
                 key={tab.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex flex-col items-center justify-center min-w-[56px] min-h-[44px] transition-colors ${
+                onClick={() => handleTabChange(tab.id)}
+                className={`flex flex-col items-center justify-center min-w-[56px] min-h-[48px] transition-all duration-200 active:scale-90 ${
                   isActive
-                    ? "text-[#00288e] font-semibold"
+                    ? "text-[#00288e] font-bold"
                     : "text-[#444653] hover:text-[#0b1c30]"
                 }`}
               >
-                {/* Icon with pill bg when presensi (camera) */}
-                {tab.id === "presensi" ? (
-                  <div
-                    className={`px-3 py-1 rounded-full flex items-center justify-center transition-colors ${
-                      isActive ? "bg-[#dde1ff]" : "bg-[#e5eeff]"
-                    }`}
-                  >
-                    {tab.icon}
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-center">
-                    {tab.icon}
-                  </div>
+                {/* Icon with pill bg */}
+                <div
+                  className={`px-3 py-1 rounded-full flex items-center justify-center transition-all duration-300 ${
+                    isActive
+                      ? "bg-[#dde1ff] scale-110 shadow-xs text-[#00288e]"
+                      : "text-[#444653]"
+                  }`}
+                >
+                  {tab.icon}
+                </div>
+                <span
+                  className={`text-[11px] mt-0.5 leading-none transition-all duration-200 ${
+                    isActive ? "font-bold text-[#00288e] scale-105" : "text-[#444653]"
+                  }`}
+                >
+                  {tab.label}
+                </span>
+
+                {/* Animated active indicator dot */}
+                {isActive && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#00288e] mt-0.5 animate-in zoom-in duration-200" />
                 )}
-                <span className="text-[11px] mt-0.5 leading-none">{tab.label}</span>
               </button>
             );
           })}

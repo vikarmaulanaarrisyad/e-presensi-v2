@@ -458,7 +458,8 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
     };
   }
 
-  const count = input.teacherIds.length;
+  const uniqueTeacherIds = Array.from(new Set(input.teacherIds));
+  const count = uniqueTeacherIds.length;
   const [year, month, day] = input.dateStr.split("-").map(Number);
   const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
   const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
@@ -601,14 +602,17 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
     finalNotes = null; // Clean empty note for Hadir Tepat Waktu!
   }
 
-  // Find all existing logs for this date for the selected teachers (select only required fields)
+  // Broad search range around the calendar date to prevent timezone misses on @db.Date
+  const searchStart = new Date(year, month - 1, day - 1, 0, 0, 0);
+  const searchEnd = new Date(year, month - 1, day + 1, 23, 59, 59);
+
+  // Find all existing logs for this date for the selected teachers
   const existingLogs = await prisma.attendanceLog.findMany({
     where: {
-      madrasahId: input.madrasahId,
-      userId: { in: input.teacherIds },
+      userId: { in: uniqueTeacherIds },
       date: {
-        gte: startOfDay,
-        lte: endOfDay,
+        gte: searchStart,
+        lte: searchEnd,
       },
     },
     select: {
@@ -630,8 +634,8 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
   let skippedCount = 0;
   const dbOperations: any[] = [];
 
-  for (let i = 0; i < input.teacherIds.length; i++) {
-    const teacherId = input.teacherIds[i];
+  for (let i = 0; i < uniqueTeacherIds.length; i++) {
+    const teacherId = uniqueTeacherIds[i];
     const existing = existingMap.get(teacherId);
 
     // Generate realistic distinct coords per teacher if PRESENT / LATE
@@ -668,8 +672,14 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
       updatedCount++;
     } else {
       dbOperations.push(
-        prisma.attendanceLog.create({
-          data: {
+        prisma.attendanceLog.upsert({
+          where: {
+            userId_date: {
+              userId: teacherId,
+              date: startOfDay,
+            },
+          },
+          create: {
             madrasahId: input.madrasahId,
             userId: teacherId,
             date: startOfDay,
@@ -684,6 +694,20 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
             checkOutDistance: checkOutDateTime ? coords.distance : null,
             notes: finalNotes,
           },
+          update: input.overwriteExisting
+            ? {
+                status: input.status,
+                checkInTime: checkInDateTime,
+                checkInLat: coords.lat,
+                checkInLng: coords.lng,
+                checkInDistance: coords.distance,
+                checkOutTime: checkOutDateTime,
+                checkOutLat: checkOutDateTime ? coords.lat : undefined,
+                checkOutLng: checkOutDateTime ? coords.lng : undefined,
+                checkOutDistance: checkOutDateTime ? coords.distance : undefined,
+                notes: finalNotes,
+              }
+            : {},
         })
       );
       createdCount++;

@@ -28,6 +28,72 @@ export interface MobileAttendancePayload {
 }
 
 /**
+ * Bulletproof helper to save attendanceLog without Unique constraint failed on (user_id, date)
+ */
+async function upsertAttendanceRecord({
+  logId,
+  madrasahId,
+  userId,
+  date,
+  data,
+}: {
+  logId?: string | null;
+  madrasahId: string;
+  userId: string;
+  date: Date;
+  data: any;
+}) {
+  if (logId) {
+    try {
+      return await prisma.attendanceLog.update({
+        where: { id: logId },
+        data,
+      });
+    } catch {
+      // Fall through to upsert
+    }
+  }
+
+  try {
+    return await prisma.attendanceLog.upsert({
+      where: {
+        userId_date: {
+          userId,
+          date,
+        },
+      },
+      create: {
+        madrasahId,
+        userId,
+        date,
+        ...data,
+      },
+      update: data,
+    });
+  } catch (err: any) {
+    const dStart = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1, 0, 0, 0);
+    const dEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 23, 59, 59);
+
+    const existing = await prisma.attendanceLog.findFirst({
+      where: {
+        userId,
+        date: { gte: dStart, lte: dEnd },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    if (existing) {
+      return await prisma.attendanceLog.update({
+        where: { id: existing.id },
+        data,
+      });
+    }
+
+    throw err;
+  }
+}
+
+/**
  * Fetch teacher profile, madrasah geofence settings, today's attendance status, and holiday status
  */
 export async function getTeacherMobileDashboardData(explicitUserId?: string) {
@@ -353,16 +419,21 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
       }
     }
 
-    // Find existing log on the target date
+    // Find existing log on the target date (broad timezone check)
     let log = await prisma.attendanceLog.findFirst({
       where: {
         userId: teacher.id,
-        madrasahId: teacher.madrasah.id,
-        date: {
-          gte: targetDateStart,
-          lte: targetDateEnd,
-        },
+        OR: [
+          {
+            date: {
+              gte: new Date(targetDateStart.getFullYear(), targetDateStart.getMonth(), targetDateStart.getDate() - 1, 0, 0, 0),
+              lte: new Date(targetDateStart.getFullYear(), targetDateStart.getMonth(), targetDateStart.getDate() + 1, 23, 59, 59),
+            },
+          },
+          { date: targetDateStart },
+        ],
       },
+      orderBy: { createdAt: "desc" },
     });
 
     // 4. Handle Backdated / Retroactive Submission
@@ -403,45 +474,26 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
         const defaultNote =
           payload.notes || `Presensi susulan tanggal terlewat (${inTimeStr} - ${outTimeStr} WIB)`;
 
-        if (log) {
-          log = await prisma.attendanceLog.update({
-            where: { id: log.id },
-            data: {
-              checkInTime: checkInTimestamp,
-              checkInLat: effectiveLat,
-              checkInLng: effectiveLng,
-              checkInDistance: effectiveDistance,
-              checkInPhotoUrl: payload.photoBase64 || log.checkInPhotoUrl,
-              checkOutTime: checkOutTimestamp,
-              checkOutLat: effectiveLat,
-              checkOutLng: effectiveLng,
-              checkOutDistance: effectiveDistance,
-              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
-              status,
-              notes: defaultNote,
-            },
-          });
-        } else {
-          log = await prisma.attendanceLog.create({
-            data: {
-              madrasahId: teacher.madrasah.id,
-              userId: teacher.id,
-              date: targetDateStart,
-              checkInTime: checkInTimestamp,
-              checkInLat: effectiveLat,
-              checkInLng: effectiveLng,
-              checkInDistance: effectiveDistance,
-              checkInPhotoUrl: payload.photoBase64 || null,
-              checkOutTime: checkOutTimestamp,
-              checkOutLat: effectiveLat,
-              checkOutLng: effectiveLng,
-              checkOutDistance: effectiveDistance,
-              checkOutPhotoUrl: payload.photoBase64 || null,
-              status,
-              notes: defaultNote,
-            },
-          });
-        }
+        log = await upsertAttendanceRecord({
+          logId: log?.id,
+          madrasahId: teacher.madrasah.id,
+          userId: teacher.id,
+          date: targetDateStart,
+          data: {
+            checkInTime: checkInTimestamp,
+            checkInLat: effectiveLat,
+            checkInLng: effectiveLng,
+            checkInDistance: effectiveDistance,
+            checkInPhotoUrl: payload.photoBase64 || log?.checkInPhotoUrl || null,
+            checkOutTime: checkOutTimestamp,
+            checkOutLat: effectiveLat,
+            checkOutLng: effectiveLng,
+            checkOutDistance: effectiveDistance,
+            checkOutPhotoUrl: payload.photoBase64 || log?.checkOutPhotoUrl || null,
+            status,
+            notes: defaultNote,
+          },
+        });
 
         safeRevalidatePath("/guru");
 safeRevalidatePath("/admin");
@@ -473,35 +525,21 @@ safeRevalidatePath("/admin/reports");
 
         const defaultNote = `Presensi susulan tanggal terlewat (${inTimeStr} WIB)`;
 
-        if (log) {
-          log = await prisma.attendanceLog.update({
-            where: { id: log.id },
-            data: {
-              checkInTime: checkInTimestamp,
-              checkInLat: effectiveLat,
-              checkInLng: effectiveLng,
-              checkInDistance: effectiveDistance,
-              checkInPhotoUrl: payload.photoBase64 || log.checkInPhotoUrl,
-              status,
-              notes: payload.notes || log.notes || defaultNote,
-            },
-          });
-        } else {
-          log = await prisma.attendanceLog.create({
-            data: {
-              madrasahId: teacher.madrasah.id,
-              userId: teacher.id,
-              date: targetDateStart,
-              checkInTime: checkInTimestamp,
-              checkInLat: effectiveLat,
-              checkInLng: effectiveLng,
-              checkInDistance: effectiveDistance,
-              checkInPhotoUrl: payload.photoBase64 || null,
-              status,
-              notes: payload.notes || defaultNote,
-            },
-          });
-        }
+        log = await upsertAttendanceRecord({
+          logId: log?.id,
+          madrasahId: teacher.madrasah.id,
+          userId: teacher.id,
+          date: targetDateStart,
+          data: {
+            checkInTime: checkInTimestamp,
+            checkInLat: effectiveLat,
+            checkInLng: effectiveLng,
+            checkInDistance: effectiveDistance,
+            checkInPhotoUrl: payload.photoBase64 || log?.checkInPhotoUrl || null,
+            status,
+            notes: payload.notes || log?.notes || defaultNote,
+          },
+        });
 
         safeRevalidatePath("/guru");
 safeRevalidatePath("/admin");
@@ -525,8 +563,19 @@ safeRevalidatePath("/admin/reports");
           0
         );
 
-        if (!log || !log.checkInTime) {
-          // If no check-in exists yet on that date, auto-create check-in with workStartTime
+        if (log) {
+          log = await prisma.attendanceLog.update({
+            where: { id: log.id },
+            data: {
+              checkOutTime: checkOutTimestamp,
+              checkOutLat: effectiveLat,
+              checkOutLng: effectiveLng,
+              checkOutDistance: effectiveDistance,
+              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
+              notes: payload.notes || log.notes || `Presensi pulang susulan tanggal terlewat (${outTimeStr} WIB)`,
+            },
+          });
+        } else {
           const inTimeStr = payload.customCheckInTime || settings.workStartTime || "07:00";
           const [inH, inM] = inTimeStr.split(":").map(Number);
           const checkInTimestamp = new Date(
@@ -539,11 +588,11 @@ safeRevalidatePath("/admin/reports");
             0
           );
 
-          log = await prisma.attendanceLog.create({
+          log = await upsertAttendanceRecord({
+            madrasahId: teacher.madrasah.id,
+            userId: teacher.id,
+            date: targetDateStart,
             data: {
-              madrasahId: teacher.madrasah.id,
-              userId: teacher.id,
-              date: targetDateStart,
               checkInTime: checkInTimestamp,
               checkInLat: effectiveLat,
               checkInLng: effectiveLng,
@@ -556,18 +605,6 @@ safeRevalidatePath("/admin/reports");
               checkOutPhotoUrl: payload.photoBase64 || null,
               status: AttendanceStatus.PRESENT,
               notes: payload.notes || `Presensi susulan tanggal terlewat (${inTimeStr} - ${outTimeStr} WIB)`,
-            },
-          });
-        } else {
-          log = await prisma.attendanceLog.update({
-            where: { id: log.id },
-            data: {
-              checkOutTime: checkOutTimestamp,
-              checkOutLat: effectiveLat,
-              checkOutLng: effectiveLng,
-              checkOutDistance: effectiveDistance,
-              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
-              notes: payload.notes || log.notes || `Presensi pulang susulan tanggal terlewat (${outTimeStr} WIB)`,
             },
           });
         }
@@ -597,35 +634,21 @@ safeRevalidatePath("/admin/reports");
 
       const status: AttendanceStatus = isLate ? AttendanceStatus.LATE : AttendanceStatus.PRESENT;
 
-      if (log) {
-        log = await prisma.attendanceLog.update({
-          where: { id: log.id },
-          data: {
-            checkInTime: now,
-            checkInLat: payload.lat,
-            checkInLng: payload.lng,
-            checkInDistance: payload.distance,
-            checkInPhotoUrl: payload.photoBase64 || null,
-            status,
-            notes: payload.notes || (isLate ? "Terlambat hadir" : "Hadir tepat waktu"),
-          },
-        });
-      } else {
-        log = await prisma.attendanceLog.create({
-          data: {
-            madrasahId: teacher.madrasah.id,
-            userId: teacher.id,
-            date: targetDateStart,
-            checkInTime: now,
-            checkInLat: payload.lat,
-            checkInLng: payload.lng,
-            checkInDistance: payload.distance,
-            checkInPhotoUrl: payload.photoBase64 || null,
-            status,
-            notes: payload.notes || (isLate ? "Terlambat hadir" : "Hadir tepat waktu"),
-          },
-        });
-      }
+      log = await upsertAttendanceRecord({
+        logId: log?.id,
+        madrasahId: teacher.madrasah.id,
+        userId: teacher.id,
+        date: targetDateStart,
+        data: {
+          checkInTime: now,
+          checkInLat: payload.lat,
+          checkInLng: payload.lng,
+          checkInDistance: payload.distance,
+          checkInPhotoUrl: payload.photoBase64 || null,
+          status,
+          notes: payload.notes || (isLate ? "Terlambat hadir" : "Hadir tepat waktu"),
+        },
+      });
     } else {
       // CHECK_OUT
       if (!log || !log.checkInTime) {
@@ -853,27 +876,17 @@ export async function submitTeacherPermitAction(payload: {
         },
       });
 
-      if (existing) {
-        await prisma.attendanceLog.update({
-          where: { id: existing.id },
-          data: {
-            status: payload.status as AttendanceStatus,
-            notes: payload.notes,
-            checkInPhotoUrl: payload.attachmentBase64 || existing.checkInPhotoUrl,
-          },
-        });
-      } else {
-        await prisma.attendanceLog.create({
-          data: {
-            madrasahId: teacher.madrasahId,
-            userId: teacher.id,
-            date: curDate,
-            status: payload.status as AttendanceStatus,
-            notes: payload.notes,
-            checkInPhotoUrl: payload.attachmentBase64 || null,
-          },
-        });
-      }
+      await upsertAttendanceRecord({
+        logId: existing?.id,
+        madrasahId: teacher.madrasahId,
+        userId: teacher.id,
+        date: curDate,
+        data: {
+          status: payload.status as AttendanceStatus,
+          notes: payload.notes,
+          checkInPhotoUrl: payload.attachmentBase64 || existing?.checkInPhotoUrl || null,
+        },
+      });
 
       cur.setDate(cur.getDate() + 1);
     }

@@ -52,9 +52,11 @@ export default async function WebLayout({
           />
         </div>
 
-        {/* Dynamic Route Content */}
+        {/* Dynamic Route Content with Smooth Page Animation */}
         <main className="flex-1 px-4 sm:px-6 xl:px-8 py-6 w-full flex flex-col gap-6 print:p-0 print:m-0 print:gap-0 print:block">
-          {children}
+          <div className="animate-page-enter flex-1 flex flex-col gap-6">
+            {children}
+          </div>
         </main>
 
         {/* Unified Official Footer */}
