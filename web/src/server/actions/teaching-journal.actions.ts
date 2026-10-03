@@ -241,6 +241,44 @@ export async function updateTeachingJournalAction(
 }
 
 /**
+ * Fetch a single Teaching Journal by ID
+ */
+export async function getTeachingJournalByIdAction(journalId: string) {
+  try {
+    const db = prisma as any;
+    const journal = await db.teachingJournal.findUnique({
+      where: { id: journalId },
+    });
+
+    if (!journal) {
+      return { error: "Catatan jurnal pembelajaran tidak ditemukan." };
+    }
+
+    return {
+      success: true,
+      journal: {
+        id: journal.id,
+        date: journal.date.toISOString().split("T")[0],
+        className: journal.className,
+        subjectName: journal.subjectName,
+        sessionHours: journal.sessionHours,
+        topicTitle: journal.topicTitle,
+        activities: journal.activities,
+        studentPresence: journal.studentPresence,
+        notes: journal.notes,
+        photoUrl: journal.photoUrl,
+        userId: journal.userId,
+        madrasahId: journal.madrasahId,
+        createdAt: journal.createdAt.toISOString(),
+      },
+    };
+  } catch (error: any) {
+    console.error("Gagal memuat detail jurnal:", error);
+    return { error: error.message || "Gagal memuat detail jurnal pembelajaran." };
+  }
+}
+
+/**
  * Delete a Teaching Journal entry
  */
 export async function deleteTeachingJournalAction(journalId: string) {

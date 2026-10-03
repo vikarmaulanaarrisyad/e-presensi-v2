@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
 import {
   BookOpen,
@@ -23,10 +24,7 @@ import {
 } from "lucide-react";
 import {
   getTeacherJournalsAction,
-  createTeachingJournalAction,
-  updateTeachingJournalAction,
   deleteTeachingJournalAction,
-  TeachingJournalPayload
 } from "@/server/actions/teaching-journal.actions";
 import { swalLoading, swalSuccess, swalError, swalClose, swalConfirm } from "@/lib/swal";
 
@@ -48,24 +46,9 @@ interface MobileJournalViewProps {
   userId: string;
 }
 
-const commonClasses = [
-  "VII A", "VII B", "VIII A", "VIII B", "IX A", "IX B",
-  "X MIPA 1", "X MIPA 2", "XI MIPA", "XII MIPA"
-];
-
-const commonSubjects = [
-  "Al-Qur'an Hadits", "Akidah Akhlak", "Fiqih", "SKI",
-  "Bahasa Arab", "Bahasa Indonesia", "Matematika", "IPA", "IPS", "Bahasa Inggris"
-];
-
-const commonHours = [
-  "Jam 1-2 (07:30 - 09:00)",
-  "Jam 3-4 (09:15 - 10:45)",
-  "Jam 5-6 (11:00 - 12:30)",
-  "Jam 7-8 (13:00 - 14:30)"
-];
-
 export function MobileJournalView({ userId }: MobileJournalViewProps) {
+  const router = useRouter();
+
   const getTodayDateStr = () => {
     const d = new Date();
     const y = d.getFullYear();
@@ -79,32 +62,13 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
   const [recentJournals, setRecentJournals] = useState<JournalItem[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<"daily" | "history">("daily");
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
-  // Modal Form State
-  const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
-  const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
-
-  // Portal mount check
+  // Portal mount check for photo preview
   const [isMounted, setIsMounted] = useState<boolean>(false);
   useEffect(() => {
     setIsMounted(true);
   }, []);
-
-  // Form Fields
-  const [formData, setFormData] = useState<TeachingJournalPayload>({
-    date: selectedDate,
-    className: "",
-    subjectName: "",
-    sessionHours: "Jam 1-2 (07:30 - 09:00)",
-    topicTitle: "",
-    activities: "",
-    studentPresence: "Hadir lengkap (Nihil alpa)",
-    notes: "",
-    photoUrl: "",
-  });
-
-  const [isSaving, setIsSaving] = useState<boolean>(false);
-  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
 
   // Fetch journals
   const loadJournals = async (dateStr: string) => {
@@ -125,94 +89,14 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
     loadJournals(selectedDate);
   }, [selectedDate, userId]);
 
-  // Open Add Modal
+  // Navigate to dedicated Add Page
   const handleOpenAdd = () => {
-    setEditingJournalId(null);
-    setFormData({
-      date: selectedDate,
-      className: "",
-      subjectName: "",
-      sessionHours: "Jam 1-2 (07:30 - 09:00)",
-      topicTitle: "",
-      activities: "",
-      studentPresence: "Hadir lengkap (Nihil alpa)",
-      notes: "",
-      photoUrl: "",
-    });
-    setIsFormOpen(true);
+    router.push(`/guru/jurnal/tambah?date=${selectedDate}`);
   };
 
-  // Open Edit Modal
+  // Navigate to dedicated Edit Page
   const handleOpenEdit = (journal: JournalItem) => {
-    setEditingJournalId(journal.id);
-    setFormData({
-      date: journal.date,
-      className: journal.className,
-      subjectName: journal.subjectName,
-      sessionHours: journal.sessionHours,
-      topicTitle: journal.topicTitle,
-      activities: journal.activities,
-      studentPresence: journal.studentPresence || "",
-      notes: journal.notes || "",
-      photoUrl: journal.photoUrl || "",
-    });
-    setIsFormOpen(true);
-  };
-
-  // Handle Photo File Upload
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData((prev) => ({ ...prev, photoUrl: reader.result as string }));
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
-  // Submit Journal Form
-  const handleSubmitForm = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!formData.className.trim() || !formData.subjectName.trim() || !formData.topicTitle.trim()) {
-      swalError("Form Belum Lengkap", "Silakan isi Kelas, Mata Pelajaran, dan Materi Pokok.");
-      return;
-    }
-
-    setIsSaving(true);
-    swalLoading(
-      editingJournalId ? "Menyimpan Perubahan..." : "Mencatat Jurnal Pembelajaran...",
-      "Menyimpan rincian aktivitas KBM ke sistem..."
-    );
-
-    try {
-      let res;
-      if (editingJournalId) {
-        res = await updateTeachingJournalAction(editingJournalId, formData);
-      } else {
-        res = await createTeachingJournalAction({ ...formData, userId });
-      }
-
-      setIsSaving(false);
-      swalClose();
-
-      if (res?.error) {
-        swalError("Gagal Menyimpan", res.error);
-        return;
-      }
-
-      swalSuccess(
-        editingJournalId ? "Jurnal Diperbarui!" : "Jurnal Berhasil Dicatat!",
-        res?.message || "Data aktivitas pembelajaran telah tersimpan secara resmi.",
-        2200
-      );
-      setIsFormOpen(false);
-      loadJournals(selectedDate);
-    } catch (err: any) {
-      setIsSaving(false);
-      swalClose();
-      swalError("Kesalahan Sistem", err.message || "Gagal menghubungkan ke server.");
-    }
+    router.push(`/guru/jurnal/tambah?id=${journal.id}`);
   };
 
   // Delete Journal
@@ -487,241 +371,7 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
         </div>
       )}
 
-      {/* ── 4. MODAL FORM: WRITE / EDIT JOURNAL ── */}
-      {isMounted && isFormOpen && createPortal(
-        <div 
-          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3.5 sm:p-4 animate-in fade-in duration-200"
-          onClick={() => setIsFormOpen(false)}
-        >
-          <div
-            className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[86vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Header */}
-            <div className="px-5 py-4 bg-gradient-to-r from-[#006c4a] to-[#005137] text-white flex items-center justify-between">
-              <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-xl bg-white/15 flex items-center justify-center">
-                  <BookOpen className="w-5 h-5 text-white" />
-                </div>
-                <div>
-                  <h3 className="text-[15px] font-bold leading-tight">
-                    {editingJournalId ? "Edit Jurnal KBM" : "Tulis Jurnal Pembelajaran Baru"}
-                  </h3>
-                  <p className="text-[11px] text-emerald-100">Catat materi dan perkembangan KBM di kelas</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsFormOpen(false)}
-                className="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            {/* Form Body */}
-            <form onSubmit={handleSubmitForm} className="flex-1 overflow-y-auto p-5 flex flex-col gap-4">
-              {/* Date Input */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Tanggal KBM</label>
-                <input
-                  type="date"
-                  required
-                  value={formData.date}
-                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                  className="px-3.5 py-2 rounded-xl border border-[#dde1ff] bg-[#f8f9ff] text-[13px] font-semibold text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                />
-              </div>
-
-              {/* Class & Subject in Grid */}
-              <div className="grid grid-cols-2 gap-3">
-                {/* Class */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[12px] font-bold text-[#0b1c30]">Kelas / Rombel</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: VII A"
-                    value={formData.className}
-                    onChange={(e) => setFormData({ ...formData, className: e.target.value })}
-                    className="px-3 py-2 rounded-xl border border-[#dde1ff] bg-white text-[12px] font-semibold text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                  />
-                  {/* Quick Chips */}
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {commonClasses.slice(0, 4).map((c) => (
-                      <button
-                        key={c}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, className: c })}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-[#eff4ff] text-[#00288e] hover:bg-[#dce9ff]"
-                      >
-                        {c}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Subject */}
-                <div className="flex flex-col gap-1">
-                  <label className="text-[12px] font-bold text-[#0b1c30]">Mata Pelajaran</label>
-                  <input
-                    type="text"
-                    required
-                    placeholder="Contoh: Fiqih"
-                    value={formData.subjectName}
-                    onChange={(e) => setFormData({ ...formData, subjectName: e.target.value })}
-                    className="px-3 py-2 rounded-xl border border-[#dde1ff] bg-white text-[12px] font-semibold text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                  />
-                  {/* Quick Chips */}
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {["Fiqih", "Al-Qur'an", "Matematika"].map((s) => (
-                      <button
-                        key={s}
-                        type="button"
-                        onClick={() => setFormData({ ...formData, subjectName: s })}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-[#eff4ff] text-[#00288e] hover:bg-[#dce9ff]"
-                      >
-                        {s}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* Session Hours */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Jam Pelajaran / Waktu</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Jam 1-2 (07:30 - 09:00)"
-                  value={formData.sessionHours}
-                  onChange={(e) => setFormData({ ...formData, sessionHours: e.target.value })}
-                  className="px-3.5 py-2 rounded-xl border border-[#dde1ff] bg-white text-[12px] font-semibold text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                />
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {commonHours.map((h) => (
-                    <button
-                      key={h}
-                      type="button"
-                      onClick={() => setFormData({ ...formData, sessionHours: h })}
-                      className="text-[9px] px-1.5 py-0.5 rounded bg-[#eff4ff] text-[#00288e] hover:bg-[#dce9ff]"
-                    >
-                      {h}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Topic Title */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Materi Pokok / Bahasan</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Bab 2 - Ketentuan Sholat Berjamaah"
-                  value={formData.topicTitle}
-                  onChange={(e) => setFormData({ ...formData, topicTitle: e.target.value })}
-                  className="px-3.5 py-2.5 rounded-xl border border-[#dde1ff] bg-white text-[13px] font-bold text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                />
-              </div>
-
-              {/* Activities Description */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Uraian Aktivitas KBM</label>
-                <textarea
-                  rows={3}
-                  required
-                  placeholder="Jelaskan ringkasan materi, metode belajar, dan penugasan yang diberikan kepada siswa..."
-                  value={formData.activities}
-                  onChange={(e) => setFormData({ ...formData, activities: e.target.value })}
-                  className="px-3.5 py-2.5 rounded-xl border border-[#dde1ff] bg-white text-[12px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a] leading-relaxed"
-                />
-              </div>
-
-              {/* Student Presence */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Presensi Siswa di Kelas</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Hadir: 32, Izin: 1, Sakit: 0"
-                  value={formData.studentPresence || ""}
-                  onChange={(e) => setFormData({ ...formData, studentPresence: e.target.value })}
-                  className="px-3.5 py-2 rounded-xl border border-[#dde1ff] bg-white text-[12px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                />
-              </div>
-
-              {/* Notes / Follow-up */}
-              <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-bold text-[#0b1c30]">Catatan Evaluasi / Tindak Lanjut (Opsional)</label>
-                <input
-                  type="text"
-                  placeholder="Contoh: Tugas mandiri dikumpulkan hari Kamis"
-                  value={formData.notes || ""}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="px-3.5 py-2 rounded-xl border border-[#dde1ff] bg-white text-[12px] text-[#0b1c30] focus:outline-none focus:ring-2 focus:ring-[#006c4a]"
-                />
-              </div>
-
-              {/* Photo Upload */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[12px] font-bold text-[#0b1c30] flex items-center gap-1.5">
-                  <Camera className="w-4 h-4 text-[#006c4a]" />
-                  <span>Foto Dokumentasi KBM (Opsional)</span>
-                </label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handlePhotoUpload}
-                  className="text-[11px] text-[#444653] file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-semibold file:bg-[#eff4ff] file:text-[#00288e] hover:file:bg-[#dce9ff]"
-                />
-                {formData.photoUrl && (
-                  <div className="relative mt-1">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={formData.photoUrl}
-                      alt="Preview"
-                      className="w-full h-32 object-cover rounded-xl border border-[#dde1ff]"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setFormData({ ...formData, photoUrl: "" })}
-                      className="absolute top-2 right-2 w-6 h-6 rounded-full bg-black/60 text-white flex items-center justify-center text-xs"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="pt-2.5 pb-1 flex items-center gap-2 sticky bottom-0 bg-white border-t border-slate-100 mt-1 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
-                <button
-                  type="button"
-                  onClick={() => setIsFormOpen(false)}
-                  className="flex-1 py-2.5 rounded-xl border border-[#dde1ff] text-[#444653] font-bold text-[13px] hover:bg-[#f8f9ff] transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-[#006c4a] hover:bg-[#005a3e] text-white font-bold text-[13px] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
-                >
-                  {isSaving ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <CheckCircle2 className="w-4 h-4" />
-                  )}
-                  <span>Simpan Jurnal</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>,
-        document.body
-      )}
 
       {/* ── 5. FULL PHOTO PREVIEW MODAL ── */}
       {isMounted && previewPhoto && createPortal(

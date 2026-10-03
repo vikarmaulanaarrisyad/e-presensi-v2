@@ -647,7 +647,16 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab, onOpenJourna
             className="flex items-center gap-1 text-[12px] text-[#00288e] font-semibold hover:underline"
           >
             <FileText className="w-4 h-4" />
-            Izin / Dinas Luar
+            Izin
+          </button>
+          <span className="text-[#c4c5d5]">•</span>
+          <button
+            type="button"
+            onClick={() => router.push("/guru/jurnal/tambah")}
+            className="flex items-center gap-1 text-[12px] text-[#006c4a] font-semibold hover:underline cursor-pointer"
+          >
+            <BookOpen className="w-4 h-4" />
+            Tulis Jurnal
           </button>
           {settings.allowBackdatedAttendance && (
             <>
@@ -658,45 +667,43 @@ export function MobileHomeView({ data, onRefresh, onOpenHistoryTab, onOpenJourna
                 className="flex items-center gap-1 text-[12px] text-emerald-700 font-semibold hover:underline cursor-pointer"
               >
                 <CalendarDays className="w-4 h-4" />
-                Tanggal Terlewat
+                Terlewat
               </button>
             </>
           )}
           <span className="text-[#c4c5d5]">•</span>
-          <button className="flex items-center gap-1 text-[12px] text-[#00288e] font-semibold hover:underline">
+          <button className="flex items-center gap-1 text-[12px] text-[#444653] font-semibold hover:underline">
             <ArrowLeftRight className="w-4 h-4" />
-            Tukar Jadwal
+            Jadwal
           </button>
         </div>
       </div>
 
       {/* ── CARD JURNAL KBM CEPAT ── */}
-      {onOpenJournalTab && (
-        <div className="bg-linear-to-r from-[#00288e]/5 via-[#00288e]/10 to-indigo-50 border border-[#00288e]/15 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
-          <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-xl bg-[#00288e] text-white flex items-center justify-center shrink-0 shadow-sm">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-[13px] font-bold text-[#0b1c30]">Jurnal KBM Harian</h4>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#00288e] text-white">Baru</span>
-              </div>
-              <p className="text-[11px] text-[#444653] leading-snug">
-                Dokumentasikan materi, aktivitas, & absensi siswa hari ini
-              </p>
-            </div>
+      <div className="bg-linear-to-r from-[#006c4a]/10 via-emerald-50 to-teal-50 border border-[#006c4a]/20 rounded-2xl p-4 flex items-center justify-between gap-3 shadow-xs">
+        <div className="flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-[#006c4a] text-white flex items-center justify-center shrink-0 shadow-sm">
+            <BookOpen className="w-5 h-5" />
           </div>
-          <button
-            type="button"
-            onClick={onOpenJournalTab}
-            className="px-3.5 py-2 rounded-xl bg-[#00288e] text-white text-[12px] font-bold shrink-0 hover:bg-[#002070] transition-all active:scale-95 shadow-xs flex items-center gap-1"
-          >
-            Tulis
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex flex-col">
+            <div className="flex items-center gap-1.5">
+              <h4 className="text-[13px] font-bold text-[#0b1c30]">Jurnal KBM Harian</h4>
+              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-[#006c4a] text-white">Baru</span>
+            </div>
+            <p className="text-[11px] text-[#444653] leading-snug">
+              Dokumentasikan materi, aktivitas, & absensi siswa hari ini
+            </p>
+          </div>
         </div>
-      )}
+        <button
+          type="button"
+          onClick={() => router.push("/guru/jurnal/tambah")}
+          className="px-3.5 py-2 rounded-xl bg-[#006c4a] hover:bg-[#005a3e] text-white text-[12px] font-bold shrink-0 transition-all active:scale-95 shadow-xs flex items-center gap-1 cursor-pointer"
+        >
+          Tulis
+          <ChevronRight className="w-4 h-4" />
+        </button>
+      </div>
 
       {/* ── 6. KEHADIRAN BULAN INI ── */}
       <div className="flex flex-col gap-3">

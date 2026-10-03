@@ -50,6 +50,7 @@ interface MobileAppShellProps {
     isWeekend?: boolean;
   };
   onRefresh: () => void;
+  initialTab?: TabId;
 }
 
 type TabId = "home" | "journal" | "history" | "permit" | "profile";
@@ -113,8 +114,11 @@ const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
 
 const tabOrder: TabId[] = ["home", "journal", "history", "permit", "profile"];
 
-export function MobileAppShell({ data, onRefresh }: MobileAppShellProps) {
-  const [activeTab, setActiveTab] = useState<TabId>("home");
+export function MobileAppShell({ data, onRefresh, initialTab }: MobileAppShellProps) {
+  const [activeTab, setActiveTab] = useState<TabId>(() => {
+    if (initialTab && tabOrder.includes(initialTab)) return initialTab;
+    return "home";
+  });
   const [animationClass, setAnimationClass] = useState<string>("animate-tab-fade-up");
 
   const handleTabChange = (nextTab: TabId) => {

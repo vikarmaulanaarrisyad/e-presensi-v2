@@ -7,9 +7,10 @@ import { getTeacherMobileDashboardData } from "@/server/actions/mobile-attendanc
 
 interface MobileAppShellClientProps {
   initialData: any;
+  initialTab?: string;
 }
 
-export function MobileAppShellClient({ initialData }: MobileAppShellClientProps) {
+export function MobileAppShellClient({ initialData, initialTab }: MobileAppShellClientProps) {
   const router = useRouter();
   const [data, setData] = useState(initialData);
 
@@ -26,5 +27,11 @@ export function MobileAppShellClient({ initialData }: MobileAppShellClientProps)
     }
   };
 
-  return <MobileAppShell data={data} onRefresh={handleRefresh} />;
+  return (
+    <MobileAppShell
+      data={data}
+      onRefresh={handleRefresh}
+      initialTab={initialTab as any}
+    />
+  );
 }

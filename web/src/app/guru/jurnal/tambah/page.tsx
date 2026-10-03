@@ -2,25 +2,24 @@ import React from "react";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTeacherMobileDashboardData } from "@/server/actions/mobile-attendance.actions";
-import { MobileAppShellClient } from "./components/mobile-app-shell-client";
+import { MobileJournalFormView } from "@/features/mobile-app/components/mobile-journal-form-view";
 import { MobileLoginView } from "@/features/mobile-app/components/mobile-login-view";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
-  title: "Portal E-Presensi Guru | Kemenag",
-  description: "Aplikasi presensi digital mobile native untuk guru madrasah.",
+  title: "Tulis Jurnal Pembelajaran KBM | E-Presensi Guru",
+  description: "Halaman pencatatan aktivitas, materi, dan dokumentasi mengajar guru madrasah.",
 };
 
-export default async function GuruMobilePage({
+export default async function GuruTambahJurnalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ nip?: string; tab?: string }>;
+  searchParams: Promise<{ nip?: string; id?: string; date?: string }>;
 }) {
   const params = await searchParams;
   const session = await auth();
 
-  // If query param ?nip=... is provided, prioritize that teacher (great for instant testing)
   let targetUserId = session?.user?.id;
   if (params?.nip) {
     const userByNip = await prisma.user.findFirst({
@@ -32,10 +31,8 @@ export default async function GuruMobilePage({
     }
   }
 
-  // Fetch Teacher Data
   const initialData = await getTeacherMobileDashboardData(targetUserId);
 
-  // If user is not logged in and no teacher could be retrieved:
   if (!initialData || "error" in initialData || !initialData.teacher) {
     const schools = await prisma.madrasah.findMany({
       where: { isActive: true },
@@ -54,12 +51,15 @@ export default async function GuruMobilePage({
 
   return (
     <div className="min-h-screen w-full flex justify-center" style={{ background: "#f0f2ff" }}>
-      {/* Full-screen on mobile, centered phone card on desktop */}
       <div
         className="w-full sm:max-w-md min-h-screen relative overflow-hidden"
         style={{ background: "#f8f9ff" }}
       >
-        <MobileAppShellClient initialData={initialData as any} initialTab={params?.tab} />
+        <MobileJournalFormView
+          teacher={initialData.teacher}
+          initialJournalId={params?.id || null}
+          initialDate={params?.date || null}
+        />
       </div>
     </div>
   );
