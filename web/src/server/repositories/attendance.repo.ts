@@ -427,9 +427,10 @@ function generateRandomTimes(
   const results: Date[] = [];
   for (let i = 0; i < count; i++) {
     let minuteOffset: number;
-    if (count === 1 && availableMinutes > 2) {
-      // 1 teacher day-to-day: scatter using daySeed so consecutive days jump across the window
-      minuteOffset = (Math.abs(daySeed * 7 + Math.floor(Math.random() * 4)) % availableMinutes);
+    if (count === 1 && availableMinutes > 1) {
+      // 1 teacher day-to-day: scatter randomly and naturally across available minutes
+      // so consecutive days in bulk presensi never produce identical or repetitive minutes
+      minuteOffset = Math.floor(Math.random() * availableMinutes);
     } else {
       // Multiple teachers on the same date: each teacher gets a unique minute offset
       minuteOffset = allMinuteOffsets[i % allMinuteOffsets.length];
@@ -461,8 +462,8 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
   const uniqueTeacherIds = Array.from(new Set(input.teacherIds));
   const count = uniqueTeacherIds.length;
   const [year, month, day] = input.dateStr.split("-").map(Number);
-  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
   // Fetch madrasah settings to get default coordinates and work hours
   const madrasah = await prisma.madrasah.findUnique({
@@ -602,18 +603,11 @@ export async function bulkRecordAttendance(input: BulkAttendanceInput) {
     finalNotes = null; // Clean empty note for Hadir Tepat Waktu!
   }
 
-  // Broad search range around the calendar date to prevent timezone misses on @db.Date
-  const searchStart = new Date(year, month - 1, day - 1, 0, 0, 0);
-  const searchEnd = new Date(year, month - 1, day + 1, 23, 59, 59);
-
-  // Find all existing logs for this date for the selected teachers
+  // Find all existing logs for this exact calendar date for the selected teachers
   const existingLogs = await prisma.attendanceLog.findMany({
     where: {
       userId: { in: uniqueTeacherIds },
-      date: {
-        gte: searchStart,
-        lte: searchEnd,
-      },
+      date: startOfDay,
     },
     select: {
       id: true,

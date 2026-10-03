@@ -319,9 +319,9 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     // Number of days in the requested month
     const daysInMonth = new Date(year, month, 0).getDate();
 
-    // Start & End dates for query
-    const startDateObj = new Date(year, month - 1, 1, 0, 0, 0);
-    const endDateObj = new Date(year, month - 1, daysInMonth, 23, 59, 59);
+    // Start & End dates for query matching PostgreSQL @db.Date in UTC
+    const startDateObj = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endDateObj = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
 
     // Fetch Holidays from DB (supporting single days and multi-day semester breaks)
     const holidays = targetMadrasahId
@@ -365,29 +365,22 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           })
         : [];
 
-    // Map logs by date string (YYYY-MM-DD) supporting both UTC and local timezone dates
+    // Map logs strictly by canonical date string (YYYY-MM-DD)
+    // NEVER map the same log to multiple dates so days never duplicate
     const logMap = new Map<string, (typeof logs)[0]>();
     for (const log of logs) {
-      // 1. UTC date string
-      const utcDate = new Date(log.date);
-      const utcStr = utcDate.toISOString().split("T")[0];
-      logMap.set(utcStr, log);
-
-      // 2. Local date string (based on server timezone)
-      const localYear = utcDate.getFullYear();
-      const localMonth = String(utcDate.getMonth() + 1).padStart(2, "0");
-      const localDay = String(utcDate.getDate()).padStart(2, "0");
-      const localStr = `${localYear}-${localMonth}-${localDay}`;
-      logMap.set(localStr, log);
-
-      // 3. If checkInTime exists, also map its date
+      let dateKey: string;
       if (log.checkInTime) {
         const inDate = new Date(log.checkInTime);
-        const inY = inDate.getFullYear();
-        const inM = String(inDate.getMonth() + 1).padStart(2, "0");
-        const inD = String(inDate.getDate()).padStart(2, "0");
-        logMap.set(`${inY}-${inM}-${inD}`, log);
+        const y = inDate.getFullYear();
+        const m = String(inDate.getMonth() + 1).padStart(2, "0");
+        const d = String(inDate.getDate()).padStart(2, "0");
+        dateKey = `${y}-${m}-${d}`;
+      } else {
+        const d = new Date(log.date);
+        dateKey = d.toISOString().split("T")[0];
       }
+      logMap.set(dateKey, log);
     }
 
     // Map holidays by day using exact date range matching (handles semester breaks across months)
