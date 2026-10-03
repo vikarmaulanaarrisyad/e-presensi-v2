@@ -221,10 +221,12 @@ export function BulkAttendanceModal({
   const [overwriteExisting, setOverwriteExisting] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showAllTeachers, setShowAllTeachers] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Sync with daySchedule when dateStr or modal opens
   useEffect(() => {
     if (isOpen) {
+      setIsProcessing(false);
       setCheckInTime(daySchedule.checkInTime);
       setCheckInTimeStart(daySchedule.checkInTimeStart);
       setCheckInTimeEnd(daySchedule.checkInTimeEnd);
@@ -334,8 +336,8 @@ export function BulkAttendanceModal({
 
     if (!confirmed) return;
 
-    // Tutup modal terlebih dahulu agar halaman bersih
-    onClose();
+    // Sembunyikan modal dari layar saat memproses agar halaman bersih dan SweetAlert loading tampil maksimal
+    setIsProcessing(true);
 
     try {
       swalLoading("Menyimpan Presensi Massal...", `Memproses ${count} guru madrasah.`);
@@ -360,6 +362,7 @@ export function BulkAttendanceModal({
       swalClose();
 
       if (result.error) {
+        setIsProcessing(false);
         swalError("Gagal Mencatat Presensi", result.error);
         return;
       }
@@ -370,12 +373,18 @@ export function BulkAttendanceModal({
         : `Berhasil mencatat presensi massal untuk ${resData?.processedCount || count} guru dengan jam bervariasi secara alami.`;
 
       await swalSuccess("Presensi Massal Berhasil!", successMessage);
+      onClose();
       onSuccess();
     } catch (err: any) {
       swalClose();
+      setIsProcessing(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data presensi.");
     }
   };
+
+  if (isProcessing) {
+    return null;
+  }
 
   return (
     <div 

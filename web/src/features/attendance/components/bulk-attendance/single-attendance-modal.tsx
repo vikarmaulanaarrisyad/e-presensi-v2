@@ -65,8 +65,10 @@ export function SingleAttendanceModal({
   const [checkOutTime, setCheckOutTime] = useState(daySchedule.checkOutTime);
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
+    setIsProcessing(false);
     if (teacher?.attendanceLog) {
       const log = teacher.attendanceLog;
       setStatus(log.status);
@@ -118,8 +120,8 @@ export function SingleAttendanceModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Tutup modal terlebih dahulu agar halaman bersih
-    onClose();
+    // Sembunyikan modal secara visual (tetap mounted sampai server action selesai)
+    setIsProcessing(true);
 
     try {
       swalLoading("Menyimpan Presensi Guru...", teacher.name);
@@ -140,14 +142,17 @@ export function SingleAttendanceModal({
       swalClose();
 
       if (result.error) {
+        setIsProcessing(false);
         swalError("Gagal Menyimpan", result.error);
         return;
       }
 
       await swalSuccess("Berhasil Disimpan", `Presensi untuk ${teacher.name} berhasil diperbarui.`);
+      onClose();
       onSuccess();
     } catch (err: any) {
       swalClose();
+      setIsProcessing(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data.");
     }
   };
@@ -164,8 +169,8 @@ export function SingleAttendanceModal({
 
     if (!confirmed) return;
 
-    // Tutup modal terlebih dahulu agar halaman bersih
-    onClose();
+    // Sembunyikan modal secara visual (tetap mounted sampai server action selesai)
+    setIsProcessing(true);
 
     try {
       swalLoading("Menghapus Data Presensi...", teacher.name);
@@ -175,17 +180,22 @@ export function SingleAttendanceModal({
       swalClose();
 
       if (res.error) {
+        setIsProcessing(false);
         swalError("Gagal Menghapus", res.error);
         return;
       }
 
       await swalSuccess("Presensi Dihapus", "Catatan kehadiran guru berhasil dihapus.");
+      onClose();
       onSuccess();
     } catch (err: any) {
       swalClose();
+      setIsProcessing(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal menghapus data.");
     }
   };
+
+  if (isProcessing) return null;
 
   return (
     <div 

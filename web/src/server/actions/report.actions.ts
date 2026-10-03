@@ -207,9 +207,11 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
 
     let targetMadrasahId = params.madrasahId;
     if (!isSample) {
-      const guard = await requireMadrasahAdmin(params.madrasahId);
+      const guard = await requireMadrasahAdmin(
+        params.madrasahId === "default" || !params.madrasahId ? undefined : params.madrasahId
+      );
       targetMadrasahId = guard.madrasahId;
-    } else if (!targetMadrasahId) {
+    } else if (!targetMadrasahId || targetMadrasahId === "default") {
       const first = await prisma.madrasah.findFirst({
         where: { isActive: true },
         select: { id: true },

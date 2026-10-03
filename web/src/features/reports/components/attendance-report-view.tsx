@@ -12,7 +12,6 @@ import {
   ZoomIn, 
   ZoomOut, 
   Maximize2, 
-  RotateCcw,
   Sparkles,
   CheckCircle2,
   FileText,
@@ -82,7 +81,7 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   // State for filters - default to real database teacher if available
   const now = new Date();
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
-    initialData.teachers.length > 0 ? initialData.teachers[0].id : "sample-wariah"
+    initialData.teachers.length > 0 ? initialData.teachers[0].id : ""
   );
   const [selectedMonth, setSelectedMonth] = useState<number>(now.getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState<number>(now.getFullYear());
@@ -238,14 +237,6 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     }
   };
 
-  // Reset to default sample
-  const handleResetSample = () => {
-    setSelectedTeacherId("sample-wariah");
-    setSelectedMonth(1);
-    setSelectedYear(2025);
-    setFilterType("all");
-    setDateLanguage("id");
-  };
 
   return (
     <div className="flex flex-col gap-6 w-full select-none">
@@ -330,15 +321,6 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
               <span>Atur Libur Semester</span>
             </button>
 
-            <button
-              type="button"
-              onClick={handleResetSample}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-400 hover:bg-amber-500/20 border border-amber-500/20 transition-all cursor-pointer shadow-2xs"
-              title="Muat data contoh persis seperti pada gambar (WARIAH - MI IKHSANIYAH LEBETENG)"
-            >
-              <RotateCcw className="size-3.5 text-amber-600 dark:text-amber-400" />
-              <span>Muat Contoh Gambar (WARIAH)</span>
-            </button>
           </div>
         </div>
 
@@ -367,11 +349,12 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
               onChange={(e) => setSelectedTeacherId(e.target.value)}
               className="h-9.5 px-3 rounded-xl bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none transition-all shadow-2xs"
             >
-              <option value="sample-wariah">
-                ★ Format Standar: WARIAH (EMIS GTK)
-              </option>
-              <optgroup label="Guru Terdaftar di Database">
-                {initialData.teachers.map((t) => {
+              {initialData.teachers.length === 0 ? (
+                <option value="" disabled>
+                  Belum ada guru terdaftar
+                </option>
+              ) : (
+                initialData.teachers.map((t) => {
                   const idLabel = t.nuptk
                     ? `NUPTK: ${t.nuptk}`
                     : t.pegId
@@ -385,8 +368,8 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
                       {fullName} ({idLabel})
                     </option>
                   );
-                })}
-              </optgroup>
+                })
+              )}
             </select>
           </div>
 

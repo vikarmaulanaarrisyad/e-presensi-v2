@@ -194,10 +194,12 @@ export function BulkAttendanceDateRangeModal({
   );
   const [saveAsMadrasahDefault, setSaveAsMadrasahDefault] = useState(false);
   const [showDetailedDays, setShowDetailedDays] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   // Sync dailyConfigs if dailySchedules prop or modal open state changes
   useEffect(() => {
     if (isOpen) {
+      setIsProcessing(false);
       setDailyConfigs(parseDailySchedules(dailySchedules));
     }
   }, [isOpen, dailySchedules]);
@@ -386,8 +388,8 @@ export function BulkAttendanceDateRangeModal({
     );
     if (!confirmed) return;
 
-    // Tutup modal terlebih dahulu agar halaman bersih
-    onClose();
+    // Sembunyikan modal dari layar saat memproses agar halaman bersih dan SweetAlert loading tampil maksimal
+    setIsProcessing(true);
 
     try {
       swalLoading(
@@ -422,6 +424,7 @@ export function BulkAttendanceDateRangeModal({
       swalClose();
 
       if (result.error) {
+        setIsProcessing(false);
         swalError("Gagal Presensi Massal", result.error);
         return;
       }
@@ -433,12 +436,18 @@ export function BulkAttendanceDateRangeModal({
           `Dibuat baru: ${d.totalCreated} | Diperbarui: ${d.totalUpdated} | Dilewati: ${d.totalSkipped}`
       );
 
+      onClose();
       onSuccess();
     } catch (err: any) {
       swalClose();
+      setIsProcessing(false);
       swalError("Terjadi Kesalahan", err.message || "Gagal memproses data presensi.");
     }
   };
+
+  if (isProcessing) {
+    return null;
+  }
 
   return (
     <div 
