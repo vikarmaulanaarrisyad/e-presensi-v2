@@ -153,7 +153,6 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
       month: selectedMonth,
       year: selectedYear,
       filterType,
-      isSampleWariah: selectedTeacherId === "sample-wariah",
     });
 
     if (res?.data) {

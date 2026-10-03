@@ -136,143 +136,32 @@ export async function fetchReportInitialData(madrasahId?: string) {
 }
 
 /**
- * Generates natural, varied arrival & departure scan times for each day of the month.
- * Ensures that EVERY teacher has different scan masuk and scan keluar times,
- * and every day across the month differs realistically (no repeating identical times).
- * Formatted in Indonesian time standard (HH.mm with dot).
- */
-function getVariedDayScanTimes(
-  day: number,
-  dayOfWeek: number,
-  month: number,
-  year: number,
-  teacherSeed: string
-) {
-  // Dual-hash to strongly distinguish different teacher IDs and names
-  let hash1 = 5381;
-  let hash2 = 0;
-  const safeSeed = teacherSeed || "teacher";
-  for (let i = 0; i < safeSeed.length; i++) {
-    const char = safeSeed.charCodeAt(i);
-    hash1 = ((hash1 << 5) + hash1) ^ char;
-    hash2 = (hash2 * 37 + char + (i + 1) * 17) | 0;
-  }
-  const teacherSeedNum = Math.abs(hash1) ^ Math.abs(hash2);
-
-  // Scan Masuk: Realistic arrival window 06:38 s/d 06:56 (19 distinct minutes)
-  const inRange = 19;
-  const inMin = 38 + ((Math.abs(teacherSeedNum * 11) + day * 13 + (day % 3) * 7 + month * 5) % inRange);
-  const inMinutesTotal = 6 * 60 + inMin;
-  const scanMasuk = `06.${inMin.toString().padStart(2, "0")}`;
-
-  // Scan Keluar:
-  // - Senin - Kamis: Base 14:30 -> varied between 14:31 and 14:49 (19 minutes)
-  // - Jumat: Base 11:30 -> varied between 11:31 and 11:46 (16 minutes)
-  // - Sabtu: Base 15:00 -> varied between 15:01 and 15:18 (18 minutes)
-  let outHour = 14;
-  let outBase = 31;
-  let outRange = 19;
-  if (dayOfWeek === 5) {
-    // Jumat (Pulang 11.30)
-    outHour = 11;
-    outBase = 31;
-    outRange = 16;
-  } else if (dayOfWeek === 6) {
-    // Sabtu (Pulang 15.00)
-    outHour = 15;
-    outBase = 1;
-    outRange = 18;
-  }
-  const outMin = outBase + ((Math.abs(teacherSeedNum * 17) + day * 19 + (day % 5) * 11 + month * 7) % outRange);
-  const outMinutesTotal = outHour * 60 + outMin;
-  const scanKeluar = `${outHour.toString().padStart(2, "0")}.${outMin.toString().padStart(2, "0")}`;
-
-  const durMinutes = Math.max(0, outMinutesTotal - inMinutesTotal);
-  const durHours = Math.floor(durMinutes / 60).toString().padStart(2, "0");
-  const durMins = (durMinutes % 60).toString().padStart(2, "0");
-  const durasi = `${durHours}.${durMins}`;
-
-  return { scanMasuk, scanKeluar, durasi, durMinutes };
-}
-
-/**
- * Fetch Detailed Daily Attendance Report (Laporan Rincian Harian)
+ * Fetch Detailed Daily Attendance Report (Laporan Rincian Harian) - 100% Real Database
  */
 export async function fetchAttendanceReportData(params: ReportFilterParams) {
   try {
-    const month = params.month ?? 1; // Default January
-    const year = params.year ?? 2025; // Default 2025 to match sample
+    const month = params.month ?? 1;
+    const year = params.year ?? 2025;
     const filterType = params.filterType ?? "all";
-    const isSample = params.isSampleWariah || params.teacherId === "sample-wariah";
 
-    let targetMadrasahId = params.madrasahId;
-    if (!isSample) {
-      const guard = await requireMadrasahAdmin(
-        params.madrasahId === "default" || !params.madrasahId ? undefined : params.madrasahId
-      );
-      targetMadrasahId = guard.madrasahId;
-    } else if (!targetMadrasahId || targetMadrasahId === "default") {
-      const first = await prisma.madrasah.findFirst({
-        where: { isActive: true },
-        select: { id: true },
-      });
-      targetMadrasahId = first?.id;
-    }
+    // Authenticate and resolve madrasah
+    const guard = await requireMadrasahAdmin(
+      params.madrasahId === "default" || !params.madrasahId ? undefined : params.madrasahId
+    );
+    const targetMadrasahId = guard.madrasahId;
 
-    const madrasah = targetMadrasahId
-      ? await prisma.madrasah.findUnique({
-          where: { id: targetMadrasahId },
-          include: { settings: true },
-        })
-      : null;
+    const madrasah = await prisma.madrasah.findUnique({
+      where: { id: targetMadrasahId },
+      include: { settings: true },
+    });
 
-    const madrasahName = isSample
-      ? "MI IKHSANIYAH LEBETENG"
-      : madrasah?.name || "MI IKHSANIYAH LEBETENG";
+    const madrasahName = madrasah?.name || "Madrasah";
 
-    // Resolve Teacher
-    let teacher: {
-      id: string;
-      name: string;
-      gelarDepan?: string | null;
-      gelarBelakang?: string | null;
-      nip: string | null;
-      nik?: string | null;
-      pegId?: string | null;
-      nuptk?: string | null;
-      jenisGtk?: string | null;
-      isActive: boolean;
-      position?: { name: string; isHeadmaster?: boolean } | null;
-    } = {
-      id: "sample-wariah",
-      name: "WARIAH",
-      gelarDepan: null,
-      gelarBelakang: "S.Pd.I",
-      nip: "198503152019032008",
-      nuptk: "3541763665210032",
-      pegId: "205400018921",
-      nik: "3328145508850002",
-      jenisGtk: "Guru Mapel",
-      isActive: true,
-    };
-
-    if (isSample || !params.teacherId) {
-      teacher = {
-        id: "sample-wariah",
-        name: "WARIAH",
-        gelarDepan: null,
-        gelarBelakang: "S.Pd.I",
-        nip: "198503152019032008",
-        nuptk: "3541763665210032",
-        pegId: "205400018921",
-        nik: "3328145508850002",
-        jenisGtk: "Guru Mapel",
-        isActive: true,
-      };
-    } else {
-      let dbTeacher: any = null;
+    // Resolve Teacher strictly from Database
+    let teacher: any = null;
+    if (params.teacherId && params.teacherId !== "sample-wariah") {
       try {
-        dbTeacher = await prisma.user.findUnique({
+        teacher = await prisma.user.findUnique({
           where: { id: params.teacherId },
           select: {
             id: true,
@@ -294,8 +183,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           },
         });
       } catch (err) {
-        // Fallback if dev server runtime hasn't reloaded position schema
-        dbTeacher = await prisma.user.findUnique({
+        teacher = await prisma.user.findUnique({
           where: { id: params.teacherId },
           select: {
             id: true,
@@ -305,17 +193,40 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           },
         });
       }
+    }
 
-      if (dbTeacher) {
-        teacher = dbTeacher;
-      } else {
-        teacher = {
-          id: "sample-wariah",
-          name: "WARIAH",
-          nip: "12",
+    // If teacher not selected or not found, load first active teacher in this madrasah
+    if (!teacher) {
+      teacher = await prisma.user.findFirst({
+        where: {
+          madrasahId: targetMadrasahId,
+          role: "TEACHER",
           isActive: true,
-        };
-      }
+        },
+        orderBy: { name: "asc" },
+        select: {
+          id: true,
+          name: true,
+          gelarDepan: true,
+          gelarBelakang: true,
+          nip: true,
+          nik: true,
+          pegId: true,
+          nuptk: true,
+          jenisGtk: true,
+          isActive: true,
+          position: {
+            select: {
+              name: true,
+              isHeadmaster: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (!teacher) {
+      return { error: "Belum ada data guru/pendidik yang terdaftar di madrasah ini." };
     }
 
     // Number of days in the requested month
@@ -326,66 +237,52 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const endDateObj = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
 
     // Fetch Holidays from DB (supporting single days and multi-day semester breaks)
-    const holidays = targetMadrasahId
-      ? await prisma.holiday.findMany({
-          where: {
-            madrasahId: targetMadrasahId,
-            OR: [
-              // 1. Single day holiday inside month
-              {
-                endDate: null,
-                date: {
-                  gte: startDateObj,
-                  lte: endDateObj,
-                },
-              },
-              // 2. Multi-day holiday range (e.g. Libur Semester) overlapping this month
-              {
-                date: {
-                  lte: endDateObj,
-                },
-                endDate: {
-                  gte: startDateObj,
-                },
-              },
-            ],
-          },
-        })
-      : [];
-
-    // Fetch Attendance Logs for this teacher
-    const logs =
-      !isSample && teacher.id !== "sample-wariah"
-        ? await prisma.attendanceLog.findMany({
-            where: {
-              userId: teacher.id,
-              date: {
-                gte: startDateObj,
-                lte: endDateObj,
-              },
+    const holidays = await prisma.holiday.findMany({
+      where: {
+        madrasahId: targetMadrasahId,
+        OR: [
+          // 1. Single day holiday inside month
+          {
+            endDate: null,
+            date: {
+              gte: startDateObj,
+              lte: endDateObj,
             },
-          })
-        : [];
+          },
+          // 2. Multi-day holiday range (e.g. Libur Semester) overlapping this month
+          {
+            date: {
+              lte: endDateObj,
+            },
+            endDate: {
+              gte: startDateObj,
+            },
+          },
+        ],
+      },
+    });
 
-    // Map logs strictly by canonical date string (YYYY-MM-DD)
-    // NEVER map the same log to multiple dates so days never duplicate
+    // Fetch Real Attendance Logs for this teacher from Database
+    const logs = await prisma.attendanceLog.findMany({
+      where: {
+        userId: teacher.id,
+        date: {
+          gte: startDateObj,
+          lte: endDateObj,
+        },
+      },
+      orderBy: { date: "asc" },
+    });
+
+    // Map logs strictly by canonical date string (YYYY-MM-DD) from PostgreSQL @db.Date
     const logMap = new Map<string, (typeof logs)[0]>();
     for (const log of logs) {
-      let dateKey: string;
-      if (log.checkInTime) {
-        const inDate = new Date(log.checkInTime);
-        const y = inDate.getFullYear();
-        const m = String(inDate.getMonth() + 1).padStart(2, "0");
-        const d = String(inDate.getDate()).padStart(2, "0");
-        dateKey = `${y}-${m}-${d}`;
-      } else {
-        const d = new Date(log.date);
-        dateKey = d.toISOString().split("T")[0];
-      }
+      const d = new Date(log.date);
+      const dateKey = d.toISOString().split("T")[0];
       logMap.set(dateKey, log);
     }
 
-    // Map holidays by day using exact date range matching (handles semester breaks across months)
+    // Map holidays by day using exact date range matching
     const holidayMap = new Map<number, string>();
     for (let day = 1; day <= daysInMonth; day++) {
       const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0);
@@ -404,15 +301,31 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       }
     }
 
-    // If Jan 2025 sample requested, populate standard national holidays matching the sample image:
-    if (isSample || (year === 2025 && month === 1)) {
-      holidayMap.set(1, "Libur"); // Tahun Baru
-      holidayMap.set(27, "Libur"); // Isra Mi'raj
-      holidayMap.set(28, "Libur"); // Cuti Bersama Imlek
-      holidayMap.set(29, "Libur"); // Tahun Baru Imlek
+    // Parse madrasah settings for work days and daily schedule
+    const workDaysList = madrasah?.settings?.workDays
+      ? madrasah.settings.workDays.split(",").map((s) => Number(s.trim()))
+      : [1, 2, 3, 4, 5, 6]; // Default Senin-Sabtu
+
+    let parsedDailySchedules: Array<{
+      day: number;
+      dayName: string;
+      isActive: boolean;
+      startTime: string;
+      lateThreshold: string;
+      endTime: string;
+      notes?: string;
+    }> = [];
+
+    if (madrasah?.settings?.dailySchedules) {
+      try {
+        parsedDailySchedules = JSON.parse(madrasah.settings.dailySchedules);
+      } catch (e) {
+        console.warn("Gagal parse dailySchedules dari madrasahSetting:", e);
+      }
     }
 
-    // Generate 1 to daysInMonth rows
+    // Generate 1 to daysInMonth rows strictly from database records
+    const now = new Date();
     const rows: DailyReportRow[] = [];
     let totalPresentDays = 0;
     let totalDurationMinutes = 0;
@@ -422,6 +335,7 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     for (let day = 1; day <= daysInMonth; day++) {
       const currentDate = new Date(year, month - 1, day);
       const dayOfWeek = currentDate.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+      const scheduleDayNum = dayOfWeek === 0 ? 7 : dayOfWeek; // 1 = Mon, ..., 7 = Sun
       const dayStr = day.toString().padStart(2, "0");
       const monthStr = month.toString().padStart(2, "0");
       const dateKey = `${year}-${monthStr}-${dayStr}`;
@@ -430,13 +344,16 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
       const dayNameId = ID_DAYS[dayOfWeek];
       const dateFormatted = `${dayNameEn} ${dayStr}/${monthStr}/${year}`;
 
-      const isSunday = dayOfWeek === 0;
+      const daySchedule = parsedDailySchedules.find((s) => s.day === scheduleDayNum);
+      const isWorkDay = daySchedule ? daySchedule.isActive : workDaysList.includes(scheduleDayNum);
+
       const isKnownHoliday = holidayMap.has(day);
-      const isHoliday = isSunday || isKnownHoliday;
+      const isRoutineOff = !isWorkDay;
+      const isHoliday = isRoutineOff || isKnownHoliday;
 
       if (isHoliday) {
         totalHolidays++;
-        const holidayDesc = isSunday
+        const holidayDesc = isRoutineOff
           ? "libur rutin"
           : holidayMap.get(day) || "Libur";
 
@@ -468,73 +385,56 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           status: "HOLIDAY",
         });
       } else {
-        // Working Day - Default standard Indonesian time format (HH.mm)
+        // Working Day - Default schedule from DB madrasah settings
         let shiftName = "Senin - kamis (NON PNS)";
+        if (dayOfWeek === 5) {
+          shiftName = "Jum'at (NON PNS)";
+        } else if (dayOfWeek === 6) {
+          shiftName = "Sabtu (NON PNS)";
+        }
+
         let jamMasuk = "07.00";
         let jamKeluar = "14.30";
-        let defaultDurationMinutes = 360; // 6 hours (06.00)
 
-        if (dayOfWeek === 5) {
-          // Friday
-          shiftName = "Jum'at (NON PNS)";
-          jamKeluar = "11.30";
-          defaultDurationMinutes = 270; // 4h 30m (04.30)
-        } else if (dayOfWeek === 6) {
-          // Saturday
-          shiftName = "Sabtu (NON PNS)";
-          jamKeluar = "15.00";
-          defaultDurationMinutes = 480; // 8h 00m (08.00)
+        if (daySchedule) {
+          jamMasuk = daySchedule.startTime.replace(":", ".");
+          jamKeluar = daySchedule.endTime.replace(":", ".");
+        } else {
+          if (dayOfWeek === 5) jamKeluar = "11.30";
+          else if (dayOfWeek === 6) jamKeluar = "15.00";
+          if (madrasah?.settings?.workStartTime) {
+            jamMasuk = madrasah.settings.workStartTime.replace(":", ".");
+          }
         }
 
         const existingLog = logMap.get(dateKey);
 
-        if (isSample || (!existingLog && isSample)) {
-          // Sample data with realistic natural daily scan times (different every single day)
-          totalPresentDays++;
-          const times = getVariedDayScanTimes(day, dayOfWeek, month, year, teacher.id || "sample");
-          totalDurationMinutes += times.durMinutes;
-
-          rows.push({
-            date: dateKey,
-            dateFormatted,
-            dayNameEn,
-            dayNameId,
-            dayNumber: day,
-            dayOfWeek,
-            shiftName,
-            jamMasuk,
-            scanMasuk: times.scanMasuk,
-            terlambatMenit: "",
-            jamKeluar,
-            scanKeluar: times.scanKeluar,
-            pulangCepatMenit: "",
-            durasi: times.durasi,
-            lemburAwal: "",
-            lemburAkhir: "",
-            lemburAkhir2: "",
-            shiftLembur: "",
-            istirahat: "",
-            istirahatLebih: "",
-            istirahat2: "",
-            istirahatLebih2: "",
-            keterangan: "",
-            isHoliday: false,
-            status: "PRESENT",
-          });
-        } else if (existingLog) {
-          // Real database attendance log
-          totalPresentDays++;
+        if (existingLog) {
+          // Real database attendance log from attendance_logs table
           const checkIn = existingLog.checkInTime ? new Date(existingLog.checkInTime) : null;
           const checkOut = existingLog.checkOutTime ? new Date(existingLog.checkOutTime) : null;
 
+          // Format timestamps using Asia/Jakarta (WIB)
           const scanMasuk = checkIn
-            ? `${checkIn.getHours().toString().padStart(2, "0")}.${checkIn.getMinutes().toString().padStart(2, "0")}`
-            : "";
-          const scanKeluar = checkOut
-            ? `${checkOut.getHours().toString().padStart(2, "0")}.${checkOut.getMinutes().toString().padStart(2, "0")}`
+            ? checkIn.toLocaleTimeString("id-ID", {
+                timeZone: "Asia/Jakarta",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).replace(":", ".")
             : "";
 
-          let durMinutes = defaultDurationMinutes;
+          const scanKeluar = checkOut
+            ? checkOut.toLocaleTimeString("id-ID", {
+                timeZone: "Asia/Jakarta",
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+              }).replace(":", ".")
+            : "";
+
+          // Actual duration in minutes between check-in and check-out
+          let durMinutes = 0;
           if (checkIn && checkOut) {
             durMinutes = Math.max(0, Math.round((checkOut.getTime() - checkIn.getTime()) / 60000));
           }
@@ -542,9 +442,66 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
 
           const durHours = Math.floor(durMinutes / 60).toString().padStart(2, "0");
           const durMins = (durMinutes % 60).toString().padStart(2, "0");
+          const durasi = durMinutes > 0 ? `${durHours}.${durMins}` : "00.00";
 
-          const isLate = existingLog.status === "LATE";
-          if (isLate) totalLate++;
+          // Calculate real late minutes if status is LATE
+          let terlambatMenit = "";
+          if (existingLog.status === "LATE" && checkIn) {
+            const wibInStr = checkIn.toLocaleTimeString("id-ID", {
+              timeZone: "Asia/Jakarta",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            });
+            const [h, m] = wibInStr.split(":").map(Number);
+            const inMin = h * 60 + m;
+            const [schedH, schedM] = jamMasuk.replace(".", ":").split(":").map(Number);
+            const schedMin = schedH * 60 + schedM;
+            const diff = Math.max(0, inMin - schedMin);
+            terlambatMenit = diff > 0 ? String(diff) : "";
+          }
+
+          // Calculate real early departure minutes if check-out earlier than schedule
+          let pulangCepatMenit = "";
+          if (checkOut) {
+            const wibOutStr = checkOut.toLocaleTimeString("id-ID", {
+              timeZone: "Asia/Jakarta",
+              hour: "2-digit",
+              minute: "2-digit",
+              hour12: false,
+            });
+            const [outH, outM] = wibOutStr.split(":").map(Number);
+            const outMin = outH * 60 + outM;
+            const [schedOutH, schedOutM] = jamKeluar.replace(".", ":").split(":").map(Number);
+            const schedOutMin = schedOutH * 60 + schedOutM;
+            const earlyDiff = schedOutMin - outMin;
+            if (earlyDiff > 0) {
+              pulangCepatMenit = String(earlyDiff);
+            }
+          }
+
+          const isPresent = existingLog.status === "PRESENT" || existingLog.status === "LATE";
+          if (isPresent) totalPresentDays++;
+          if (existingLog.status === "LATE") totalLate++;
+
+          let status: DailyReportRow["status"] = "PRESENT";
+          let defaultNotes = "";
+
+          if (existingLog.status === "LATE") {
+            status = "LATE";
+            defaultNotes = "Terlambat";
+          } else if (existingLog.status === "SICK") {
+            status = "SICK";
+            defaultNotes = "Sakit";
+          } else if (existingLog.status === "PERMIT") {
+            status = "PERMIT";
+            defaultNotes = "Izin";
+          } else if (existingLog.status === "ABSENT") {
+            status = "ABSENT";
+            defaultNotes = "Tanpa Keterangan";
+          } else {
+            status = "PRESENT";
+          }
 
           rows.push({
             date: dateKey,
@@ -556,11 +513,11 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
             shiftName,
             jamMasuk,
             scanMasuk,
-            terlambatMenit: isLate ? "15" : "",
+            terlambatMenit,
             jamKeluar,
             scanKeluar,
-            pulangCepatMenit: "",
-            durasi: `${durHours}.${durMins}`,
+            pulangCepatMenit,
+            durasi,
             lemburAwal: "",
             lemburAkhir: "",
             lemburAkhir2: "",
@@ -569,75 +526,42 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
             istirahatLebih: "",
             istirahat2: "",
             istirahatLebih2: "",
-            keterangan: existingLog.notes || (isLate ? "Terlambat" : ""),
+            keterangan: existingLog.notes || defaultNotes,
             isHoliday: false,
-            status: isLate ? "LATE" : "PRESENT",
+            status,
           });
         } else {
-          // Working day with no log recorded (past or future)
-          const isPast = currentDate < new Date();
-          if (isPast) {
-            // Populated with natural varied daily scan times for convenience/preview
-            totalPresentDays++;
-            const times = getVariedDayScanTimes(day, dayOfWeek, month, year, teacher.id || "past");
-            totalDurationMinutes += times.durMinutes;
+          // Pure 100% Real Database: No attendance log in database for this date.
+          // Working day in the past with no check-in is marked as "Tanpa Keterangan" (Alpa)
+          const isPast = currentDate < now;
 
-            rows.push({
-              date: dateKey,
-              dateFormatted,
-              dayNameEn,
-              dayNameId,
-              dayNumber: day,
-              dayOfWeek,
-              shiftName,
-              jamMasuk,
-              scanMasuk: times.scanMasuk,
-              terlambatMenit: "",
-              jamKeluar,
-              scanKeluar: times.scanKeluar,
-              pulangCepatMenit: "",
-              durasi: times.durasi,
-              lemburAwal: "",
-              lemburAkhir: "",
-              lemburAkhir2: "",
-              shiftLembur: "",
-              istirahat: "",
-              istirahatLebih: "",
-              istirahat2: "",
-              istirahatLebih2: "",
-              keterangan: "",
-              isHoliday: false,
-              status: "PRESENT",
-            });
-          } else {
-            rows.push({
-              date: dateKey,
-              dateFormatted,
-              dayNameEn,
-              dayNameId,
-              dayNumber: day,
-              dayOfWeek,
-              shiftName,
-              jamMasuk,
-              scanMasuk: "",
-              terlambatMenit: "",
-              jamKeluar,
-              scanKeluar: "",
-              pulangCepatMenit: "",
-              durasi: "00.00",
-              lemburAwal: "",
-              lemburAkhir: "",
-              lemburAkhir2: "",
-              shiftLembur: "",
-              istirahat: "",
-              istirahatLebih: "",
-              istirahat2: "",
-              istirahatLebih2: "",
-              keterangan: "Belum Berjalan",
-              isHoliday: false,
-              status: "ABSENT",
-            });
-          }
+          rows.push({
+            date: dateKey,
+            dateFormatted,
+            dayNameEn,
+            dayNameId,
+            dayNumber: day,
+            dayOfWeek,
+            shiftName,
+            jamMasuk,
+            scanMasuk: "",
+            terlambatMenit: "",
+            jamKeluar,
+            scanKeluar: "",
+            pulangCepatMenit: "",
+            durasi: "00.00",
+            lemburAwal: "",
+            lemburAkhir: "",
+            lemburAkhir2: "",
+            shiftLembur: "",
+            istirahat: "",
+            istirahatLebih: "",
+            istirahat2: "",
+            istirahatLebih2: "",
+            keterangan: isPast ? "Tanpa Keterangan" : "",
+            isHoliday: false,
+            status: "ABSENT",
+          });
         }
       }
     }
@@ -658,7 +582,6 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
     const totalDurationFormatted = `${totHours}.${totMins.toString().padStart(2, "0")}`;
 
     // Current print timestamp in Indonesian format (dd/mm/yyyy HH.mm.ss)
-    const now = new Date();
     const printDate = `${now.getDate().toString().padStart(2, "0")}/${(now.getMonth() + 1).toString().padStart(2, "0")}/${now.getFullYear()} ${now.getHours().toString().padStart(2, "0")}.${now.getMinutes().toString().padStart(2, "0")}.${now.getSeconds().toString().padStart(2, "0")}`;
 
     // Identifiers logic for Report:
