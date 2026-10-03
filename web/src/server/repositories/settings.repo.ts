@@ -37,14 +37,35 @@ export async function getMadrasahSettingsAndHolidays(madrasahId: string) {
     }),
   ]);
 
-  return { settings, holidays, madrasah };
+  let enrichedSettings = settings as any;
+  if (settings) {
+    if (enrichedSettings.allowBackdatedAttendance === undefined) {
+      try {
+        const raw = await prisma.$queryRaw<Array<{ allow_backdated_attendance: boolean }>>`
+          SELECT allow_backdated_attendance FROM madrasah_settings WHERE madrasah_id = ${madrasahId} LIMIT 1
+        `;
+        enrichedSettings = {
+          ...settings,
+          allowBackdatedAttendance: raw?.[0]?.allow_backdated_attendance ?? false,
+        };
+      } catch {
+        enrichedSettings = {
+          ...settings,
+          allowBackdatedAttendance: false,
+        };
+      }
+    }
+  }
+
+  return { settings: enrichedSettings, holidays, madrasah };
 }
 
 export async function updateMadrasahSettings(
   madrasahId: string,
   input: AttendanceSettingsInput
 ) {
-  return await prisma.madrasahSetting.upsert({
+  // 1. Upsert standard settings recognized by Prisma schema
+  const result = await prisma.madrasahSetting.upsert({
     where: { madrasahId },
     update: {
       workStartTime: input.workStartTime,
@@ -53,11 +74,10 @@ export async function updateMadrasahSettings(
       workDays: input.workDays,
       dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
-      allowBackdatedAttendance: input.allowBackdatedAttendance ?? false,
       latitude: input.latitude,
       longitude: input.longitude,
       radiusMeters: input.radiusMeters,
-    } as any,
+    },
     create: {
       madrasahId,
       workStartTime: input.workStartTime,
@@ -66,13 +86,31 @@ export async function updateMadrasahSettings(
       workDays: input.workDays,
       dailySchedules: input.dailySchedules,
       requireSelfie: input.requireSelfie,
-      allowBackdatedAttendance: input.allowBackdatedAttendance ?? false,
       latitude: input.latitude,
       longitude: input.longitude,
       radiusMeters: input.radiusMeters,
-    } as any,
+    },
   });
+
+  // 2. Direct SQL update for allow_backdated_attendance to guarantee persistence without client-side mismatch
+  if (input.allowBackdatedAttendance !== undefined) {
+    try {
+      await prisma.$executeRaw`
+        UPDATE madrasah_settings 
+        SET allow_backdated_attendance = ${Boolean(input.allowBackdatedAttendance)}
+        WHERE madrasah_id = ${madrasahId}
+      `;
+    } catch (e) {
+      console.error("Gagal update allow_backdated_attendance via raw query:", e);
+    }
+  }
+
+  return {
+    ...result,
+    allowBackdatedAttendance: input.allowBackdatedAttendance ?? false,
+  };
 }
+
 
 export async function createHoliday(madrasahId: string, input: HolidayInput) {
   return await prisma.holiday.create({

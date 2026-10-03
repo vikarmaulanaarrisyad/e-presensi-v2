@@ -4,8 +4,22 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-// Check if cached instance is missing new models (like position) and force refresh
-if (globalForPrisma.prisma && !("position" in (globalForPrisma.prisma as any))) {
+// Check if cached instance is missing new models or fields and force refresh
+const isPrismaStale = (client: any) => {
+  if (!client) return false;
+  if (!("position" in client)) return true;
+  try {
+    const fields = client._runtimeDataModel?.models?.MadrasahSetting?.fields || [];
+    if (!fields.some((f: any) => f.name === "allowBackdatedAttendance")) {
+      return true;
+    }
+  } catch {
+    // ignore
+  }
+  return false;
+};
+
+if (globalForPrisma.prisma && isPrismaStale(globalForPrisma.prisma)) {
   try {
     (globalForPrisma.prisma as any)?.$disconnect?.();
   } catch {
@@ -13,6 +27,7 @@ if (globalForPrisma.prisma && !("position" in (globalForPrisma.prisma as any))) 
   }
   globalForPrisma.prisma = undefined;
 }
+
 
 export const prisma =
   globalForPrisma.prisma ??
