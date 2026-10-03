@@ -17,9 +17,9 @@ function safeRevalidatePath(path: string) {
 export interface MobileAttendancePayload {
   userId?: string;
   type: "CHECK_IN" | "CHECK_OUT" | "FULL";
-  lat: number;
-  lng: number;
-  distance: number;
+  lat?: number;
+  lng?: number;
+  distance?: number;
   photoBase64?: string;
   notes?: string;
   dateStr?: string; // YYYY-MM-DD for backdated/retroactive attendance

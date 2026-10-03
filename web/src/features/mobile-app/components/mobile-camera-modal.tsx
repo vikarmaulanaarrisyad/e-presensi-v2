@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { 
   Camera, 
   RefreshCw, 
@@ -55,6 +56,11 @@ export function MobileCameraModal({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Stop current video stream
   const stopStream = useCallback(() => {
@@ -240,10 +246,10 @@ export function MobileCameraModal({
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !isMounted) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/85 backdrop-blur-md p-2 sm:p-4">
       {/* Hidden canvas for snapshot watermark rendering */}
       <canvas ref={canvasRef} className="hidden" />
       <input
@@ -460,6 +466,7 @@ export function MobileCameraModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }

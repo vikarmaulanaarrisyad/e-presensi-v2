@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { 
   Calendar, 
   Clock, 
@@ -40,6 +41,11 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
   } | null>(null);
 
   const [previewPhoto, setPreviewPhoto] = useState<{ url: string; title: string } | null>(null);
+
+  const [isMounted, setIsMounted] = useState(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const monthNames = [
     "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -281,8 +287,8 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
       </div>
 
       {/* Photo Preview Modal */}
-      {previewPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      {isMounted && previewPhoto && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="bg-slate-900 border border-slate-800 rounded-3xl max-w-sm w-full p-4 flex flex-col gap-3 shadow-2xl">
             <div className="flex items-center justify-between text-white">
               <h4 className="text-xs font-bold">{previewPhoto.title}</h4>
@@ -300,7 +306,8 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
               className="w-full h-auto rounded-2xl border border-slate-800"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

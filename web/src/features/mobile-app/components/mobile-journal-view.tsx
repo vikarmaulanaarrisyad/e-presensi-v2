@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   BookOpen,
   Plus,
@@ -82,6 +83,12 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
   // Modal Form State
   const [isFormOpen, setIsFormOpen] = useState<boolean>(false);
   const [editingJournalId, setEditingJournalId] = useState<string | null>(null);
+
+  // Portal mount check
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Form Fields
   const [formData, setFormData] = useState<TeachingJournalPayload>({
@@ -481,13 +488,13 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
       )}
 
       {/* ── 4. MODAL FORM: WRITE / EDIT JOURNAL ── */}
-      {isFormOpen && (
+      {isMounted && isFormOpen && createPortal(
         <div 
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-transparent p-0 sm:p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-3.5 sm:p-4 animate-in fade-in duration-200"
           onClick={() => setIsFormOpen(false)}
         >
           <div
-            className="bg-white rounded-t-3xl sm:rounded-3xl max-w-lg w-full max-h-[92vh] flex flex-col shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] border border-slate-200 overflow-hidden animate-in slide-in-from-bottom duration-200"
+            className="bg-white rounded-2xl sm:rounded-3xl max-w-lg w-full max-h-[86vh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200"
             style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -689,7 +696,7 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
               </div>
 
               {/* Submit Buttons */}
-              <div className="pt-2 flex items-center gap-2">
+              <div className="pt-2.5 pb-1 flex items-center gap-2 sticky bottom-0 bg-white border-t border-slate-100 mt-1 shadow-[0_-4px_12px_rgba(0,0,0,0.03)]">
                 <button
                   type="button"
                   onClick={() => setIsFormOpen(false)}
@@ -700,7 +707,7 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-[#006c4a] hover:bg-[#005a3e] text-white font-bold text-[13px] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                  className="flex-1 py-2.5 rounded-xl bg-[#006c4a] hover:bg-[#005a3e] text-white font-bold text-[13px] shadow-md transition-all active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer disabled:opacity-60"
                 >
                   {isSaving ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -712,12 +719,13 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
               </div>
             </form>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── 5. FULL PHOTO PREVIEW MODAL ── */}
-      {previewPhoto && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      {isMounted && previewPhoto && createPortal(
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150">
           <div className="bg-[#0b1c30] border border-white/20 rounded-3xl max-w-sm w-full p-4 flex flex-col gap-3 shadow-2xl">
             <div className="flex items-center justify-between text-white">
               <h4 className="text-[12px] font-bold">Dokumentasi Pembelajaran</h4>
@@ -736,7 +744,8 @@ export function MobileJournalView({ userId }: MobileJournalViewProps) {
               className="w-full h-auto rounded-2xl border border-white/10"
             />
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
