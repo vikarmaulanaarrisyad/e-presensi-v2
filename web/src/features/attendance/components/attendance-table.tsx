@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useMemo } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { 
   Search, 
@@ -333,14 +334,14 @@ export function AttendanceTable({
         </div>
       </div>
 
-      {/* Detail Dialog Modal (If clicked) */}
-      {selectedLog && (
+      {/* Detail Dialog Modal (If clicked) — portal ke body agar selalu di tengah viewport */}
+      {selectedLog && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-50 bg-transparent flex items-center justify-center p-4 animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] bg-transparent flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150"
           onClick={() => setSelectedLog(null)}
         >
           <div 
-            className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col gap-5"
+            className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 my-auto shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col gap-5 animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between border-b border-border/60 pb-3">
@@ -399,7 +400,8 @@ export function AttendanceTable({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

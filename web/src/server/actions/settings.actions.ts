@@ -33,6 +33,7 @@ export async function saveAttendanceSettingsAction(
 
     const updated = await updateMadrasahSettings(targetMadrasahId, input);
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/bulk-attendance");
     revalidatePath("/admin");
     revalidatePath("/admin/geofence");
     revalidatePath("/guru");
@@ -49,6 +50,7 @@ export async function addHolidayAction(madrasahId: string, input: HolidayInput) 
 
     const newHoliday = await createHoliday(targetMadrasahId, input);
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/bulk-attendance");
     revalidatePath("/admin");
     revalidatePath("/admin/reports");
     revalidatePath("/guru");
@@ -68,6 +70,7 @@ export async function syncKemenagHolidaysAction(
 
     const res = await syncKemenagHolidays(targetMadrasahId, year);
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/bulk-attendance");
     revalidatePath("/admin");
     revalidatePath("/admin/reports");
     revalidatePath("/guru");
@@ -94,7 +97,10 @@ export async function deleteHolidayAction(holidayId: string) {
 
     await removeHoliday(holidayId);
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/bulk-attendance");
     revalidatePath("/admin");
+    revalidatePath("/admin/reports");
+    revalidatePath("/guru");
     return { success: true };
   } catch (error: any) {
     console.error("Gagal menghapus hari libur:", error);

@@ -798,6 +798,7 @@ export async function saveSemesterHolidayAction(params: {
 
     revalidatePath("/admin/reports");
     revalidatePath("/admin/settings");
+    revalidatePath("/admin/bulk-attendance");
     revalidatePath("/admin");
     revalidatePath("/guru");
 

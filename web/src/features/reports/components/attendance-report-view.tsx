@@ -29,7 +29,7 @@ import {
   saveSemesterHolidayAction,
   type AttendanceReportData 
 } from "@/server/actions/report.actions";
-import { exportReportToPdf, printReportPdf } from "../utils/export-pdf";
+import { exportReportToPdf, exportReportRangeToPdf, printReportPdf } from "../utils/export-pdf";
 import { exportReportToExcel } from "../utils/export-excel";
 import { printAttendanceReport } from "../utils/print-sheet";
 import { swalLoading, swalSuccess, swalError, swalClose } from "@/lib/swal";
@@ -77,6 +77,29 @@ const MONTHS = [
 
 const YEARS = [2024, 2025, 2026, 2027];
 
+const MAX_RANGE_MONTHS = 12;
+
+function buildMonthRange(
+  startMonth: number,
+  startYear: number,
+  endMonth: number,
+  endYear: number
+): { month: number; year: number }[] {
+  const list: { month: number; year: number }[] = [];
+  let m = startMonth;
+  let y = startYear;
+  while (y < endYear || (y === endYear && m <= endMonth)) {
+    list.push({ month: m, year: y });
+    m++;
+    if (m > 12) {
+      m = 1;
+      y++;
+    }
+    if (list.length > 120) break; // safety guard
+  }
+  return list;
+}
+
 export function AttendanceReportView({ initialData }: AttendanceReportViewProps) {
   // State for filters - default to real database teacher if available
   const now = new Date();
@@ -101,6 +124,23 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isExportingPdf, setIsExportingPdf] = useState<boolean>(false);
   const [zoomLevel, setZoomLevel] = useState<number>(100);
+
+  // PDF range modal state
+  const [isPdfRangeModalOpen, setIsPdfRangeModalOpen] = useState<boolean>(false);
+  const [pdfStartMonth, setPdfStartMonth] = useState<number>(now.getMonth() + 1);
+  const [pdfStartYear, setPdfStartYear] = useState<number>(now.getFullYear());
+  const [pdfEndMonth, setPdfEndMonth] = useState<number>(now.getMonth() + 1);
+  const [pdfEndYear, setPdfEndYear] = useState<number>(now.getFullYear());
+
+  const pdfMonthRange = useMemo(
+    () => buildMonthRange(pdfStartMonth, pdfStartYear, pdfEndMonth, pdfEndYear),
+    [pdfStartMonth, pdfStartYear, pdfEndMonth, pdfEndYear]
+  );
+  const isPdfRangeInvalid =
+    pdfEndYear < pdfStartYear || (pdfEndYear === pdfStartYear && pdfEndMonth < pdfStartMonth);
+  const isPdfRangeTooLong = pdfMonthRange.length > MAX_RANGE_MONTHS;
+
+  const getMonthLabel = (m: number) => MONTHS.find((x) => x.value === m)?.label || String(m);
 
   const printSheetRef = useRef<HTMLDivElement>(null);
 
@@ -139,22 +179,94 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
     }
   };
 
-  // PDF Export Handler
-  const handleExportPdf = async () => {
+  // Open PDF range modal (defaults to the currently previewed month)
+  const openPdfRangeModal = () => {
+    setPdfStartMonth(selectedMonth);
+    setPdfStartYear(selectedYear);
+    setPdfEndMonth(selectedMonth);
+    setPdfEndYear(selectedYear);
+    setIsPdfRangeModalOpen(true);
+  };
+
+  // PDF Export Handler (supports month/year range — one F4 page per month)
+  const handleExportPdf = async (e?: React.FormEvent) => {
+    e?.preventDefault();
     if (!reportData) return;
+
+    if (isPdfRangeInvalid) {
+      swalError("Rentang Tidak Valid", "Bulan/tahun akhir tidak boleh lebih awal dari bulan/tahun awal.");
+      return;
+    }
+    if (isPdfRangeTooLong) {
+      swalError(
+        "Rentang Terlalu Panjang",
+        `Maksimal ${MAX_RANGE_MONTHS} bulan dalam satu kali unduh PDF.`
+      );
+      return;
+    }
+
+    const range = pdfMonthRange;
+
+    // Tutup modal terlebih dahulu, baru tampilkan loading
+    setIsPdfRangeModalOpen(false);
+
     try {
       setIsExportingPdf(true);
       swalLoading(
         "Menyiapkan Dokumen PDF F4...",
-        "Merender lembar presensi format F4 Landscape dengan margin 1,5 cm..."
+        range.length > 1
+          ? `Mengambil data ${range.length} bulan (${getMonthLabel(range[0].month)} ${range[0].year} s/d ${getMonthLabel(range[range.length - 1].month)} ${range[range.length - 1].year})...`
+          : "Merender lembar presensi format F4 Landscape dengan margin 1,5 cm..."
       );
 
-      const sanitizedName = reportData.employee.name.replace(/[^a-zA-Z0-9]/g, "_");
-      const filename = `Laporan_Rincian_Harian_${sanitizedName}_${reportData.period.month}_${reportData.period.year}.pdf`;
+      const dataList: AttendanceReportData[] = [];
+      for (const { month, year } of range) {
+        // Reuse already-loaded preview data when it matches
+        if (
+          reportData.period.month === month &&
+          reportData.period.year === year &&
+          month === selectedMonth &&
+          year === selectedYear
+        ) {
+          dataList.push(reportData);
+          continue;
+        }
 
-      await exportReportToPdf(reportData, filename, dateLanguage);
+        const res = await fetchAttendanceReportData({
+          madrasahId: initialData.madrasah.id,
+          teacherId: selectedTeacherId,
+          month,
+          year,
+          filterType,
+        });
+
+        if (!res?.data) {
+          throw new Error(
+            res?.error || `Gagal memuat data ${getMonthLabel(month)} ${year}.`
+          );
+        }
+        dataList.push(res.data);
+      }
+
+      const sanitizedName = reportData.employee.name.replace(/[^a-zA-Z0-9]/g, "_");
+      const first = range[0];
+      const last = range[range.length - 1];
+      const filename =
+        range.length > 1
+          ? `Laporan_Rincian_Harian_${sanitizedName}_${first.month}_${first.year}_sd_${last.month}_${last.year}.pdf`
+          : `Laporan_Rincian_Harian_${sanitizedName}_${first.month}_${first.year}.pdf`;
+
+      if (dataList.length > 1) {
+        await exportReportRangeToPdf(dataList, filename, dateLanguage);
+      } else {
+        await exportReportToPdf(dataList[0], filename, dateLanguage);
+      }
+
       swalClose();
-      swalSuccess("PDF Berhasil Diunduh", `File ${filename} telah tersimpan di komputer Anda.`);
+      swalSuccess(
+        "PDF Berhasil Diunduh",
+        `File ${filename} (${dataList.length} halaman) telah tersimpan di komputer Anda.`
+      );
     } catch (err: any) {
       swalClose();
       swalError("Gagal Mengunduh PDF", err?.message || "Terjadi kesalahan saat membuat PDF.");
@@ -272,8 +384,8 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
             type="button"
             variant="outline"
             size="sm"
-            onClick={handleExportPdf}
-            disabled={isExportingPdf}
+            onClick={openPdfRangeModal}
+            disabled={isExportingPdf || !reportData}
             leftIcon={<FileDown className="size-4 text-rose-600" />}
             className="h-9 px-3.5 text-xs font-semibold border-rose-500/30 text-rose-800 bg-rose-50/60 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300 shadow-2xs whitespace-nowrap"
           >
@@ -532,6 +644,177 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
           </div>
         )}
       </div>
+
+      {/* 4a. PDF Range Modal */}
+      {isPdfRangeModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-transparent animate-in fade-in duration-150"
+          onClick={() => setIsPdfRangeModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-lg rounded-2xl bg-card border border-border shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] overflow-hidden flex flex-col animate-in zoom-in-95 duration-150"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between p-5 border-b border-border/80 bg-muted/30">
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-xl bg-rose-500/10 text-rose-600 flex items-center justify-center">
+                  <FileDown className="size-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground">Unduh PDF Rentang Periode</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Pilih rentang bulan &amp; tahun. Setiap bulan menjadi 1 halaman F4.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPdfRangeModalOpen(false)}
+                className="size-8 rounded-lg border border-border flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground transition-all cursor-pointer"
+              >
+                <X className="size-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleExportPdf} className="p-5 flex flex-col gap-4">
+              {/* Teacher info */}
+              <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 text-xs text-muted-foreground flex items-center gap-2">
+                <User className="size-4 text-primary shrink-0" />
+                <span className="truncate">
+                  Guru: <strong className="text-foreground">{reportData?.employee.name || "-"}</strong>
+                </span>
+              </div>
+
+              {/* Quick presets */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  Pilihan Cepat:
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Bulan Ini", sm: selectedMonth, sy: selectedYear, em: selectedMonth, ey: selectedYear },
+                    { label: `Semester Genap (Jan–Jun ${selectedYear})`, sm: 1, sy: selectedYear, em: 6, ey: selectedYear },
+                    { label: `Semester Ganjil (Jul–Des ${selectedYear})`, sm: 7, sy: selectedYear, em: 12, ey: selectedYear },
+                    { label: `Setahun (${selectedYear})`, sm: 1, sy: selectedYear, em: 12, ey: selectedYear },
+                  ].map((p) => {
+                    const active =
+                      pdfStartMonth === p.sm && pdfStartYear === p.sy && pdfEndMonth === p.em && pdfEndYear === p.ey;
+                    return (
+                      <button
+                        key={p.label}
+                        type="button"
+                        onClick={() => {
+                          setPdfStartMonth(p.sm);
+                          setPdfStartYear(p.sy);
+                          setPdfEndMonth(p.em);
+                          setPdfEndYear(p.ey);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors cursor-pointer ${
+                          active
+                            ? "bg-primary text-primary-foreground border-primary"
+                            : "bg-muted hover:bg-muted/80 text-foreground border-border"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Range inputs */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-border/80 bg-muted/20">
+                  <span className="text-xs font-bold text-foreground uppercase tracking-wider">Dari</span>
+                  <select
+                    value={pdfStartMonth}
+                    onChange={(e) => setPdfStartMonth(Number(e.target.value))}
+                    className="h-9 px-2.5 rounded-lg bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={pdfStartYear}
+                    onChange={(e) => setPdfStartYear(Number(e.target.value))}
+                    className="h-9 px-2.5 rounded-lg bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>Tahun {y}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="flex flex-col gap-1.5 p-3 rounded-xl border border-border/80 bg-muted/20">
+                  <span className="text-xs font-bold text-foreground uppercase tracking-wider">Sampai</span>
+                  <select
+                    value={pdfEndMonth}
+                    onChange={(e) => setPdfEndMonth(Number(e.target.value))}
+                    className="h-9 px-2.5 rounded-lg bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m.value} value={m.value}>{m.label}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={pdfEndYear}
+                    onChange={(e) => setPdfEndYear(Number(e.target.value))}
+                    className="h-9 px-2.5 rounded-lg bg-background border border-border text-xs font-medium focus:ring-2 focus:ring-primary focus:outline-none"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>Tahun {y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Summary */}
+              {isPdfRangeInvalid ? (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-xs text-rose-800 dark:text-rose-300">
+                  Bulan/tahun akhir tidak boleh lebih awal dari bulan/tahun awal.
+                </div>
+              ) : isPdfRangeTooLong ? (
+                <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200">
+                  Rentang {pdfMonthRange.length} bulan melebihi batas maksimal {MAX_RANGE_MONTHS} bulan.
+                </div>
+              ) : (
+                <div className="p-3 rounded-xl bg-muted/50 border border-border/80 text-xs text-muted-foreground flex items-center gap-2">
+                  <Calendar className="size-4 text-primary shrink-0" />
+                  <span>
+                    <strong className="text-foreground">
+                      {getMonthLabel(pdfStartMonth)} {pdfStartYear} s/d {getMonthLabel(pdfEndMonth)} {pdfEndYear}
+                    </strong>{" "}
+                    — {pdfMonthRange.length} bulan ({pdfMonthRange.length} halaman PDF F4 Landscape)
+                  </span>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border/80">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsPdfRangeModalOpen(false)}
+                >
+                  Batal
+                </Button>
+                <Button
+                  type="submit"
+                  variant="default"
+                  size="sm"
+                  disabled={isPdfRangeInvalid || isPdfRangeTooLong}
+                  leftIcon={<FileDown className="size-4" />}
+                >
+                  Unduh PDF
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* 4. Semester Break Modal */}
       {isSemesterModalOpen && (

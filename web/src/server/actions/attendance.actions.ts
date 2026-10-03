@@ -6,6 +6,7 @@ import {
   bulkRecordAttendance,
   deleteAttendanceLog,
   singleRecordAttendance,
+  getHolidayInfoForDate,
   type BulkAttendanceInput
 } from "@/server/repositories/attendance.repo";
 import { prisma } from "@/lib/prisma";
@@ -170,13 +171,13 @@ export async function bulkRecordAttendanceRangeAction(
 
     const [sY, sM, sD] = input.startDateStr.split("-").map(Number);
     const [eY, eM, eD] = input.endDateStr.split("-").map(Number);
-    const startDate = new Date(sY, sM - 1, sD);
-    const endDate   = new Date(eY, eM - 1, eD);
+    const startUtc = new Date(Date.UTC(sY, sM - 1, sD, 0, 0, 0, 0));
+    const endUtc   = new Date(Date.UTC(eY, eM - 1, eD, 23, 59, 59, 999));
 
-    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+    if (isNaN(startUtc.getTime()) || isNaN(endUtc.getTime())) {
       return { error: "Format tanggal tidak valid." };
     }
-    if (startDate > endDate) {
+    if (startUtc > endUtc) {
       return { error: "Tanggal mulai harus sebelum atau sama dengan tanggal akhir." };
     }
 
@@ -217,7 +218,7 @@ export async function bulkRecordAttendanceRangeAction(
     }
 
     // Max range guard: 92 days (~3 months) to prevent runaway server tasks
-    const diffDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    const diffDays = Math.ceil((endUtc.getTime() - startUtc.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     if (diffDays > 92) {
       return { error: "Rentang tanggal maksimal 92 hari (±3 bulan) per sekali proses." };
     }
@@ -233,30 +234,33 @@ export async function bulkRecordAttendanceRangeAction(
         where: {
           madrasahId: targetMadrasahId,
           OR: [
-            { date: { gte: startDate, lte: endDate } },
+            { date: { gte: startUtc, lte: endUtc } },
             {
-              date: { lte: endDate },
-              endDate: { gte: startDate },
+              date: { lte: endUtc },
+              endDate: { gte: startUtc },
             },
           ],
         },
       });
 
-      // Expand multi-day holidays into individual dates
+      // Expand multi-day holidays into individual dates using UTC date math
       for (const h of holidays) {
-        const hStart = new Date(h.date);
-        const hEnd   = h.endDate ? new Date(h.endDate) : new Date(h.date);
-        const cur    = new Date(hStart);
-        while (cur <= hEnd) {
-          holidayDates.add(
-            `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`
-          );
-          cur.setDate(cur.getDate() + 1);
+        const startStr = new Date(h.date).toISOString().substring(0, 10);
+        const endStr = h.endDate ? new Date(h.endDate).toISOString().substring(0, 10) : startStr;
+        let [hy, hm, hd] = startStr.split("-").map(Number);
+        while (true) {
+          const curStr = `${hy}-${String(hm).padStart(2, "0")}-${String(hd).padStart(2, "0")}`;
+          holidayDates.add(curStr);
+          if (curStr >= endStr) break;
+          const next = new Date(Date.UTC(hy, hm - 1, hd + 1));
+          hy = next.getUTCFullYear();
+          hm = next.getUTCMonth() + 1;
+          hd = next.getUTCDate();
         }
       }
     }
 
-    // Iterate each date in range
+    // Iterate each date in range using UTC
     let totalProcessed = 0;
     let totalCreated   = 0;
     let totalUpdated   = 0;
@@ -265,16 +269,16 @@ export async function bulkRecordAttendanceRangeAction(
     let skippedDays    = 0;
     const processedDates: string[] = [];
 
-    const cur = new Date(startDate);
-    while (cur <= endDate) {
-      const dow     = cur.getDay(); // 0=Sun, 6=Sat
-      const dateStr = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}-${String(cur.getDate()).padStart(2, "0")}`;
+    const cur = new Date(startUtc);
+    while (cur <= endUtc) {
+      const dow     = cur.getUTCDay(); // 0=Sun, 6=Sat
+      const dateStr = cur.toISOString().substring(0, 10);
 
-      if (skipSunday   && dow === 0) { skippedDays++; cur.setDate(cur.getDate() + 1); continue; }
-      if (skipSaturday && dow === 6) { skippedDays++; cur.setDate(cur.getDate() + 1); continue; }
+      if (skipSunday   && dow === 0) { skippedDays++; cur.setUTCDate(cur.getUTCDate() + 1); continue; }
+      if (skipSaturday && dow === 6) { skippedDays++; cur.setUTCDate(cur.getUTCDate() + 1); continue; }
       if (skipHolidays && holidayDates.has(dateStr)) {
         skippedDays++;
-        cur.setDate(cur.getDate() + 1);
+        cur.setUTCDate(cur.getUTCDate() + 1);
         continue;
       }
 
@@ -292,6 +296,11 @@ export async function bulkRecordAttendanceRangeAction(
       if (input.scheduleMode !== "uniform" && input.dailySchedulesConfig && input.dailySchedulesConfig.length > 0) {
         const dayCfg = input.dailySchedulesConfig.find((d) => d.day === dayNum);
         if (dayCfg) {
+          if (dayCfg.isActive === false) {
+            skippedDays++;
+            cur.setUTCDate(cur.getUTCDate() + 1);
+            continue;
+          }
           dayCheckInTime = dayCfg.checkInTime;
           dayCheckOutTime = dayCfg.checkOutTime;
           dayCheckInStart = dayCfg.checkInTimeStart;
@@ -325,7 +334,7 @@ export async function bulkRecordAttendanceRangeAction(
         processedDates.push(dateStr);
       }
 
-      cur.setDate(cur.getDate() + 1);
+      cur.setUTCDate(cur.getUTCDate() + 1);
     }
 
     revalidatePath("/admin");

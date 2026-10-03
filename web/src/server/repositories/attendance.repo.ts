@@ -7,11 +7,9 @@ export interface AttendanceFilters {
 }
 
 export async function getMadrasahDashboardData(madrasahId: string) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
+  const now = new Date();
+  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
+  const tomorrow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0));
 
   // 1. Get Madrasah & Geofence settings
   const madrasah = await prisma.madrasah.findUnique({
@@ -76,15 +74,13 @@ export async function getMadrasahDashboardData(madrasahId: string) {
   );
 
   // 5. Weekly trend data for Monday - Friday of the current week from database
-  const dayOfWeek = today.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const startOfWeek = new Date(today);
-  startOfWeek.setDate(today.getDate() + mondayOffset);
-  startOfWeek.setHours(0, 0, 0, 0);
+  const monday = new Date(now);
+  monday.setDate(now.getDate() + mondayOffset);
 
-  const endOfWeek = new Date(startOfWeek);
-  endOfWeek.setDate(startOfWeek.getDate() + 6);
-  endOfWeek.setHours(23, 59, 59, 999);
+  const startOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0, 0));
+  const endOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999));
 
   const weeklyLogs = await prisma.attendanceLog.findMany({
     where: {
@@ -103,9 +99,9 @@ export async function getMadrasahDashboardData(madrasahId: string) {
 
   const dayNames = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
   const weeklyData = dayNames.map((name, idx) => {
-    const curDate = new Date(startOfWeek);
-    curDate.setDate(startOfWeek.getDate() + idx);
-    const curDateStr = curDate.toISOString().split("T")[0];
+    const curDate = new Date(monday);
+    curDate.setDate(monday.getDate() + idx);
+    const curDateStr = `${curDate.getFullYear()}-${String(curDate.getMonth() + 1).padStart(2, "0")}-${String(curDate.getDate()).padStart(2, "0")}`;
 
     const logsForDay = weeklyLogs.filter((l) => {
       const logDateStr = new Date(l.date).toISOString().split("T")[0];
@@ -215,6 +211,88 @@ export interface TeacherWithAttendance {
   } | null;
 }
 
+export interface DateHolidayInfo {
+  isHoliday: boolean;
+  type: "SUNDAY" | "HOLIDAY" | null;
+  name: string | null;
+  description: string | null;
+}
+
+/**
+ * Determine whether a date (YYYY-MM-DD) is a holiday for a madrasah.
+ * Rules match the Laporan Rincian Harian: Sunday = "Libur Rutin",
+ * or any Holiday record (single-day or multi-day range) covering the date.
+ */
+export async function getHolidayInfoForDate(
+  madrasahId: string,
+  dateStr: string,
+  dailySchedulesRaw?: string | null
+): Promise<DateHolidayInfo> {
+  const [year, month, day] = dateStr.split("-").map(Number);
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+  const holidays = await prisma.holiday.findMany({
+    where: {
+      madrasahId,
+      date: { lte: endOfDay },
+      OR: [
+        { endDate: null, date: { gte: startOfDay } },
+        { endDate: { gte: startOfDay } },
+      ],
+    },
+    orderBy: { date: "asc" },
+  });
+
+  for (const h of holidays) {
+    const hStartStr = new Date(h.date).toISOString().substring(0, 10);
+    const hEndStr = h.endDate ? new Date(h.endDate).toISOString().substring(0, 10) : hStartStr;
+    if (dateStr >= hStartStr && dateStr <= hEndStr) {
+      return {
+        isHoliday: true,
+        type: "HOLIDAY",
+        name: h.name,
+        description: h.description ?? null,
+      };
+    }
+  }
+
+  // Check Sunday (always routine holiday)
+  const dateObj = new Date(year, month - 1, day);
+  const jsDow = dateObj.getDay(); // 0 = Sunday
+  if (jsDow === 0) {
+    return {
+      isHoliday: true,
+      type: "SUNDAY",
+      name: "Libur Rutin (Minggu)",
+      description: null,
+    };
+  }
+
+  // Check if dailySchedules marks this day as not active (e.g. 5-day work week where Saturday is inactive)
+  if (dailySchedulesRaw) {
+    try {
+      const parsed = JSON.parse(dailySchedulesRaw);
+      if (Array.isArray(parsed)) {
+        const dayNum = jsDow === 0 ? 7 : jsDow; // 1 = Monday ... 7 = Sunday
+        const daySchedule = parsed.find((item: any) => item.day === dayNum);
+        if (daySchedule && daySchedule.isActive === false) {
+          return {
+            isHoliday: true,
+            type: "SUNDAY",
+            name: daySchedule.notes || `Libur Rutin (${daySchedule.dayName || "Non-Aktif"})`,
+            description: null,
+          };
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  return { isHoliday: false, type: null, name: null, description: null };
+}
+
 /**
  * Fetch all active teachers in a madrasah and their attendance record for a specific date (YYYY-MM-DD)
  */
@@ -223,8 +301,8 @@ export async function getTeachersAttendanceByDate(
   dateStr: string
 ) {
   const [year, month, day] = dateStr.split("-").map(Number);
-  const startOfDay = new Date(year, month - 1, day, 0, 0, 0, 0);
-  const endOfDay = new Date(year, month - 1, day, 23, 59, 59, 999);
+  const startOfDay = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  const endOfDay = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
 
   const [madrasah, teachers, logs] = await Promise.all([
     prisma.madrasah.findUnique({
@@ -275,9 +353,18 @@ export async function getTeachersAttendanceByDate(
     }),
   ]);
 
+  const holidayInfo = await getHolidayInfoForDate(
+    madrasahId,
+    dateStr,
+    madrasah?.settings?.dailySchedules
+  );
+
   const logMap = new Map<string, (typeof logs)[0]>();
   for (const log of logs) {
-    logMap.set(log.userId, log);
+    const logDateStr = new Date(log.date).toISOString().substring(0, 10);
+    if (logDateStr === dateStr) {
+      logMap.set(log.userId, log);
+    }
   }
 
   const teachersWithAttendance: TeacherWithAttendance[] = teachers.map((t) => ({
@@ -322,7 +409,9 @@ export async function getTeachersAttendanceByDate(
     }
   }
 
-  const unrecordedCount = teachers.length - recordedCount;
+  const isHoliday = holidayInfo.isHoliday;
+  const unrecordedCount = isHoliday ? 0 : Math.max(0, teachers.length - recordedCount);
+  const holidayCount = isHoliday ? Math.max(0, teachers.length - recordedCount) : 0;
 
   return {
     madrasah,
@@ -331,17 +420,23 @@ export async function getTeachersAttendanceByDate(
       totalTeachers: teachers.length,
       recordedCount,
       unrecordedCount,
+      holidayCount,
       presentCount,
       lateCount,
       permitCount,
       sickCount,
       absentCount,
-      percentage:
-        teachers.length > 0
-          ? Math.round(((presentCount + lateCount) / teachers.length) * 100)
-          : 0,
+      percentage: isHoliday
+        ? 100
+        : teachers.length > 0
+        ? Math.round(((presentCount + lateCount) / teachers.length) * 100)
+        : 0,
+      isHoliday,
+      holidayName: holidayInfo.name,
+      holidayType: holidayInfo.type,
     },
     dateStr,
+    holidayInfo,
   };
 }
 

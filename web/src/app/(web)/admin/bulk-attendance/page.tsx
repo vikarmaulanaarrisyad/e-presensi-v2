@@ -26,12 +26,15 @@ export default async function BulkAttendancePage() {
     totalTeachers: 0,
     recordedCount: 0,
     unrecordedCount: 0,
+    holidayCount: 0,
     presentCount: 0,
     lateCount: 0,
     permitCount: 0,
     sickCount: 0,
     absentCount: 0,
     percentage: 0,
+    isHoliday: false,
+    holidayName: null,
   };
 
   const initialData = {
@@ -52,6 +55,7 @@ export default async function BulkAttendancePage() {
     dateStr: todayStr,
     teachers,
     summary,
+    holidayInfo: data?.holidayInfo || null,
   };
 
   return <BulkAttendanceView initialData={initialData} />;

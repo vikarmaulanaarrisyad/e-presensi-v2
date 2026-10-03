@@ -18,7 +18,8 @@ import {
   ChevronUp,
   RefreshCw,
   SlidersHorizontal,
-  Info
+  Info,
+  Palmtree
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { bulkRecordAttendanceAction } from "@/server/actions/attendance.actions";
@@ -53,6 +54,8 @@ interface BulkAttendanceModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   dailySchedules?: string | null;
+  isHoliday?: boolean;
+  holidayName?: string | null;
 }
 
 type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
@@ -202,6 +205,8 @@ export function BulkAttendanceModal({
   defaultStartTime = "07:00",
   defaultEndTime = "14:00",
   dailySchedules,
+  isHoliday = false,
+  holidayName = null,
 }: BulkAttendanceModalProps) {
   const daySchedule = useMemo(() => {
     const allSchedules = parseDailySchedules(dailySchedules);
@@ -436,6 +441,21 @@ export function BulkAttendanceModal({
 
         {/* Form Body with custom sleek scrollbar */}
         <form onSubmit={handleSubmit} className="p-6 space-y-6 overflow-y-auto flex-1">
+          {/* Holiday Notice Alert */}
+          {isHoliday && (
+            <div className="p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex items-center gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-2xs">
+              <Palmtree className="size-5 text-amber-600 shrink-0" />
+              <div>
+                <span className="font-bold block">
+                  Perhatian: Tanggal ini adalah Hari Libur ({holidayName || "Libur Rutin"}).
+                </span>
+                <span>
+                  Sesuai kalender madrasah, guru tidak diwajibkan presensi pada hari libur kecuali ada kegiatan kedinasan khusus.
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* Selected Teachers Hero Strip */}
           <div className="p-3.5 rounded-2xl bg-white/50 dark:bg-white/[0.03] backdrop-blur-md border border-white/60 dark:border-white/10 shadow-2xs space-y-2.5">
             <div className="flex items-center justify-between gap-2">

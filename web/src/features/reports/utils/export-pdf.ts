@@ -9,10 +9,7 @@ export function formatIndoTime(timeStr?: string | null): string {
   return timeStr.replace(/:/g, ".");
 }
 
-export async function createReportPdfDoc(
-  data: AttendanceReportData,
-  dateLanguage: "en" | "id" = "id"
-): Promise<jsPDF> {
+async function createF4Doc() {
   const { default: jsPDFClass } = await import("jspdf");
   const { default: autoTable } = await import("jspdf-autotable");
 
@@ -23,6 +20,43 @@ export async function createReportPdfDoc(
     format: [215, 330],
   });
 
+  return { doc, autoTable };
+}
+
+export async function createReportPdfDoc(
+  data: AttendanceReportData,
+  dateLanguage: "en" | "id" = "id"
+): Promise<jsPDF> {
+  const { doc, autoTable } = await createF4Doc();
+  drawReportPage(doc, autoTable, data, dateLanguage, 1, 1);
+  return doc;
+}
+
+/**
+ * Builds a single PDF containing one F4 Landscape page per month (identical
+ * layout to the single-month report), used for month/year range downloads.
+ */
+export async function createReportRangePdfDoc(
+  dataList: AttendanceReportData[],
+  dateLanguage: "en" | "id" = "id"
+): Promise<jsPDF> {
+  const { doc, autoTable } = await createF4Doc();
+  const total = dataList.length;
+  dataList.forEach((data, idx) => {
+    if (idx > 0) doc.addPage([215, 330], "landscape");
+    drawReportPage(doc, autoTable, data, dateLanguage, idx + 1, total);
+  });
+  return doc;
+}
+
+function drawReportPage(
+  doc: jsPDF,
+  autoTable: (doc: jsPDF, options: any) => void,
+  data: AttendanceReportData,
+  dateLanguage: "en" | "id",
+  pageNumber: number,
+  totalPages: number
+) {
   const pageWidth  = 330;
   const pageHeight = 215;
   const margin     = 15;          // 15 mm all sides
@@ -264,7 +298,7 @@ export async function createReportPdfDoc(
       16: { cellWidth: 13,     halign: "center" }, // Istirahat Lebih 2
       17: { cellWidth: "auto", halign: "left"   }, // Keterangan
     },
-    didParseCell: (hookData) => {
+    didParseCell: (hookData: any) => {
       if (hookData.section === "body") {
         const rowData = data.rows[hookData.row.index];
         // Vivid yellow for holidays
@@ -297,11 +331,22 @@ export async function createReportPdfDoc(
 
   setNormal(7);
   const footTextY = footerY + 3.5;
-  doc.text("Halaman : 1    dari : 1",      margin + 2,              footTextY);
+  doc.text(`Halaman : ${pageNumber}    dari : ${totalPages}`, margin + 2, footTextY);
   doc.text(`Tgl. Cetak : ${formatIndoTime(data.summary.printedAt)}`, pageWidth / 2, footTextY, { align: "center" });
   doc.text(`Oleh : ${data.summary.printedBy}`,       margin + cW - 2, footTextY, { align: "right" });
+}
 
-  return doc;
+/**
+ * Downloads a multi-month (range) F4 Landscape PDF — one page per month.
+ */
+export async function exportReportRangeToPdf(
+  dataList: AttendanceReportData[],
+  filename: string,
+  dateLanguage: "en" | "id" = "id"
+) {
+  const doc = await createReportRangePdfDoc(dataList, dateLanguage);
+  const finalFilename = filename.endsWith(".pdf") ? filename : `${filename}.pdf`;
+  doc.save(finalFilename);
 }
 
 /**

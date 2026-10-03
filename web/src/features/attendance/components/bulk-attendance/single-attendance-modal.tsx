@@ -12,7 +12,8 @@ import {
   X,
   Calendar,
   MapPin,
-  Zap
+  Zap,
+  Palmtree
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
@@ -40,6 +41,8 @@ interface SingleAttendanceModalProps {
   defaultStartTime?: string;
   defaultEndTime?: string;
   dailySchedules?: string | null;
+  isHoliday?: boolean;
+  holidayName?: string | null;
 }
 
 type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
@@ -54,6 +57,8 @@ export function SingleAttendanceModal({
   defaultStartTime = "07:00",
   defaultEndTime = "14:00",
   dailySchedules,
+  isHoliday = false,
+  holidayName = null,
 }: SingleAttendanceModalProps) {
   const daySchedule = useMemo(() => {
     const allSchedules = parseDailySchedules(dailySchedules);
@@ -237,6 +242,16 @@ export function SingleAttendanceModal({
             <Calendar className="size-4 text-primary shrink-0" />
             <span>Tanggal: <strong>{formatDateDisplay(dateStr)}</strong></span>
           </div>
+
+          {/* Holiday Notice Banner */}
+          {isHoliday && (
+            <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+              <Palmtree className="size-4 text-amber-600 shrink-0" />
+              <span>
+                Tanggal ini adalah <strong>{holidayName || "Hari Libur"}</strong>. Guru bebas presensi reguler kecuali ada kegiatan dinas khusus.
+              </span>
+            </div>
+          )}
 
           {/* Status Selection */}
           <div className="space-y-1.5">

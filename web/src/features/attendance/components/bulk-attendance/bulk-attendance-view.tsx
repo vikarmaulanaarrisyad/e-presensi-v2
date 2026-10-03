@@ -26,7 +26,8 @@ import {
   HelpCircle,
   Building2,
   ChevronRight,
-  ShieldCheck
+  ShieldCheck,
+  Palmtree
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -36,7 +37,7 @@ import { BulkAttendanceDateRangeModal } from "./bulk-attendance-date-range-modal
 import { SingleAttendanceModal } from "./single-attendance-modal";
 import { fetchTeachersAttendanceByDateAction } from "@/server/actions/attendance.actions";
 import { swalError, swalSuccess } from "@/lib/swal";
-import type { TeacherWithAttendance } from "@/server/repositories/attendance.repo";
+import type { TeacherWithAttendance, DateHolidayInfo } from "@/server/repositories/attendance.repo";
 
 interface BulkAttendanceViewProps {
   initialData: {
@@ -58,13 +59,18 @@ interface BulkAttendanceViewProps {
       totalTeachers: number;
       recordedCount: number;
       unrecordedCount: number;
+      holidayCount?: number;
       presentCount: number;
       lateCount: number;
       permitCount: number;
       sickCount: number;
       absentCount: number;
       percentage: number;
+      isHoliday?: boolean;
+      holidayName?: string | null;
+      holidayType?: string | null;
     };
+    holidayInfo?: DateHolidayInfo | null;
   };
 }
 
@@ -72,6 +78,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
   const [selectedDate, setSelectedDate] = useState<string>(initialData.dateStr);
   const [teachers, setTeachers] = useState<TeacherWithAttendance[]>(initialData.teachers || []);
   const [summary, setSummary] = useState(initialData.summary);
+  const [holidayInfo, setHolidayInfo] = useState<DateHolidayInfo | null>(initialData.holidayInfo || null);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilterTab, setStatusFilterTab] = useState<string>("ALL");
   const [selectedTeacherIds, setSelectedTeacherIds] = useState<Set<string>>(new Set());
@@ -99,6 +106,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
       if (res.success && res.data) {
         setTeachers(res.data.teachers);
         setSummary(res.data.summary);
+        setHolidayInfo(res.data.holidayInfo || null);
       } else {
         swalError("Gagal Memuat Data", res.error);
       }
@@ -168,11 +176,12 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
 
       // 2. Status tab filter
       if (statusFilterTab === "ALL") return true;
-      if (statusFilterTab === "UNRECORDED") return t.attendanceLog === null;
+      if (statusFilterTab === "UNRECORDED") return t.attendanceLog === null && !holidayInfo?.isHoliday;
+      if (statusFilterTab === "HOLIDAY") return t.attendanceLog === null && Boolean(holidayInfo?.isHoliday);
       if (statusFilterTab === "RECORDED") return t.attendanceLog !== null;
       return t.attendanceLog?.status === statusFilterTab;
     });
-  }, [teachers, searchQuery, statusFilterTab]);
+  }, [teachers, searchQuery, statusFilterTab, holidayInfo]);
 
   // Selected teacher objects
   const selectedTeachersList: SelectedTeacherInfo[] = useMemo(() => {
@@ -226,6 +235,15 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
   // Status badge helper
   const renderStatusBadge = (log: TeacherWithAttendance["attendanceLog"]) => {
     if (!log) {
+      if (holidayInfo?.isHoliday) {
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-800 border border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800">
+            <Palmtree className="size-3.5 text-amber-600 shrink-0" />
+            <span>Libur ({holidayInfo.name || "Libur Rutin"})</span>
+          </span>
+        );
+      }
+
       return (
         <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200 dark:bg-rose-950/40 dark:text-rose-300 dark:border-rose-900">
           <span className="size-1.5 rounded-full bg-rose-500 animate-pulse" />
@@ -348,6 +366,33 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
         </div>
       </div>
 
+      {/* Top Holiday Alert Banner if selected date is a holiday */}
+      {holidayInfo?.isHoliday && (
+        <div className="p-3.5 sm:p-4 rounded-2xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-900 dark:text-amber-200 shadow-xs animate-in fade-in duration-150">
+          <div className="flex items-center gap-3">
+            <div className="size-10 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0">
+              <Palmtree className="size-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-sm text-foreground">
+                  Tanggal Libur: {holidayInfo.name || "Libur Rutin"}
+                </span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-200 border border-amber-500/30">
+                  Bebas Presensi
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Pada tanggal libur tidak ada kewajiban presensi KBM bagi guru dan tidak dihitung sebagai alpa/terlambat.
+              </p>
+            </div>
+          </div>
+          <span className="text-[11px] font-semibold text-amber-800 dark:text-amber-300 bg-amber-500/15 px-3 py-1.5 rounded-xl border border-amber-500/25 self-start sm:self-auto shrink-0">
+            Jadwal Kalender: Libur
+          </span>
+        </div>
+      )}
+
       {/* Date Selector & KPI Statistics Cards (Executive 5-Card Bento Row) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
         {/* Card 1: Pilihan Tanggal */}
@@ -412,9 +457,15 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
             <span className="font-bold text-foreground truncate" title={formatDateDisplay(selectedDate)}>
               {formatDateShort(selectedDate)}
             </span>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
-              Aktif
-            </span>
+            {holidayInfo?.isHoliday ? (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 shrink-0">
+                Libur
+              </span>
+            ) : (
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 shrink-0">
+                Hari Kerja
+              </span>
+            )}
           </div>
         </div>
 
@@ -453,48 +504,52 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
           <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground font-medium">Partisipasi</span>
             <span className="font-bold text-emerald-600 dark:text-emerald-400">
-              {summary.percentage}% Tercatat
+              {holidayInfo?.isHoliday ? "100% Libur Terjadwal" : `${summary.percentage}% Tercatat`}
             </span>
           </div>
         </div>
 
-        {/* Card 3: Belum Absen */}
+        {/* Card 3: Belum Absen / Hari Libur */}
         <div className="relative overflow-hidden rounded-2xl bg-card border border-border/80 p-4 shadow-xs hover:shadow-md transition-all duration-200 flex flex-col justify-between group">
-          <div className="absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-rose-500 to-pink-500" />
+          <div className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r ${holidayInfo?.isHoliday ? "from-amber-500 to-yellow-500" : "from-rose-500 to-pink-500"}`} />
           
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-rose-600 dark:text-rose-400 uppercase tracking-wider">
-              Belum Absen
+            <span className={`text-[11px] font-bold uppercase tracking-wider ${holidayInfo?.isHoliday ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+              {holidayInfo?.isHoliday ? "Hari Libur" : "Belum Absen"}
             </span>
-            <div className="size-8 rounded-xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400 flex items-center justify-center">
-              <UserX className="size-4" />
+            <div className={`size-8 rounded-xl flex items-center justify-center ${holidayInfo?.isHoliday ? "bg-amber-50 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400" : "bg-rose-50 dark:bg-rose-950/50 text-rose-600 dark:text-rose-400"}`}>
+              {holidayInfo?.isHoliday ? <Palmtree className="size-4" /> : <UserX className="size-4" />}
             </div>
           </div>
 
           <div className="my-1.5">
             <div className="flex items-baseline gap-2">
-              <span className="text-3xl font-black text-rose-600 dark:text-rose-400 tracking-tight">
-                {summary.unrecordedCount}
+              <span className={`text-3xl font-black tracking-tight ${holidayInfo?.isHoliday ? "text-amber-600 dark:text-amber-400" : "text-rose-600 dark:text-rose-400"}`}>
+                {holidayInfo?.isHoliday ? (summary.holidayCount ?? summary.totalTeachers) : summary.unrecordedCount}
               </span>
               <span className="text-xs font-semibold text-muted-foreground">
-                Guru
+                {holidayInfo?.isHoliday ? "Guru Libur" : "Guru"}
               </span>
             </div>
 
             {/* Micro progress bar */}
             <div className="w-full bg-muted/60 h-1.5 rounded-full mt-2.5 overflow-hidden">
               <div 
-                className="bg-rose-500 h-full rounded-full transition-all duration-500" 
-                style={{ 
+                className={`h-full rounded-full transition-all duration-500 ${holidayInfo?.isHoliday ? "bg-amber-500 w-full" : "bg-rose-500"}`}
+                style={!holidayInfo?.isHoliday ? { 
                   width: `${summary.totalTeachers > 0 ? (summary.unrecordedCount / summary.totalTeachers) * 100 : 0}%` 
-                }}
+                } : undefined}
               />
             </div>
           </div>
 
           <div className="pt-2 border-t border-border/60 flex items-center justify-between text-[11px]">
             <span className="text-muted-foreground font-medium">Status</span>
-            {summary.unrecordedCount === 0 ? (
+            {holidayInfo?.isHoliday ? (
+              <span className="font-bold text-amber-600 dark:text-amber-400 flex items-center gap-1">
+                <Check className="size-3" /> Bebas Presensi
+              </span>
+            ) : summary.unrecordedCount === 0 ? (
               <span className="font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
                 <Check className="size-3" /> Lengkap 100%
               </span>
@@ -621,17 +676,17 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
 
       {/* Floating / Sticky Bulk Action Bar (Visible whenever teachers are selected) */}
       {selectedTeacherIds.size > 0 && (
-        <div className="sticky top-4 z-30 p-4 rounded-2xl bg-[#0B1320] text-white border border-emerald-500/40 shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-in slide-in-from-top-4 duration-150">
+        <div className={`sticky top-4 z-30 p-4 rounded-2xl text-white border shadow-xl flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 animate-in slide-in-from-top-4 duration-150 ${holidayInfo?.isHoliday ? "bg-[#1A1810] border-amber-500/50" : "bg-[#0B1320] border-emerald-500/40"}`}>
           <div className="flex items-center gap-3">
-            <div className="size-9 rounded-xl bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400 font-bold text-sm shrink-0">
+            <div className={`size-9 rounded-xl border flex items-center justify-center font-bold text-sm shrink-0 ${holidayInfo?.isHoliday ? "bg-amber-500/20 border-amber-500/40 text-amber-400" : "bg-emerald-500/20 border-emerald-500/40 text-emerald-400"}`}>
               {selectedTeacherIds.size}
             </div>
             <div>
               <span className="text-sm font-bold text-white block">
-                {selectedTeacherIds.size} Guru Dipilih untuk Presensi Massal
+                {selectedTeacherIds.size} Guru Dipilih {holidayInfo?.isHoliday ? "— Hari Libur" : "untuk Presensi Massal"}
               </span>
               <span className="text-xs text-slate-400 block">
-                Tanggal target: <strong>{formatDateDisplay(selectedDate)}</strong>
+                Tanggal target: <strong>{formatDateDisplay(selectedDate)}</strong> {holidayInfo?.isHoliday && `(${holidayInfo.name || "Libur Rutin"})`}
               </span>
             </div>
           </div>
@@ -692,7 +747,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
               )}
             </button>
 
-            {summary.unrecordedCount > 0 && (
+            {!holidayInfo?.isHoliday && summary.unrecordedCount > 0 && (
               <button
                 type="button"
                 onClick={handleSelectAllUnrecorded}
@@ -746,7 +801,11 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
               className="h-10 px-3 rounded-xl border border-border bg-background text-xs font-semibold text-foreground outline-none focus:ring-2 focus:ring-primary shadow-2xs cursor-pointer"
             >
               <option value="ALL">Semua Guru ({teachers.length})</option>
-              <option value="UNRECORDED">Belum Absen ({summary.unrecordedCount})</option>
+              {holidayInfo?.isHoliday ? (
+                <option value="HOLIDAY">Guru Libur ({summary.holidayCount ?? teachers.length})</option>
+              ) : (
+                <option value="UNRECORDED">Belum Absen ({summary.unrecordedCount})</option>
+              )}
               <option value="PRESENT">Hadir Tepat Waktu ({summary.presentCount})</option>
               <option value="LATE">Terlambat ({summary.lateCount})</option>
               <option value="PERMIT">Izin Dinas ({summary.permitCount})</option>
@@ -835,17 +894,25 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
 
                       {/* Jam Masuk */}
                       <td className="py-3.5 px-4 font-mono text-xs text-foreground whitespace-nowrap">
-                        {formatTime(log?.checkInTime || null)}
+                        {log ? formatTime(log.checkInTime || null) : holidayInfo?.isHoliday ? <span className="text-muted-foreground/60 italic">Libur</span> : "-"}
                       </td>
 
                       {/* Jam Pulang */}
                       <td className="py-3.5 px-4 font-mono text-xs text-foreground whitespace-nowrap">
-                        {formatTime(log?.checkOutTime || null)}
+                        {log ? formatTime(log.checkOutTime || null) : holidayInfo?.isHoliday ? <span className="text-muted-foreground/60 italic">Libur</span> : "-"}
                       </td>
 
                       {/* Notes */}
                       <td className="py-3.5 px-4 text-xs text-muted-foreground max-w-xs truncate">
-                        {log?.notes || "-"}
+                        {log?.notes ? (
+                          log.notes
+                        ) : holidayInfo?.isHoliday ? (
+                          <span className="text-amber-700 dark:text-amber-400 font-medium">
+                            {holidayInfo.name || "Libur Rutin"}
+                          </span>
+                        ) : (
+                          "-"
+                        )}
                       </td>
 
                       {/* Actions */}
@@ -856,7 +923,7 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
                           className="inline-flex items-center gap-1.5 py-1.5 px-2.5 rounded-lg border border-border bg-background hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer"
                         >
                           <Edit3 className="size-3.5 text-primary" />
-                          <span>{log ? "Ubah" : "Catat"}</span>
+                          <span>{log ? "Ubah" : holidayInfo?.isHoliday ? "Catat Khusus" : "Catat"}</span>
                         </button>
                       </td>
                     </tr>
@@ -890,6 +957,8 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
         defaultStartTime={workStartTime}
         defaultEndTime={workEndTime}
         dailySchedules={settings?.dailySchedules}
+        isHoliday={holidayInfo?.isHoliday}
+        holidayName={holidayInfo?.name}
       />
 
       {/* Date Range Bulk Attendance Modal */}
@@ -914,6 +983,9 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
         madrasahId={madrasahId}
         defaultStartTime={workStartTime}
         defaultEndTime={workEndTime}
+        dailySchedules={settings?.dailySchedules}
+        isHoliday={holidayInfo?.isHoliday}
+        holidayName={holidayInfo?.name}
       />
     </div>
   );
