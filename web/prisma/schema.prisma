@@ -97,6 +97,7 @@ model Holiday {
 
   @@index([madrasahId])
   @@index([madrasahId, date])
+  @@index([madrasahId, endDate])
   @@map("holidays")
 }
 
@@ -117,6 +118,7 @@ model Position {
 
   @@unique([madrasahId, name])
   @@index([madrasahId])
+  @@index([madrasahId, order])
   @@map("positions")
 }
 
@@ -156,6 +158,10 @@ model User {
   @@index([role])
   @@index([pegId])
   @@index([nuptk])
+  @@index([nip])
+  @@index([nik])
+  @@index([name])
+  @@index([madrasahId, role, isActive])
   @@map("users")
 }
 
@@ -192,6 +198,8 @@ model AttendanceLog {
   @@index([madrasahId])
   @@index([madrasahId, date])
   @@index([userId])
+  @@index([madrasahId, status])
+  @@index([madrasahId, date, status])
   @@map("attendance_logs")
 }
 
@@ -219,5 +227,6 @@ model TeachingJournal {
   @@index([madrasahId, date])
   @@index([userId])
   @@index([userId, date])
+  @@index([madrasahId, className])
   @@map("teaching_journals")
 }
