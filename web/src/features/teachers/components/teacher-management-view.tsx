@@ -37,6 +37,7 @@ import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
 import { ImportExcelModal } from "./import-excel-modal";
 import { TeacherFormModal, type TeacherData } from "./teacher-form-modal";
+import { PtkCardModal } from "./ptk-card-modal";
 import { 
   exportTeachersToExcel, 
   downloadTeacherTemplate,
@@ -96,6 +97,10 @@ interface TeacherManagementViewProps {
     madrasahId: string;
     madrasahName: string;
     nsm: string;
+    npsn?: string | null;
+    address?: string | null;
+    phone?: string | null;
+    email?: string | null;
     radiusMeters: number;
     teachers: TeacherItem[];
     positions?: {
@@ -117,6 +122,8 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isPtkCardModalOpen, setIsPtkCardModalOpen] = useState(false);
+  const [ptkSelectedTeacherId, setPtkSelectedTeacherId] = useState<string | null>(null);
   const [teacherToEdit, setTeacherToEdit] = useState<TeacherData | null>(null);
   const [teacherDetail, setTeacherDetail] = useState<TeacherItem | null>(null);
 
@@ -350,6 +357,21 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             type="button"
             variant="outline"
             size="sm"
+            onClick={() => {
+              setPtkSelectedTeacherId(null);
+              setIsPtkCardModalOpen(true);
+            }}
+            leftIcon={<IdCard className="size-4 text-emerald-600" />}
+            className="text-xs font-bold border-emerald-500/40 text-emerald-800 bg-emerald-50/70 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:text-emerald-300 dark:border-emerald-700/60 shadow-2xs"
+            title="Cetak Kartu Akun PTK Multi-Guru dalam Kertas F4"
+          >
+            <span>Cetak Kartu PTK (F4)</span>
+          </Button>
+
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
             onClick={downloadTeacherTemplate}
             leftIcon={<Download className="size-3.5 text-muted-foreground" />}
             className="text-xs font-medium"
@@ -532,6 +554,21 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
               <option value="PPPK">PPPK</option>
               <option value="NON_PNS">Non-PNS / GTY / Honor</option>
             </select>
+
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setPtkSelectedTeacherId(null);
+                setIsPtkCardModalOpen(true);
+              }}
+              leftIcon={<IdCard className="size-3.5 text-emerald-600" />}
+              className="h-9 text-xs font-semibold text-emerald-700 border-emerald-500/30 bg-emerald-50/40 hover:bg-emerald-50 dark:text-emerald-300 dark:bg-emerald-950/30"
+              title="Cetak Kartu Akun PTK Guru Terfilter / Seluruh Guru dalam Kertas F4"
+            >
+              Cetak Kartu PTK F4
+            </Button>
 
             <Button
               type="button"
@@ -783,6 +820,18 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
                             <Eye className="size-3.5" />
                           </button>
 
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPtkSelectedTeacherId(teacher.id);
+                              setIsPtkCardModalOpen(true);
+                            }}
+                            className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+                            title="Cetak Kartu Akun PTK Guru Ini (Kertas F4)"
+                          >
+                            <IdCard className="size-3.5" />
+                          </button>
+
                           <Link
                             href={`/admin/reports?teacherId=${teacher.id}`}
                             className="p-1.5 rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/10 transition-colors"
@@ -975,7 +1024,23 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
             </div>
 
             {/* Modal Footer */}
-            <div className="p-3 border-t border-border flex items-center justify-end bg-muted/30">
+            <div className="p-3 border-t border-border flex items-center justify-between bg-muted/30">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const targetId = teacherDetail.id;
+                  setTeacherDetail(null);
+                  setPtkSelectedTeacherId(targetId);
+                  setIsPtkCardModalOpen(true);
+                }}
+                leftIcon={<IdCard className="size-3.5 text-emerald-600" />}
+                className="text-xs font-semibold text-emerald-800 border-emerald-500/30 bg-emerald-50/50 hover:bg-emerald-100 dark:text-emerald-300 dark:bg-emerald-950/40"
+              >
+                Cetak Kartu PTK F4
+              </Button>
+
               <Button
                 type="button"
                 variant="outline"
@@ -1004,6 +1069,25 @@ export function TeacherManagementView({ initialData }: TeacherManagementViewProp
         teacherToEdit={teacherToEdit}
         positions={positions}
         onSuccess={reloadData}
+      />
+
+      <PtkCardModal
+        isOpen={isPtkCardModalOpen}
+        onClose={() => {
+          setIsPtkCardModalOpen(false);
+          setPtkSelectedTeacherId(null);
+        }}
+        madrasah={{
+          id: initialData.madrasahId,
+          name: initialData.madrasahName,
+          nsm: initialData.nsm,
+          npsn: initialData.npsn,
+          address: initialData.address,
+          phone: initialData.phone,
+          email: initialData.email,
+        }}
+        teachers={teachers}
+        preSelectedTeacherId={ptkSelectedTeacherId}
       />
     </div>
   );

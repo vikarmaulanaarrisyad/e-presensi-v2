@@ -14,6 +14,10 @@ export default async function TeachersPage() {
     madrasahId: madrasah?.id || "",
     madrasahName: madrasah?.name || "Madrasah",
     nsm: madrasah?.nsm || "-",
+    npsn: madrasah?.npsn || null,
+    address: madrasah?.address || null,
+    phone: madrasah?.phone || null,
+    email: madrasah?.email || null,
     radiusMeters: madrasah?.settings?.radiusMeters || 50,
     positions: data?.positions || [],
     teachers: teachers.map((t) => ({

@@ -126,6 +126,10 @@ export async function getTeachersByMadrasah(madrasahId: string) {
       id: true,
       name: true,
       nsm: true,
+      npsn: true,
+      address: true,
+      phone: true,
+      email: true,
       settings: {
         select: {
           radiusMeters: true,
