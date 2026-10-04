@@ -98,8 +98,8 @@ function getLayoutConfig(layout: PtkCardLayout) {
         rows: 4,
         cardWidth: 95,
         cardHeight: 72,
-        marginLeft: 10,
-        marginTop: 11,
+        marginLeft: 10, // 1 cm
+        marginTop: 10,  // 1 cm
         gapX: 5,
         gapY: 4.5,
         headerHeight: 12,
@@ -117,9 +117,9 @@ function getLayoutConfig(layout: PtkCardLayout) {
         cols: 2,
         rows: 2,
         cardWidth: 95,
-        cardHeight: 144,
-        marginLeft: 10,
-        marginTop: 15,
+        cardHeight: 145,
+        marginLeft: 10, // 1 cm
+        marginTop: 10,  // 1 cm
         gapX: 5,
         gapY: 8,
         headerHeight: 18,
@@ -139,10 +139,10 @@ function getLayoutConfig(layout: PtkCardLayout) {
         rows: 3,
         cardWidth: 95,
         cardHeight: 96,
-        marginLeft: 10,
-        marginTop: 12,
+        marginLeft: 10, // 1 cm
+        marginTop: 10,  // 1 cm
         gapX: 5,
-        gapY: 5.5,
+        gapY: 6,
         headerHeight: 15,
         titleSize: 7,
         schoolSize: 8.5,
@@ -336,8 +336,9 @@ async function drawSingleCard(
   doc.text(nsmNpsnText, headerTextLeft, nsmY);
 
   // 3. BODY: TEACHER IDENTITAS
-  // Generous padding below header gold bar (ends at y + hh + 0.8) so name is never covered
-  const bodyStartY = y + hh + 0.8 + 6.0;
+  // Jarak margin 1 cm (10 mm) di bawah garis emas header
+  const marginBelowHeader = layout === "8_per_page" ? 8.5 : 10.0;
+  const bodyStartY = y + hh + 0.8 + marginBelowHeader;
   let currY = bodyStartY;
 
   // Full Name & Gelar
