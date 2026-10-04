@@ -1,6 +1,8 @@
 import React from "react";
 import { MobileLoginView } from "@/features/mobile-app/components/mobile-login-view";
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -10,6 +12,15 @@ export const metadata = {
 };
 
 export default async function GuruLoginPage() {
+  const session = await auth();
+  if (session?.user) {
+    if (session.user.role === "TEACHER") {
+      redirect("/guru");
+    } else {
+      redirect("/admin");
+    }
+  }
+
   const schools = await prisma.madrasah.findMany({
     where: { isActive: true },
     select: { id: true, name: true, nsm: true },

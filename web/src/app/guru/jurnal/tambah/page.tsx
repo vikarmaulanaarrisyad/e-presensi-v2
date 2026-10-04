@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTeacherMobileDashboardData } from "@/server/actions/mobile-attendance.actions";
 import { MobileJournalFormView } from "@/features/mobile-app/components/mobile-journal-form-view";
-import { MobileLoginView } from "@/features/mobile-app/components/mobile-login-view";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -31,22 +31,14 @@ export default async function GuruTambahJurnalPage({
     }
   }
 
+  if (!targetUserId) {
+    redirect("/guru/login");
+  }
+
   const initialData = await getTeacherMobileDashboardData(targetUserId);
 
   if (!initialData || "error" in initialData || !initialData.teacher) {
-    const schools = await prisma.madrasah.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, nsm: true },
-      orderBy: { name: "asc" },
-    });
-
-    return (
-      <div className="min-h-screen w-full bg-slate-100/70 dark:bg-slate-950 flex items-center justify-center sm:py-8 sm:px-4">
-        <div className="w-full sm:max-w-md min-h-screen sm:min-h-0 sm:rounded-3xl bg-[#f8f9ff] sm:shadow-xl sm:border sm:border-[#e5eeff] overflow-hidden">
-          <MobileLoginView schools={schools} />
-        </div>
-      </div>
-    );
+    redirect("/guru/login");
   }
 
   return (

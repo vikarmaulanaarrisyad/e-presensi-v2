@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTeacherMobileDashboardData } from "@/server/actions/mobile-attendance.actions";
 import { MobileAppShellClient } from "./components/mobile-app-shell-client";
-import { MobileLoginView } from "@/features/mobile-app/components/mobile-login-view";
+import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
@@ -32,24 +32,17 @@ export default async function GuruMobilePage({
     }
   }
 
+  // If not logged in and no test NIP provided, redirect to login page
+  if (!targetUserId) {
+    redirect("/guru/login");
+  }
+
   // Fetch Teacher Data
   const initialData = await getTeacherMobileDashboardData(targetUserId);
 
-  // If user is not logged in and no teacher could be retrieved:
+  // If no teacher could be retrieved, redirect to login
   if (!initialData || "error" in initialData || !initialData.teacher) {
-    const schools = await prisma.madrasah.findMany({
-      where: { isActive: true },
-      select: { id: true, name: true, nsm: true },
-      orderBy: { name: "asc" },
-    });
-
-    return (
-      <div className="min-h-screen w-full bg-slate-100/70 dark:bg-slate-950 flex items-center justify-center sm:py-8 sm:px-4">
-        <div className="w-full sm:max-w-md min-h-screen sm:min-h-0 sm:rounded-3xl bg-[#f8f9ff] sm:shadow-xl sm:border sm:border-[#e5eeff] overflow-hidden">
-          <MobileLoginView schools={schools} />
-        </div>
-      </div>
-    );
+    redirect("/guru/login");
   }
 
   return (

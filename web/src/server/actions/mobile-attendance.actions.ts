@@ -105,38 +105,43 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
       userId = session?.user?.id;
     }
 
-    // Fallback: If still no userId (e.g. testing mode or direct access), pick first teacher
-    let teacher: any = null;
-    if (userId) {
-      try {
-        teacher = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            position: true,
-            madrasah: {
-              include: {
-                settings: true,
-              },
-            },
-          },
-        });
-      } catch {
-        teacher = await prisma.user.findUnique({
-          where: { id: userId },
-          include: {
-            madrasah: {
-              include: {
-                settings: true,
-              },
-            },
-          },
-        });
-      }
+    if (!userId) {
+      return { error: "Belum login atau sesi telah berakhir." };
     }
 
-    // If user was not found, or if user is an ADMIN / SUPERADMIN testing the mobile portal:
-    if (!teacher || teacher.role !== "TEACHER" || !teacher.madrasah) {
-      const targetMadrasahId = teacher?.madrasahId;
+    let teacher: any = null;
+    try {
+      teacher = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          position: true,
+          madrasah: {
+            include: {
+              settings: true,
+            },
+          },
+        },
+      });
+    } catch {
+      teacher = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          madrasah: {
+            include: {
+              settings: true,
+            },
+          },
+        },
+      });
+    }
+
+    if (!teacher) {
+      return { error: "Data pengguna tidak ditemukan." };
+    }
+
+    // If the logged-in user is an ADMIN / SUPERADMIN testing the mobile portal:
+    if (teacher.role !== "TEACHER") {
+      const targetMadrasahId = teacher.madrasahId;
       let previewTeacher: any = null;
 
       if (targetMadrasahId) {
@@ -164,7 +169,7 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
         }
       }
 
-      if (!previewTeacher) {
+      if (!previewTeacher && teacher.role === "SUPERADMIN") {
         try {
           previewTeacher = await prisma.user.findFirst({
             where: { role: "TEACHER", isActive: true },
