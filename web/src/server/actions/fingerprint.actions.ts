@@ -9,6 +9,7 @@ import {
   autoAssignFingerprintPins,
   getFingerprintSyncLogs,
   processFingerprintAttendanceBatch,
+  generateSolutionUserDat,
   type FingerprintRawLog,
 } from "@/server/repositories/fingerprint.repo";
 import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
@@ -185,5 +186,24 @@ export async function uploadManualUsbLogAction(
   } catch (error: any) {
     console.error("Gagal mengimpor file log USB:", error);
     return { error: error?.message || "Gagal memproses file presensi USB." };
+  }
+}
+
+/**
+ * Action untuk men-generate file user.dat yang siap dicopy ke flashdisk USB
+ * untuk upload data guru ke mesin Solution secara offline
+ */
+export async function downloadSolutionUserDatAction(madrasahId?: string) {
+  try {
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
+    const content = await generateSolutionUserDat(targetMadrasahId);
+    return {
+      success: true,
+      content,
+      filename: "user.dat",
+    };
+  } catch (error: any) {
+    console.error("Gagal men-generate user.dat:", error);
+    return { error: error?.message || "Gagal membuat file user.dat untuk USB." };
   }
 }

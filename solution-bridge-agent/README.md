@@ -74,18 +74,67 @@ Bridge Agent akan otomatis:
 
 ---
 
-## 👥 Pemetaan PIN Guru (Enroll Number)
-Agar absensi sidik jari masuk ke nama guru yang benar:
-1. Di mesin Solution, tiap jari guru didaftarkan dengan nomor **User ID / PIN** (misal: 1, 2, 3, dst).
-2. Di Web Admin E-Presensi -> Menu **Mesin Fingerprint** -> Tab **Pemetaan PIN Guru**:
-   - Isi kolom **PIN Mesin** untuk masing-masing guru sesuai dengan nomor User ID di mesin.
-   - Atau klik tombol **Auto-Assign PIN (1, 2, 3...)** untuk membuatkan nomor urut otomatis.
+## 👥 1. Mengunggah (Upload) Data Guru ke Mesin Solution
+
+Agar nama dan nomor PIN guru langsung tersimpan di memori mesin Solution (tanpa harus mengetik nama guru satu per satu di tombol keypad mesin):
+
+### Cara A: Otomatis via Bridge Agent (Jaringan LAN / WiFi)
+1. Pastikan nomor PIN guru sudah terisi di menu **Mesin Fingerprint** -> Tab **Pemetaan PIN Guru** di Web Dashboard E-Presensi.
+2. Buka file `start.bat` di komputer madrasah, lalu pilih menu **[2] Upload / Kirim Data Semua Guru ke Mesin Solution**.
+   - Atau jalankan lewat Command Prompt:
+     ```bash
+     node agent.js --upload-users
+     ```
+3. Agent akan otomatis mengambil data semua guru dari Cloud E-Presensi dan mengirimkannya ke memori mesin Solution dalam hitungan detik.
+4. Nama guru akan langsung muncul di layar LCD mesin Solution saat absensi!
+
+### Cara B: Offline via Flashdisk USB (`user.dat`)
+1. Di Dashboard Web Admin E-Presensi -> Tab **Pemetaan PIN Guru**, klik tombol **Download user.dat (USB)**.
+2. Simpan file `user.dat` ke dalam Flashdisk (simpan di luar folder / root).
+3. Tancapkan Flashdisk ke port USB mesin Solution.
+4. Di mesin Solution, tekan tombol **Menu** -> **Manajemen USB** -> **Upload Pengguna** (atau *Upload Data Pengguna*).
+5. Mesin akan membaca file dan seluruh data guru otomatis tersimpan di mesin Solution!
 
 ---
 
-## 💾 Alternatif Cadangan: Import File Flashdisk (USB)
+## 👆 2. Mendaftarkan Sidik Jari Guru di Mesin Solution
+
+Setelah nama dan PIN guru ter-upload ke mesin, daftarkan sidik jari guru dengan salah satu cara berikut:
+
+### Cara A: Rekam Langsung di Mesin Solution (Rekomendasi)
+1. Tekan tombol **[Menu]** atau **[M/OK]** pada mesin Solution.
+2. Masuk ke menu **Pengguna** (*User Mng*) -> **Atur Pengguna** (*Manage*).
+3. Cari nama guru atau masukkan nomor **User ID / PIN** guru yang bersangkutan.
+4. Pilih menu **Sidik Jari** (*Fingerprint*).
+5. Pilih jari yang ingin didaftarkan (misalnya Telunjuk Kanan atau Jempol).
+6. Minta guru menempelkan jarinya ke sensor kaca mesin sebanyak **3 KALI** berturut-turut.
+7. Setelah 3 kali scan, mesin akan berbunyi *"Terima Kasih"* (atau bersuara tanda sukses dan muncul centang hijau).
+8. Tekan **[ESC]** untuk menyimpan. Sidik jari guru telah aktif dan siap digunakan untuk absensi masuk & pulang!
+
+### Cara B: Remote Enrollment via Bridge Agent
+Anda juga dapat memicu sensor mesin Solution langsung dari komputer operator tanpa menyentuh tombol Menu di mesin:
+1. Buka `start.bat` dan pilih menu **[3] Daftarkan Sidik Jari Guru Baru di Mesin (Remote Enroll)**.
+2. Masukkan nomor PIN guru (misalnya `1`).
+3. Atau jalankan langsung via command line:
+   ```bash
+   node agent.js --enroll 1
+   ```
+4. Mesin Solution akan langsung mengeluarkan bunyi perintah suara dan mengaktifkan lampu sensor rekam sidik jari untuk guru dengan PIN tersebut sebanyak 3 kali.
+
+---
+
+## 🔄 3. Sinkronisasi Log Presensi Otomatis (Background Sync)
+
+Untuk menjalankan sinkronisasi presensi secara terus-menerus:
+1. Jalankan `start.bat` dan pilih menu **[1] Mulai Auto-Sync Kehadiran**.
+2. Agent akan memeriksa data scan terbaru dari mesin setiap **2 menit** dan otomatis mem-push data absensi ke Cloud E-Presensi.
+
+---
+
+## 💾 4. Alternatif Cadangan: Import File Flashdisk (USB)
 Jika jaringan sekolah mati lampu atau WiFi bermasalah:
 1. Colokkan Flashdisk ke port USB mesin Solution.
 2. Di mesin, pilih menu **Download Log Kehadiran** (file berekstensi `.dat` atau `.txt`).
 3. Di Web Admin E-Presensi -> Menu **Mesin Fingerprint** -> Tab **Import USB**.
 4. Pilih file tersebut dan klik **Proses Log USB**. Semua data presensi akan langsung terproses seketika!
+

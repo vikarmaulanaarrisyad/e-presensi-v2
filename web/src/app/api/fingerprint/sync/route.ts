@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   getMadrasahByApiKey,
   processFingerprintAttendanceBatch,
+  recordFingerprintActivityLog,
   type FingerprintRawLog,
 } from "@/server/repositories/fingerprint.repo";
 
@@ -115,6 +116,22 @@ export async function POST(request: NextRequest) {
         { success: false, error: "Payload request body JSON tidak valid." },
         { status: 400 }
       );
+    }
+
+    // Tangani pelaporan aktivitas upload pengguna/guru ke mesin dari Bridge Agent
+    if (body.action === "REPORT_USER_UPLOAD" || body.source === "AGENT_UPLOAD_USERS") {
+      const userCount = Number(body.count || 0);
+      await recordFingerprintActivityLog(madrasah.id, {
+        totalRecords: userCount,
+        status: "SUCCESS",
+        message: body.message || `Berhasil mengunggah ${userCount} data guru ke mesin Solution via Bridge Agent`,
+        source: "AGENT_UPLOAD_USERS",
+      });
+
+      return NextResponse.json({
+        success: true,
+        message: "Laporan upload pengguna berhasil dicatat ke sistem.",
+      });
     }
 
     // Normalisasi format logs

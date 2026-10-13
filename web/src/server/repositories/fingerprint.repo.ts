@@ -537,3 +537,72 @@ export async function processFingerprintAttendanceBatch(
     message,
   };
 }
+
+/**
+ * Generate official Solution / ZKTeco user.dat file content for USB flashdisk
+ * File format:
+ * PIN \t Name \t Password \t Card \t Group \t TimeZones \t PIN2
+ */
+export async function generateSolutionUserDat(madrasahId: string): Promise<string> {
+  const teachers = await prisma.user.findMany({
+    where: {
+      madrasahId,
+      role: "TEACHER",
+      isActive: true,
+      fingerprintPin: { not: null },
+    },
+    select: {
+      id: true,
+      name: true,
+      fingerprintPin: true,
+    },
+    orderBy: { fingerprintPin: "asc" },
+  });
+
+  const lines = [
+    "# Solution / ZKTeco Standalone User Data Export",
+    "# Simpan file ini di folder root Flashdisk USB dengan nama: user.dat",
+    "# Di mesin: Menu -> Manajemen USB -> Upload Pengguna -> OK",
+  ];
+
+  for (const t of teachers) {
+    if (!t.fingerprintPin) continue;
+    const pin = t.fingerprintPin.trim();
+    // Bersihkan karakter tab dan newline dari nama guru
+    const cleanName = t.name.replace(/[\t\r\n]/g, " ").trim().slice(0, 24);
+    // Format: PIN \t Name \t Password \t Card \t Group \t TimeZones \t PIN2
+    lines.push(`${pin}\t${cleanName}\t0\t0\t1\t0\t${pin}`);
+  }
+
+  return lines.join("\r\n");
+}
+
+/**
+ * Catat aktivitas log sinkronisasi atau upload data pengguna ke mesin
+ */
+export async function recordFingerprintActivityLog(
+  madrasahId: string,
+  data: {
+    totalRecords: number;
+    status: "SUCCESS" | "FAILED" | "PARTIAL";
+    message: string;
+    source: string;
+  }
+) {
+  const log = await prisma.fingerprintSyncLog.create({
+    data: {
+      madrasahId,
+      totalRecords: data.totalRecords,
+      status: data.status,
+      message: data.message,
+      source: data.source,
+    },
+  });
+
+  await prisma.madrasah.update({
+    where: { id: madrasahId },
+    data: { fingerprintLastSync: new Date() },
+  });
+
+  return log;
+}

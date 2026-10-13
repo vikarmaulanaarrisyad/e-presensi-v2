@@ -20,6 +20,10 @@ import {
   Info,
   ShieldCheck,
   FileSpreadsheet,
+  X,
+  Terminal,
+  HelpCircle,
+  Sparkles,
 } from "lucide-react";
 import Swal from "sweetalert2";
 import {
@@ -28,6 +32,7 @@ import {
   saveTeacherPinAction,
   autoAssignPinsAction,
   uploadManualUsbLogAction,
+  downloadSolutionUserDatAction,
 } from "@/server/actions/fingerprint.actions";
 
 interface TeacherMapping {
@@ -91,6 +96,13 @@ export function FingerprintManagementView({ initialData }: FingerprintManagement
   // USB Upload state
   const [usbFile, setUsbFile] = useState<File | null>(null);
   const [usbLoading, setUsbLoading] = useState(false);
+
+  // Upload & Enrollment modal states
+  const [isExportingUserDat, setIsExportingUserDat] = useState(false);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showEnrollModal, setShowEnrollModal] = useState(false);
+  const [selectedTeacherForEnroll, setSelectedTeacherForEnroll] = useState<TeacherMapping | null>(null);
+  const [copiedEnrollCmd, setCopiedEnrollCmd] = useState(false);
 
   // Origin for sync URL
   const origin = typeof window !== "undefined" ? window.location.origin : "https://domain-presensi.com";
@@ -245,6 +257,53 @@ export function FingerprintManagementView({ initialData }: FingerprintManagement
     } finally {
       setUsbLoading(false);
     }
+  };
+
+  const handleDownloadUserDat = async () => {
+    setIsExportingUserDat(true);
+    try {
+      const res = await downloadSolutionUserDatAction(config.id);
+      if (res.success && res.content) {
+        const blob = new Blob([res.content], { type: "text/plain;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = res.filename || "user.dat";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+
+        Swal.fire({
+          icon: "success",
+          title: "File user.dat Berhasil Diunduh",
+          html: `<div class="text-left text-sm space-y-2">
+            <p class="text-gray-600 dark:text-gray-300">File <b>user.dat</b> siap disalin ke flashdisk untuk di-upload ke mesin Solution secara offline.</p>
+            <div class="rounded-lg bg-emerald-50 dark:bg-emerald-950/40 p-3 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
+              <b>Langkah di Mesin Solution:</b>
+              <ol class="list-decimal pl-4 mt-1 space-y-0.5">
+                <li>Colokkan flashdisk ke port USB mesin Solution.</li>
+                <li>Tekan <b>Menu &rarr; Manajemen USB &rarr; Upload Pengguna</b>.</li>
+                <li>Mesin akan otomatis membaca seluruh nama & PIN guru!</li>
+              </ol>
+            </div>
+          </div>`,
+          confirmButtonColor: "#059669",
+        });
+      } else {
+        Swal.fire("Gagal", res.error || "Gagal mengunduh file user.dat", "error");
+      }
+    } catch (err: any) {
+      Swal.fire("Error", err.message || "Gagal mengunduh file user.dat", "error");
+    } finally {
+      setIsExportingUserDat(false);
+    }
+  };
+
+  const copyEnrollCmdToClipboard = (cmd: string) => {
+    navigator.clipboard.writeText(cmd);
+    setCopiedEnrollCmd(true);
+    setTimeout(() => setCopiedEnrollCmd(false), 2000);
   };
 
   const filteredTeachers = teachers.filter((t) => {
@@ -592,15 +651,54 @@ export function FingerprintManagementView({ initialData }: FingerprintManagement
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setShowUploadModal(true)}
+                  className="flex items-center gap-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all"
+                  title="Upload nama & PIN guru ke mesin Solution via Agent atau USB"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  Kirim Data ke Mesin
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleDownloadUserDat}
+                  disabled={isExportingUserDat}
+                  className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 px-3.5 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 shadow-sm transition-all"
+                  title="Unduh file user.dat untuk upload via flashdisk USB"
+                >
+                  {isExportingUserDat ? (
+                    <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Download className="h-3.5 w-3.5 text-blue-500" />
+                  )}
+                  Download user.dat (USB)
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedTeacherForEnroll(null);
+                    setShowEnrollModal(true);
+                  }}
+                  className="flex items-center gap-1.5 rounded-xl border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 hover:bg-teal-100 text-teal-800 dark:text-teal-200 px-3.5 py-2 text-xs font-semibold shadow-sm transition-all"
+                  title="Panduan pendaftaran sidik jari guru di sensor Solution"
+                >
+                  <Fingerprint className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                  Panduan Rekam Sidik Jari
+                </button>
+
                 <button
                   type="button"
                   onClick={handleAutoAssignPins}
                   disabled={isPending}
-                  className="flex items-center gap-2 rounded-xl bg-teal-600 hover:bg-teal-700 px-4 py-2 text-xs font-semibold text-white shadow-sm transition-all"
+                  className="flex items-center gap-1.5 rounded-xl bg-teal-700 hover:bg-teal-800 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all"
+                  title="Buat PIN otomatis 1, 2, 3... untuk guru yang belum ber-PIN"
                 >
                   <RefreshCw className="h-3.5 w-3.5" />
-                  Auto-Assign PIN (1, 2, 3...)
+                  Auto PIN
                 </button>
               </div>
             </div>
@@ -691,18 +789,33 @@ export function FingerprintManagementView({ initialData }: FingerprintManagement
                           />
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <button
-                            type="button"
-                            onClick={() => handleSavePin(teacher.id)}
-                            disabled={isPending}
-                            className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                              isChanged
-                                ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
-                                : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                            }`}
-                          >
-                            Simpan PIN
-                          </button>
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedTeacherForEnroll(teacher);
+                                setShowEnrollModal(true);
+                              }}
+                              className="flex items-center gap-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/40 px-2.5 py-1.5 text-xs font-semibold text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/60 transition-all"
+                              title={`Daftarkan sidik jari ${teacher.name} di mesin Solution`}
+                            >
+                              <Fingerprint className="h-3.5 w-3.5 text-teal-600 dark:text-teal-400" />
+                              Rekam Jari
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleSavePin(teacher.id)}
+                              disabled={isPending}
+                              className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
+                                isChanged
+                                  ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm animate-pulse"
+                                  : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
+                              }`}
+                            >
+                              Simpan PIN
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -878,6 +991,275 @@ export function FingerprintManagementView({ initialData }: FingerprintManagement
           </div>
         </div>
       )}
+      {/* ========================================================================= */}
+      {/* MODAL 1: PANDUAN & UPLOAD GURU KE MESIN SOLUTION                         */}
+      {/* ========================================================================= */}
+      {showUploadModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 shadow-2xl transition-all">
+            <button
+              onClick={() => setShowUploadModal(false)}
+              className="absolute right-4 top-4 rounded-xl p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-gray-800">
+              <div className="rounded-xl bg-emerald-100 dark:bg-emerald-950/60 p-2.5 text-emerald-600 dark:text-emerald-400">
+                <Upload className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  Upload Data Guru ke Mesin Solution
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  Daftarkan nama dan nomor PIN seluruh guru ke dalam memori mesin fingerprint secara otomatis
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-4">
+              <div className="rounded-xl bg-emerald-50 dark:bg-emerald-950/30 p-4 border border-emerald-200 dark:border-emerald-800 text-xs text-emerald-900 dark:text-emerald-200">
+                <p className="font-semibold flex items-center gap-1.5 mb-1 text-emerald-800 dark:text-emerald-300">
+                  <Sparkles className="h-4 w-4" />
+                  Keuntungan Upload Data:
+                </p>
+                <p>
+                  Nama guru akan langsung muncul di layar LCD mesin Solution saat guru menempelkan jarinya. Operator tidak perlu mengetik nama guru satu per satu menggunakan tombol T9 pada keypad mesin!
+                </p>
+              </div>
+
+              {/* Pilihan Metode */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                {/* Metode 1: LAN via Bridge Agent */}
+                <div className="rounded-xl border-2 border-emerald-500/40 bg-emerald-50/30 dark:bg-emerald-950/20 p-4 flex flex-col justify-between space-y-3">
+                  <div>
+                    <div className="flex items-center justify-between">
+                      <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
+                        <Wifi className="h-3 w-3" /> Rekomendasi (LAN)
+                      </span>
+                    </div>
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mt-2">
+                      Metode 1: Bridge Agent
+                    </h4>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      Kirim data langsung via kabel LAN / WiFi sekolah menggunakan Bridge Agent.
+                    </p>
+
+                    <div className="mt-3 rounded-lg bg-gray-900 p-2.5 text-[11px] font-mono text-emerald-400 space-y-1">
+                      <div className="text-gray-400"># Di terminal PC sekolah:</div>
+                      <div>node agent.js --upload-users</div>
+                      <div className="text-gray-400"># Atau buka start.bat pilih [2]</div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowUploadModal(false);
+                        setActiveTab("connection");
+                      }}
+                      className="w-full text-center py-2 text-xs font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100/70 hover:bg-emerald-200/70 dark:bg-emerald-900/50 rounded-lg transition-colors"
+                    >
+                      Buka Setup Agent &rarr;
+                    </button>
+                  </div>
+                </div>
+
+                {/* Metode 2: Flashdisk USB */}
+                <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 p-4 flex flex-col justify-between space-y-3">
+                  <div>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-bold text-blue-700 dark:text-blue-300 bg-blue-100 dark:bg-blue-900/60 px-2 py-0.5 rounded-full">
+                      <HardDrive className="h-3 w-3" /> Offline (USB)
+                    </span>
+                    <h4 className="font-bold text-sm text-gray-900 dark:text-white mt-2">
+                      Metode 2: Flashdisk USB
+                    </h4>
+                    <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                      Unduh file data pengguna, simpan ke flashdisk, dan tancapkan ke mesin Solution.
+                    </p>
+
+                    <ol className="mt-2.5 text-[11px] text-gray-600 dark:text-gray-400 space-y-1 list-decimal pl-4">
+                      <li>Download file <code>user.dat</code></li>
+                      <li>Copy ke Flashdisk (root folder)</li>
+                      <li>Di mesin: <b>Menu &rarr; Manajemen USB &rarr; Upload Pengguna</b></li>
+                    </ol>
+                  </div>
+
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={handleDownloadUserDat}
+                      disabled={isExportingUserDat}
+                      className="w-full flex items-center justify-center gap-1.5 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition-colors"
+                    >
+                      <Download className="h-3.5 w-3.5" />
+                      Download user.dat
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => setShowUploadModal(false)}
+                className="rounded-xl px-4 py-2 text-xs font-semibold text-gray-700 dark:text-gray-300 bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 transition-colors"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL 2: PANDUAN & TRIGGER PENDAFTARAN SIDIK JARI GURU                    */}
+      {/* ========================================================================= */}
+      {showEnrollModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 p-6 shadow-2xl transition-all">
+            <button
+              onClick={() => {
+                setShowEnrollModal(false);
+                setSelectedTeacherForEnroll(null);
+              }}
+              className="absolute right-4 top-4 rounded-xl p-2 text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-600 transition-colors"
+            >
+              <X className="h-5 w-5" />
+            </button>
+
+            <div className="flex items-center gap-3 pb-4 border-b border-gray-100 dark:border-gray-800">
+              <div className="rounded-xl bg-teal-100 dark:bg-teal-950/60 p-2.5 text-teal-600 dark:text-teal-400">
+                <Fingerprint className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                  {selectedTeacherForEnroll
+                    ? `Pendaftaran Sidik Jari: ${selectedTeacherForEnroll.name}`
+                    : "Panduan Pendaftaran Sidik Jari di Mesin Solution"}
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  {selectedTeacherForEnroll
+                    ? `Nomor User ID / PIN di Mesin: ${selectedTeacherForEnroll.fingerprintPin || "Belum diatur"}`
+                    : "Langkah-langkah merekam sidik jari guru di sensor mesin fingerprint Solution"}
+                </p>
+              </div>
+            </div>
+
+            {selectedTeacherForEnroll && !selectedTeacherForEnroll.fingerprintPin && (
+              <div className="mt-4 rounded-xl bg-amber-50 dark:bg-amber-950/30 p-3.5 border border-amber-200 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                <span>
+                  Guru ini belum memiliki nomor PIN mesin! Silakan masukkan nomor PIN di tabel atau klik <b>Auto-Assign PIN</b> terlebih dahulu sebelum merekam sidik jari.
+                </span>
+              </div>
+            )}
+
+            <div className="mt-5 space-y-4">
+              {/* Cara 1: Langsung di Mesin Solution */}
+              <div className="rounded-xl border border-gray-200 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-800/40 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-xs font-bold text-gray-900 dark:text-white">
+                  <span className="flex h-5 w-5 items-center justify-center rounded-full bg-teal-600 text-white text-[11px]">
+                    1
+                  </span>
+                  Cara Standar: Rekam Langsung di Mesin Solution
+                </div>
+
+                <div className="space-y-2 text-xs text-gray-700 dark:text-gray-300 pl-7">
+                  <p>
+                    1. Pastikan nama guru sudah diunggah ke mesin (jika belum, klik <i>Kirim Data ke Mesin</i>).
+                  </p>
+                  <p>
+                    2. Tekan tombol <b>[Menu]</b> atau <b>[M/OK]</b> pada mesin Solution.
+                  </p>
+                  <p>
+                    3. Pilih menu <b>Pengguna</b> (<i>User Mng</i>) &rarr; <b>Atur Pengguna</b> (<i>Manage</i>).
+                  </p>
+                  <p>
+                    4. Cari guru dengan PIN:{" "}
+                    <b className="font-mono text-emerald-600 dark:text-emerald-400 text-sm">
+                      {selectedTeacherForEnroll?.fingerprintPin || "[Nomor PIN Guru]"}
+                    </b>
+                    {selectedTeacherForEnroll?.name && ` (${selectedTeacherForEnroll.name})`}.
+                  </p>
+                  <p>
+                    5. Pilih menu <b>Sidik Jari</b> (<i>Fingerprint</i>) &rarr; Pilih jari (misal: Telunjuk kanan).
+                  </p>
+                  <div className="rounded-lg bg-teal-50 dark:bg-teal-950/50 p-2.5 border border-teal-200 dark:border-teal-800 text-teal-900 dark:text-teal-200 font-medium">
+                    6. Minta guru menempelkan jarinya ke sensor kaca sebanyak <b>3 KALI</b> berturut-turut hingga mesin berbunyi <i>"Terima kasih"</i> dan muncul tanda centang hijau!
+                  </div>
+                  <p>
+                    7. Tekan tombol <b>[ESC]</b> untuk keluar dan menyimpan. Sidik jari langsung aktif!
+                  </p>
+                </div>
+              </div>
+
+              {/* Cara 2: Remote Trigger via Agent */}
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-800/60 bg-emerald-50/30 dark:bg-emerald-950/20 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-white text-[11px]">
+                      2
+                    </span>
+                    Cara Cepat: Trigger Sensor Mesin via Bridge Agent
+                  </div>
+                  <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/60 px-2 py-0.5 rounded-full">
+                    Otomatis dari Komputer
+                  </span>
+                </div>
+
+                <p className="text-xs text-gray-600 dark:text-gray-400 pl-7">
+                  Perintahkan mesin Solution dari PC sekolah untuk langsung mengaktifkan sensor rekam sidik jari tanpa perlu menekan tombol Menu di fisik mesin:
+                </p>
+
+                {selectedTeacherForEnroll?.fingerprintPin ? (
+                  <div className="ml-7 rounded-xl bg-gray-900 p-3 text-xs font-mono text-emerald-400 flex items-center justify-between gap-3">
+                    <div className="truncate">
+                      node agent.js --enroll {selectedTeacherForEnroll.fingerprintPin}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        copyEnrollCmdToClipboard(
+                          `node agent.js --enroll ${selectedTeacherForEnroll.fingerprintPin}`
+                        )
+                      }
+                      className="flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 px-2.5 py-1 text-xs text-white shrink-0 font-sans font-semibold transition-all"
+                    >
+                      {copiedEnrollCmd ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+                      {copiedEnrollCmd ? "Tersalin!" : "Salin Perintah"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="ml-7 rounded-xl bg-gray-900 p-3 text-xs font-mono text-emerald-400">
+                    node agent.js --enroll &lt;NOMOR_PIN&gt;
+                  </div>
+                )}
+                <p className="text-[11px] text-gray-500 pl-7">
+                  Setelah perintah dijalankan, mesin Solution akan bersuara dan menyalakan sensor untuk merekam sidik jari guru sebanyak 3x.
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-6 flex justify-end pt-3 border-t border-gray-100 dark:border-gray-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowEnrollModal(false);
+                  setSelectedTeacherForEnroll(null);
+                }}
+                className="rounded-xl px-5 py-2 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 transition-colors shadow-sm"
+              >
+                Tutup Panduan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
+
