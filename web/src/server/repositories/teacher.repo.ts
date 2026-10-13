@@ -17,6 +17,7 @@ export interface TeacherInput {
   statusKepegawaian?: string | null;
   jenisGtk?: string | null;
   phone?: string | null;
+  fingerprintPin?: string | null;
   password?: string;
   isActive?: boolean;
   positionId?: string | null;
@@ -68,6 +69,7 @@ export async function getTeachersByMadrasah(madrasahId: string) {
         statusKepegawaian: true,
         jenisGtk: true,
         phone: true,
+        fingerprintPin: true,
         avatarUrl: true,
         isActive: true,
         positionId: true,
@@ -198,6 +200,7 @@ export async function createTeacher(madrasahId: string, input: TeacherInput) {
       statusKepegawaian: cleanLeadingQuote(input.statusKepegawaian),
       jenisGtk: cleanLeadingQuote(input.jenisGtk),
       phone: cleanLeadingQuote(input.phone),
+      fingerprintPin: cleanLeadingQuote(input.fingerprintPin),
       passwordHash,
       role: "TEACHER",
       isActive: input.isActive ?? true,
@@ -228,6 +231,7 @@ export async function updateTeacher(
     statusKepegawaian: input.statusKepegawaian !== undefined ? cleanLeadingQuote(input.statusKepegawaian) : undefined,
     jenisGtk: input.jenisGtk !== undefined ? cleanLeadingQuote(input.jenisGtk) : undefined,
     phone: input.phone !== undefined ? cleanLeadingQuote(input.phone) : undefined,
+    fingerprintPin: input.fingerprintPin !== undefined ? cleanLeadingQuote(input.fingerprintPin) : undefined,
     isActive: input.isActive,
     positionId: input.positionId !== undefined ? (input.positionId || null) : undefined,
   };

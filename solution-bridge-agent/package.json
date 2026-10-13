@@ -1,0 +1,24 @@
+{
+  "name": "solution-fingerprint-bridge-agent",
+  "version": "1.0.0",
+  "description": "Bridge Agent Sinkronisasi Mesin Fingerprint Solution / ZKTeco ke E-Presensi Cloud",
+  "main": "agent.js",
+  "scripts": {
+    "start": "node agent.js",
+    "test-machine": "node agent.js --test-machine",
+    "test-cloud": "node agent.js --test-cloud"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "node-zklib": "^2.0.8"
+  },
+  "keywords": [
+    "solution",
+    "zkteco",
+    "fingerprint",
+    "epresensi",
+    "bridge"
+  ],
+  "author": "E-Presensi Kemenag",
+  "license": "MIT"
+}

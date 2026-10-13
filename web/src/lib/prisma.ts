@@ -8,6 +8,7 @@ const globalForPrisma = globalThis as unknown as {
 const isPrismaStale = (client: any) => {
   if (!client) return false;
   if (!("position" in client)) return true;
+  if (!("fingerprintSyncLog" in client)) return true;
   try {
     const fields = client._runtimeDataModel?.models?.MadrasahSetting?.fields || [];
     if (!fields.some((f: any) => f.name === "allowBackdatedAttendance")) {

@@ -42,13 +42,20 @@ model Madrasah {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // Fingerprint Machine Integration (Solution / ZKTeco)
+  fingerprintApiKey   String?   @unique @map("fingerprint_api_key")
+  fingerprintIp       String?   @default("192.168.1.201") @map("fingerprint_ip")
+  fingerprintPort     Int?      @default(4370) @map("fingerprint_port")
+  fingerprintLastSync DateTime? @map("fingerprint_last_sync")
+
   // Relations
-  settings        MadrasahSetting?
-  users           User[]
-  attendanceLogs  AttendanceLog[]
-  holidays        Holiday[]
-  positions       Position[]
-  teachingJournals TeachingJournal[]
+  settings            MadrasahSetting?
+  users               User[]
+  attendanceLogs      AttendanceLog[]
+  holidays            Holiday[]
+  positions           Position[]
+  teachingJournals    TeachingJournal[]
+  fingerprintSyncLogs FingerprintSyncLog[]
 
   @@map("madrasahs")
 }
@@ -143,6 +150,7 @@ model User {
   role              Role      @default(TEACHER)
   phone             String?
   avatarUrl         String?   @map("avatar_url")
+  fingerprintPin    String?   @map("fingerprint_pin") // Nomor ID / PIN di Mesin Fingerprint Solution
   isActive          Boolean   @default(true) @map("is_active")
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
@@ -161,6 +169,8 @@ model User {
   @@index([nip])
   @@index([nik])
   @@index([name])
+  @@index([fingerprintPin])
+  @@index([madrasahId, fingerprintPin])
   @@index([madrasahId, role, isActive])
   @@map("users")
 }
@@ -229,4 +239,24 @@ model TeachingJournal {
   @@index([userId, date])
   @@index([madrasahId, className])
   @@map("teaching_journals")
+}
+
+model FingerprintSyncLog {
+  id            String   @id @default(uuid())
+  madrasahId    String   @map("madrasah_id")
+  syncedAt      DateTime @default(now()) @map("synced_at")
+  totalRecords  Int      @default(0) @map("total_records")
+  insertedCount Int      @default(0) @map("inserted_count")
+  updatedCount  Int      @default(0) @map("updated_count")
+  ignoredCount  Int      @default(0) @map("ignored_count")
+  status        String   @default("SUCCESS") // SUCCESS, PARTIAL, FAILED
+  message       String?  @db.Text
+  source        String   @default("AGENT") // AGENT, MANUAL_USB, ADMS
+
+  // Relations
+  madrasah      Madrasah @relation(fields: [madrasahId], references: [id], onDelete: Cascade)
+
+  @@index([madrasahId])
+  @@index([syncedAt])
+  @@map("fingerprint_sync_logs")
 }

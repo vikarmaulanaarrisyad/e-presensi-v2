@@ -18,7 +18,8 @@ import {
   Smartphone,
   UserCheck,
   Briefcase,
-  BookOpen
+  BookOpen,
+  Fingerprint
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -121,6 +122,12 @@ export function Sidebar({
               href: "/admin/geofence",
               icon: MapPin,
               badge: "50m",
+            },
+            {
+              title: "Mesin Fingerprint",
+              href: "/admin/fingerprint",
+              icon: Fingerprint,
+              badge: "Solution",
             },
           ],
         },

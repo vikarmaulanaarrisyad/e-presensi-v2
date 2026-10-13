@@ -15,7 +15,8 @@ import {
   MapPin, 
   IdCard, 
   Briefcase,
-  BadgeCheck
+  BadgeCheck,
+  Fingerprint
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { FormInput } from "@/components/molecules/form-field";
@@ -39,6 +40,7 @@ export interface TeacherData {
   statusKepegawaian?: string | null;
   jenisGtk?: string | null;
   phone?: string | null;
+  fingerprintPin?: string | null;
   isActive: boolean;
   positionId?: string | null;
 }
@@ -78,6 +80,7 @@ export function TeacherFormModal({
   const [statusKepegawaian, setStatusKepegawaian] = useState("PNS");
   const [jenisGtk, setJenisGtk] = useState("Guru Mapel");
   const [positionId, setPositionId] = useState("");
+  const [fingerprintPin, setFingerprintPin] = useState("");
 
   // Akun Login & Kontak
   const [email, setEmail] = useState("");
@@ -116,6 +119,7 @@ export function TeacherFormModal({
       setStatusKepegawaian(stripLeadingQuote(teacherToEdit.statusKepegawaian) || "PNS");
       setJenisGtk(stripLeadingQuote(teacherToEdit.jenisGtk) || "Guru Mapel");
       setPositionId(teacherToEdit.positionId || "");
+      setFingerprintPin(stripLeadingQuote(teacherToEdit.fingerprintPin) || "");
 
       setEmail(stripLeadingQuote(teacherToEdit.email) || "");
       setPhone(stripLeadingQuote(teacherToEdit.phone) || "");
@@ -136,6 +140,7 @@ export function TeacherFormModal({
       setStatusKepegawaian("PNS");
       setJenisGtk("Guru Mapel");
       setPositionId("");
+      setFingerprintPin("");
 
       setEmail("");
       setPhone("");
@@ -189,6 +194,7 @@ export function TeacherFormModal({
       jenisGtk: stripLeadingQuote(jenisGtk) || null,
       email: cleanEmail.toLowerCase(),
       phone: stripLeadingQuote(phone) || null,
+      fingerprintPin: stripLeadingQuote(fingerprintPin) || null,
       positionId: positionId || null,
       isActive,
     };
@@ -494,6 +500,28 @@ export function TeacherFormModal({
                     ))}
                   </select>
                 </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5 p-3.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <Fingerprint className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    PIN Mesin Fingerprint (Solution / ZKTeco)
+                  </label>
+                  <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+                    User ID di Mesin
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  placeholder="Contoh: 1, 2, atau 101"
+                  value={fingerprintPin}
+                  onChange={(e) => setFingerprintPin(stripLeadingQuote(e.target.value).replace(/[^0-9]/g, ""))}
+                  className="h-10 px-3 rounded-xl bg-background border border-border text-xs font-mono font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none transition-all shadow-2xs text-foreground placeholder:text-muted-foreground placeholder:font-normal"
+                />
+                <span className="text-[11px] text-muted-foreground">
+                  Nomor ID ini harus sama dengan User ID saat guru mendaftarkan sidik jari di mesin Solution.
+                </span>
               </div>
             </div>
           )}

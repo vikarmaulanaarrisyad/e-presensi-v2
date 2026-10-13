@@ -1,0 +1,14 @@
+{
+  "name": "e-presensi-v2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Multi-Tenant E-Presensi Guru Madrasah",
+  "scripts": {
+    "dev": "npm --prefix web run dev",
+    "build": "npm --prefix web run build",
+    "start": "npm --prefix web run start",
+    "lint": "npm --prefix web run lint",
+    "prisma:generate": "npm --prefix web run postinstall",
+    "agent": "npm --prefix solution-bridge-agent start"
+  }
+}
