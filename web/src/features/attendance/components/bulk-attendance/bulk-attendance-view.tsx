@@ -27,7 +27,8 @@ import {
   Building2,
   ChevronRight,
   ShieldCheck,
-  Palmtree
+  Palmtree,
+  Camera
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
@@ -872,15 +873,35 @@ export function BulkAttendanceView({ initialData }: BulkAttendanceViewProps) {
                       </td>
 
                       {/* Teacher Profile */}
-                      <td className="py-3.5 px-4">
+                      <td 
+                        className="py-3.5 px-4 cursor-pointer group/prof"
+                        onClick={() => setEditingTeacher(teacher)}
+                        title="Klik untuk melihat detail & foto presensi guru"
+                      >
                         <div className="flex items-center gap-3">
-                          <div className="size-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                            {teacher.name.charAt(0)}
+                          <div className="size-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0 group-hover/prof:scale-105 transition-transform">
+                            {teacher.avatarUrl ? (
+                              <img
+                                src={teacher.avatarUrl}
+                                alt={teacher.name}
+                                className="size-full rounded-xl object-cover"
+                              />
+                            ) : (
+                              teacher.name.charAt(0)
+                            )}
                           </div>
                           <div className="flex flex-col min-w-0">
-                            <span className="font-semibold text-foreground text-xs sm:text-sm truncate">
-                              {teacher.name}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-semibold text-foreground text-xs sm:text-sm truncate group-hover/prof:text-primary transition-colors">
+                                {teacher.name}
+                              </span>
+                              {Boolean(log?.checkInPhotoUrl || log?.checkOutPhotoUrl) && (
+                                <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20" title="Ada Foto Presensi Selfie">
+                                  <Camera className="size-2.5" />
+                                  <span className="hidden sm:inline">Foto</span>
+                                </span>
+                              )}
+                            </div>
                             <span className="text-[11px] text-muted-foreground font-mono truncate">
                               NIP: {teacher.nip || "Belum diisi"}
                             </span>

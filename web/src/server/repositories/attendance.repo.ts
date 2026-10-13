@@ -11,69 +11,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
   const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
   const tomorrow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0));
 
-  // 1. Get Madrasah & Geofence settings
-  const madrasah = await prisma.madrasah.findUnique({
-    where: { id: madrasahId },
-    include: {
-      settings: true,
-    },
-  });
-
-  // 2. Total active teachers
-  const totalTeachers = await prisma.user.count({
-    where: {
-      madrasahId,
-      role: "TEACHER",
-      isActive: true,
-    },
-  });
-
-  // 3. Today's attendance logs (optimized select to prevent massive base64 photo overhead)
-  const todayLogs = await prisma.attendanceLog.findMany({
-    where: {
-      madrasahId,
-      date: {
-        gte: today,
-        lt: tomorrow,
-      },
-    },
-    select: {
-      id: true,
-      userId: true,
-      date: true,
-      status: true,
-      checkInTime: true,
-      checkInDistance: true,
-      checkInLat: true,
-      checkInLng: true,
-      checkInPhotoUrl: true,
-      notes: true,
-      user: {
-        select: {
-          id: true,
-          name: true,
-          nip: true,
-          email: true,
-          avatarUrl: true,
-        },
-      },
-    },
-    orderBy: {
-      checkInTime: "asc",
-    },
-  });
-
-  // 4. Calculate KPI statistics
-  const presentCount = todayLogs.filter((l) => l.status === "PRESENT").length;
-  const lateCount = todayLogs.filter((l) => l.status === "LATE").length;
-  const permitCount = todayLogs.filter((l) => l.status === "PERMIT").length;
-  const sickCount = todayLogs.filter((l) => l.status === "SICK").length;
-  const absentCount = Math.max(
-    0,
-    totalTeachers - (presentCount + lateCount + permitCount + sickCount)
-  );
-
-  // 5. Weekly trend data for Monday - Friday of the current week from database
+  // Calculate week range for weekly trend
   const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
   const monday = new Date(now);
@@ -82,20 +20,109 @@ export async function getMadrasahDashboardData(madrasahId: string) {
   const startOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0, 0));
   const endOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999));
 
-  const weeklyLogs = await prisma.attendanceLog.findMany({
-    where: {
-      madrasahId,
-      date: {
-        gte: startOfWeek,
-        lte: endOfWeek,
+  // Concurrent SQL queries execution with Promise.all for high performance
+  const [madrasah, totalTeachers, statusAggregates, todayLogs, weeklyLogs] = await Promise.all([
+    // 1. Get Madrasah & Geofence settings
+    prisma.madrasah.findUnique({
+      where: { id: madrasahId },
+      include: {
+        settings: true,
       },
-    },
-    select: {
-      id: true,
-      date: true,
-      status: true,
-    },
+    }),
+
+    // 2. Total active teachers
+    prisma.user.count({
+      where: {
+        madrasahId,
+        role: "TEACHER",
+        isActive: true,
+      },
+    }),
+
+    // 3. SQL GroupBy aggregation for KPI statistics (pushes counting directly to database engine)
+    prisma.attendanceLog.groupBy({
+      by: ["status"],
+      where: {
+        madrasahId,
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+      _count: {
+        status: true,
+      },
+    }),
+
+    // 4. Today's attendance logs (optimized select to prevent massive base64 photo overhead)
+    prisma.attendanceLog.findMany({
+      where: {
+        madrasahId,
+        date: {
+          gte: today,
+          lt: tomorrow,
+        },
+      },
+      select: {
+        id: true,
+        userId: true,
+        date: true,
+        status: true,
+        checkInTime: true,
+        checkInDistance: true,
+        checkInLat: true,
+        checkInLng: true,
+        checkOutTime: true,
+        checkOutDistance: true,
+        checkOutLat: true,
+        checkOutLng: true,
+        notes: true,
+        user: {
+          select: {
+            id: true,
+            name: true,
+            nip: true,
+            email: true,
+            avatarUrl: true,
+          },
+        },
+      },
+      orderBy: {
+        checkInTime: "asc",
+      },
+    }),
+
+    // 5. Weekly trend data for Monday - Friday of the current week from database
+    prisma.attendanceLog.findMany({
+      where: {
+        madrasahId,
+        date: {
+          gte: startOfWeek,
+          lte: endOfWeek,
+        },
+      },
+      select: {
+        id: true,
+        date: true,
+        status: true,
+      },
+    }),
+  ]);
+
+  // 4. Calculate KPI statistics directly from SQL groupBy results
+  const statusCountMap = new Map<string, number>();
+  statusAggregates.forEach((item) => {
+    statusCountMap.set(item.status, item._count.status);
   });
+
+  const presentCount = statusCountMap.get("PRESENT") ?? 0;
+  const lateCount = statusCountMap.get("LATE") ?? 0;
+  const permitCount = statusCountMap.get("PERMIT") ?? 0;
+  const sickCount = statusCountMap.get("SICK") ?? 0;
+  const absentCount = Math.max(
+    0,
+    totalTeachers - (presentCount + lateCount + permitCount + sickCount)
+  );
 
   const dayNames = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat"];
   const weeklyData = dayNames.map((name, idx) => {
@@ -205,7 +232,12 @@ export interface TeacherWithAttendance {
     checkInDistance: number | null;
     checkInLat: number | null;
     checkInLng: number | null;
+    checkInPhotoUrl: string | null;
     checkOutTime: Date | null;
+    checkOutDistance: number | null;
+    checkOutLat: number | null;
+    checkOutLng: number | null;
+    checkOutPhotoUrl: string | null;
     notes: string | null;
     date: Date;
   } | null;
@@ -346,7 +378,12 @@ export async function getTeachersAttendanceByDate(
         checkInDistance: true,
         checkInLat: true,
         checkInLng: true,
+        checkInPhotoUrl: true,
         checkOutTime: true,
+        checkOutDistance: true,
+        checkOutLat: true,
+        checkOutLng: true,
+        checkOutPhotoUrl: true,
         notes: true,
         date: true,
       },

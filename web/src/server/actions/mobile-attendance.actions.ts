@@ -270,6 +270,12 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
           lte: endOfMonth,
         },
       },
+      select: {
+        id: true,
+        status: true,
+        checkInTime: true,
+        checkOutTime: true,
+      },
     });
 
     const presentMonth = monthlyLogs.filter((l) => l.status === "PRESENT").length;
@@ -798,7 +804,9 @@ export async function getTeacherAttendanceForDateAction(
 export async function getTeacherMonthlyHistoryAction(
   userId: string,
   month: number, // 1 - 12
-  year: number
+  year: number,
+  page?: number,
+  pageSize?: number
 ) {
   try {
     const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
@@ -813,7 +821,41 @@ export async function getTeacherMonthlyHistoryAction(
       return { error: "Guru tidak ditemukan." };
     }
 
-    const [logs, holidays] = await Promise.all([
+    const currentPage = page && page > 0 ? Number(page) : 1;
+    const limit = pageSize && pageSize > 0 ? Number(pageSize) : undefined;
+    const skip = limit !== undefined ? (currentPage - 1) * limit : undefined;
+    const take = limit;
+
+    const [statusAggregates, totalCount, logs, holidays] = await Promise.all([
+      // 1. SQL GroupBy for accurate full-month stats regardless of pagination
+      prisma.attendanceLog.groupBy({
+        by: ["status"],
+        where: {
+          userId: teacher.id,
+          madrasahId: teacher.madrasahId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        _count: {
+          status: true,
+        },
+      }),
+
+      // 2. Total count of logs for the month
+      prisma.attendanceLog.count({
+        where: {
+          userId: teacher.id,
+          madrasahId: teacher.madrasahId,
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+      }),
+
+      // 3. Paginated logs with SQL take & skip
       prisma.attendanceLog.findMany({
         where: {
           userId: teacher.id,
@@ -826,7 +868,11 @@ export async function getTeacherMonthlyHistoryAction(
         orderBy: {
           date: "desc",
         },
+        ...(skip !== undefined && { skip }),
+        ...(take !== undefined && { take }),
       }),
+
+      // 4. Holidays for the month
       prisma.holiday.findMany({
         where: {
           madrasahId: teacher.madrasahId,
@@ -846,14 +892,19 @@ export async function getTeacherMonthlyHistoryAction(
       }),
     ]);
 
-    // Calculate Summary
+    // Calculate Summary from SQL groupBy aggregates
+    const statusCountMap = new Map<string, number>();
+    statusAggregates.forEach((item) => {
+      statusCountMap.set(item.status, item._count.status);
+    });
+
     const stats = {
-      present: logs.filter((l) => l.status === "PRESENT").length,
-      late: logs.filter((l) => l.status === "LATE").length,
-      permit: logs.filter((l) => l.status === "PERMIT").length,
-      sick: logs.filter((l) => l.status === "SICK").length,
-      absent: logs.filter((l) => l.status === "ABSENT").length,
-      total: logs.length,
+      present: statusCountMap.get("PRESENT") ?? 0,
+      late: statusCountMap.get("LATE") ?? 0,
+      permit: statusCountMap.get("PERMIT") ?? 0,
+      sick: statusCountMap.get("SICK") ?? 0,
+      absent: statusCountMap.get("ABSENT") ?? 0,
+      total: totalCount,
     };
 
     return {
@@ -878,6 +929,12 @@ export async function getTeacherMonthlyHistoryAction(
         isNational: h.isNational,
       })),
       stats,
+      pagination: {
+        total: totalCount,
+        page: currentPage,
+        pageSize: limit || totalCount,
+        totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+      },
     };
   } catch (error: any) {
     console.error("Gagal memuat riwayat presensi:", error);
@@ -938,7 +995,7 @@ export async function submitTeacherPermitAction(payload: {
     }
 
     safeRevalidatePath("/guru");
-    safeRevalidatePath("/admin/reports");
+    safeRevalidatePath("/admin");
 
     return {
       success: true,

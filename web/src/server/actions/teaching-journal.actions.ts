@@ -29,7 +29,12 @@ export interface TeachingJournalPayload {
 /**
  * Fetch journals for a teacher on a specific date and summary stats
  */
-export async function getTeacherJournalsAction(dateStr?: string, explicitUserId?: string) {
+export async function getTeacherJournalsAction(
+  dateStr?: string, 
+  explicitUserId?: string,
+  page: number = 1,
+  pageSize: number = 20
+) {
   try {
     let sessionUser: { id: string; role?: string } | undefined;
     try {
@@ -68,7 +73,12 @@ export async function getTeacherJournalsAction(dateStr?: string, explicitUserId?
 
     const db = prisma as any;
 
-    const [todayJournals, recentJournals] = await Promise.all([
+    const currentPage = Math.max(1, Number(page) || 1);
+    const limit = Math.max(1, Number(pageSize) || 20);
+    const skip = (currentPage - 1) * limit;
+    const take = limit;
+
+    const [todayJournals, recentJournals, totalRecentCount] = await Promise.all([
       db.teachingJournal.findMany({
         where: {
           userId: teacher.id,
@@ -86,7 +96,14 @@ export async function getTeacherJournalsAction(dateStr?: string, explicitUserId?
           madrasahId: teacher.madrasahId,
         },
         orderBy: { date: "desc" },
-        take: 20,
+        skip,
+        take,
+      }),
+      db.teachingJournal.count({
+        where: {
+          userId: teacher.id,
+          madrasahId: teacher.madrasahId,
+        },
       }),
     ]);
 
@@ -118,6 +135,12 @@ export async function getTeacherJournalsAction(dateStr?: string, explicitUserId?
         photoUrl: j.photoUrl,
       })),
       totalToday: todayJournals.length,
+      pagination: {
+        total: totalRecentCount,
+        page: currentPage,
+        pageSize: limit,
+        totalPages: Math.ceil(totalRecentCount / limit),
+      },
     };
   } catch (error: any) {
     console.error("Gagal memuat jurnal mengajar:", error);
@@ -368,6 +391,8 @@ export async function getMadrasahJournalsAdminAction(madrasahId: string, filters
   dateStr?: string;
   teacherId?: string;
   className?: string;
+  page?: number;
+  pageSize?: number;
 }) {
   try {
     const db = prisma as any;
@@ -407,20 +432,30 @@ export async function getMadrasahJournalsAdminAction(madrasahId: string, filters
       where.className = filters.className;
     }
 
-    const journals = await db.teachingJournal.findMany({
-      where,
-      include: {
-        user: {
-          select: {
-            id: true,
-            name: true,
-            nip: true,
-            avatarUrl: true,
+    const currentPage = filters?.page && filters.page > 0 ? Number(filters.page) : 1;
+    const limit = filters?.pageSize && filters.pageSize > 0 ? Number(filters.pageSize) : undefined;
+    const skip = limit !== undefined ? (currentPage - 1) * limit : undefined;
+    const take = limit;
+
+    const [totalCount, journals] = await Promise.all([
+      db.teachingJournal.count({ where }),
+      db.teachingJournal.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              name: true,
+              nip: true,
+              avatarUrl: true,
+            },
           },
         },
-      },
-      orderBy: { date: "desc" },
-    });
+        orderBy: { date: "desc" },
+        ...(skip !== undefined && { skip }),
+        ...(take !== undefined && { take }),
+      }),
+    ]);
 
     return {
       success: true,
@@ -440,6 +475,12 @@ export async function getMadrasahJournalsAdminAction(madrasahId: string, filters
         teacherNip: j.user?.nip ?? "-",
         teacherAvatar: j.user?.avatarUrl,
       })),
+      pagination: {
+        total: totalCount,
+        page: currentPage,
+        pageSize: limit || totalCount,
+        totalPages: limit ? Math.ceil(totalCount / limit) : 1,
+      },
     };
   } catch (error: any) {
     console.error("Gagal memuat jurnal admin:", error);

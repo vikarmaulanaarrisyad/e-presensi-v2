@@ -65,7 +65,6 @@ export async function bulkRecordAttendanceAction(
 
     revalidatePath("/admin");
     revalidatePath("/admin/bulk-attendance");
-    revalidatePath("/admin/reports");
     revalidatePath("/guru");
 
     return { success: true, data: result };
@@ -89,7 +88,6 @@ export async function deleteAttendanceLogAction(
 
     revalidatePath("/admin");
     revalidatePath("/admin/bulk-attendance");
-    revalidatePath("/admin/reports");
     revalidatePath("/guru");
 
     return { success: true };
@@ -123,7 +121,6 @@ export async function singleRecordAttendanceAction(
 
     revalidatePath("/admin");
     revalidatePath("/admin/bulk-attendance");
-    revalidatePath("/admin/reports");
     revalidatePath("/guru");
 
     return { success: true, data: result };
@@ -339,7 +336,6 @@ export async function bulkRecordAttendanceRangeAction(
 
     revalidatePath("/admin");
     revalidatePath("/admin/bulk-attendance");
-    revalidatePath("/admin/reports");
     revalidatePath("/guru");
 
     return {
@@ -358,5 +354,31 @@ export async function bulkRecordAttendanceRangeAction(
   } catch (error: any) {
     console.error("Gagal presensi massal rentang tanggal:", error);
     return { error: error.message || "Gagal memproses presensi massal rentang tanggal." };
+  }
+}
+
+/**
+ * Fetch attendance photos on-demand for verification modal
+ * (Keeps initial dashboard query ultra lightweight by not downloading megabytes of photo base64)
+ */
+export async function fetchAttendancePhotoAction(logId: string) {
+  try {
+    const log = await prisma.attendanceLog.findUnique({
+      where: { id: logId },
+      select: {
+        id: true,
+        checkInPhotoUrl: true,
+        checkOutPhotoUrl: true,
+      },
+    });
+
+    return {
+      success: true,
+      checkInPhotoUrl: log?.checkInPhotoUrl || null,
+      checkOutPhotoUrl: log?.checkOutPhotoUrl || null,
+    };
+  } catch (error: any) {
+    console.error("Gagal mengambil foto presensi:", error);
+    return { error: error.message || "Gagal memuat foto presensi." };
   }
 }

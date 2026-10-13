@@ -1,11 +1,10 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { 
   Search, 
-  Filter, 
   MapPin, 
   Clock, 
   CheckCircle2, 
@@ -15,14 +14,20 @@ import {
   ChevronRight, 
   Eye, 
   Camera, 
-  Download,
-  UserCheck,
-  Building2,
-  Calendar
+  CameraOff,
+  Download, 
+  UserCheck, 
+  Calendar,
+  Maximize2,
+  ExternalLink,
+  X,
+  Cloud,
+  Loader2
 } from "lucide-react";
 import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
+import { fetchAttendancePhotoAction } from "@/server/actions/attendance.actions";
 
 export interface AttendanceRowData {
   id: string;
@@ -38,7 +43,12 @@ export interface AttendanceRowData {
   checkInDistance: number | null;
   checkInLat: number | null;
   checkInLng: number | null;
-  checkInPhotoUrl: string | null;
+  checkInPhotoUrl?: string | null;
+  checkOutTime?: string | Date | null;
+  checkOutDistance?: number | null;
+  checkOutLat?: number | null;
+  checkOutLng?: number | null;
+  checkOutPhotoUrl?: string | null;
   notes: string | null;
   date: string | Date;
 }
@@ -57,6 +67,80 @@ export function AttendanceTable({
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [selectedLog, setSelectedLog] = useState<AttendanceRowData | null>(null);
+  const [zoomedPhoto, setZoomedPhoto] = useState<{
+    url: string;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
+  const [photoCache, setPhotoCache] = useState<
+    Record<string, { checkInPhotoUrl: string | null; checkOutPhotoUrl: string | null }>
+  >({});
+  const [loadingPhotoLogId, setLoadingPhotoLogId] = useState<string | null>(null);
+
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (zoomedPhoto) {
+          setZoomedPhoto(null);
+        } else if (selectedLog) {
+          setSelectedLog(null);
+        }
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomedPhoto, selectedLog]);
+
+  // On-demand photo fetch when a log is selected
+  useEffect(() => {
+    if (!selectedLog) return;
+    const logId = selectedLog.id;
+
+    // Check if already in photoCache
+    if (photoCache[logId]) return;
+
+    // If row already has photo URLs provided
+    if (selectedLog.checkInPhotoUrl !== undefined || selectedLog.checkOutPhotoUrl !== undefined) {
+      setPhotoCache((prev) => ({
+        ...prev,
+        [logId]: {
+          checkInPhotoUrl: selectedLog.checkInPhotoUrl || null,
+          checkOutPhotoUrl: selectedLog.checkOutPhotoUrl || null,
+        },
+      }));
+      return;
+    }
+
+    let isMounted = true;
+    setLoadingPhotoLogId(logId);
+
+    fetchAttendancePhotoAction(logId)
+      .then((res) => {
+        if (!isMounted) return;
+        if (res.success) {
+          setPhotoCache((prev) => ({
+            ...prev,
+            [logId]: {
+              checkInPhotoUrl: res.checkInPhotoUrl || null,
+              checkOutPhotoUrl: res.checkOutPhotoUrl || null,
+            },
+          }));
+        }
+      })
+      .catch((err) => {
+        console.error("Gagal mengambil foto presensi:", err);
+      })
+      .finally(() => {
+        if (isMounted) {
+          setLoadingPhotoLogId(null);
+        }
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [selectedLog, photoCache]);
 
   // Filtered Data Memo
   const filteredData = useMemo(() => {
@@ -114,7 +198,7 @@ export function AttendanceTable({
   };
 
   // Helper format time
-  const formatTime = (time: string | Date | null) => {
+  const formatTime = (time: string | Date | null | undefined) => {
     if (!time) return "-";
     const date = new Date(time);
     return (
@@ -127,6 +211,21 @@ export function AttendanceTable({
     );
   };
 
+  // Helper format full date
+  const formatDateFull = (dateVal: string | Date) => {
+    try {
+      const d = new Date(dateVal);
+      return d.toLocaleDateString("id-ID", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+      });
+    } catch {
+      return String(dateVal);
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-border/80 bg-card shadow-sm overflow-hidden flex flex-col">
       {/* Table Header Controls */}
@@ -137,7 +236,7 @@ export function AttendanceTable({
             <span>Rekap Kehadiran Guru Hari Ini</span>
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Daftar absensi real-time terverifikasi dengan radius geofence & timestamp.
+            Daftar absensi real-time. Klik pada baris guru untuk melihat foto selfie verifikasi & detail radius geofence.
           </p>
         </div>
 
@@ -194,6 +293,8 @@ export function AttendanceTable({
               <th className="py-3.5 px-4">Guru / Tenaga Pendidik</th>
               <th className="py-3.5 px-4">Status</th>
               <th className="py-3.5 px-4">Jam Masuk</th>
+              <th className="py-3.5 px-4">Jam Pulang</th>
+              <th className="py-3.5 px-4">Foto Presensi</th>
               <th className="py-3.5 px-4">Jarak Radius</th>
               <th className="py-3.5 px-4">Keterangan</th>
               <th className="py-3.5 px-4 text-center w-28">Detail</th>
@@ -202,7 +303,7 @@ export function AttendanceTable({
           <tbody className="divide-y divide-border/60">
             {paginatedData.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-12 text-muted-foreground text-sm">
+                <td colSpan={9} className="text-center py-12 text-muted-foreground text-sm">
                   Tidak ada data presensi yang sesuai dengan filter pencarian.
                 </td>
               </tr>
@@ -210,11 +311,14 @@ export function AttendanceTable({
               paginatedData.map((row, index) => {
                 const distance = row.checkInDistance;
                 const isInside = distance !== null && distance <= maxRadiusMeters;
+                const hasPhotos = Boolean(row.checkInPhotoUrl || row.checkOutPhotoUrl);
 
                 return (
                   <tr
                     key={row.id}
-                    className="hover:bg-muted/30 transition-colors group"
+                    onClick={() => setSelectedLog(row)}
+                    className="hover:bg-primary/5 transition-colors group cursor-pointer"
+                    title="Klik baris untuk melihat foto presensi & detail verifikasi"
                   >
                     {/* No */}
                     <td className="py-3.5 px-4 text-center font-mono text-xs text-muted-foreground">
@@ -224,11 +328,19 @@ export function AttendanceTable({
                     {/* Guru */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0">
-                          {row.user.name.charAt(0)}
+                        <div className="size-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
+                          {row.user.avatarUrl ? (
+                            <img
+                              src={row.user.avatarUrl}
+                              alt={row.user.name}
+                              className="size-full rounded-xl object-cover"
+                            />
+                          ) : (
+                            row.user.name.charAt(0)
+                          )}
                         </div>
                         <div className="flex flex-col min-w-0">
-                          <span className="font-semibold text-foreground text-sm truncate">
+                          <span className="font-semibold text-foreground text-sm truncate group-hover:text-primary transition-colors">
                             {row.user.name}
                           </span>
                           <span className="text-xs text-muted-foreground font-mono truncate">
@@ -246,6 +358,103 @@ export function AttendanceTable({
                     {/* Jam Masuk */}
                     <td className="py-3.5 px-4 font-mono text-xs text-foreground whitespace-nowrap">
                       {formatTime(row.checkInTime)}
+                    </td>
+
+                    {/* Jam Pulang */}
+                    <td className="py-3.5 px-4 font-mono text-xs text-muted-foreground whitespace-nowrap">
+                      {row.checkOutTime ? formatTime(row.checkOutTime) : "-"}
+                    </td>
+
+                    {/* Foto Presensi Quick Thumbnail / Action */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      {(() => {
+                        const cached = photoCache[row.id];
+                        const inPhoto = cached ? cached.checkInPhotoUrl : row.checkInPhotoUrl;
+                        const outPhoto = cached ? cached.checkOutPhotoUrl : row.checkOutPhotoUrl;
+                        const hasCachedPhotos = Boolean(inPhoto || outPhoto);
+
+                        if (cached && !hasCachedPhotos) {
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[11px] text-muted-foreground/60 italic">
+                              <CameraOff className="size-3" />
+                              <span>Tanpa Foto</span>
+                            </span>
+                          );
+                        }
+
+                        if (hasCachedPhotos) {
+                          return (
+                            <div className="flex items-center gap-1.5">
+                              {inPhoto && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomedPhoto({
+                                      url: inPhoto,
+                                      title: `Foto Masuk - ${row.user.name}`,
+                                      subtitle: `Waktu Masuk: ${formatTime(row.checkInTime)} ${row.checkInDistance ? `• Jarak: ${row.checkInDistance.toFixed(1)}m` : ""}`,
+                                    });
+                                  }}
+                                  className="relative size-8 rounded-lg overflow-hidden border border-border/80 hover:border-primary shadow-2xs hover:scale-110 transition-all cursor-pointer group/photo"
+                                  title="Klik untuk perbesar Foto Masuk"
+                                >
+                                  <img
+                                    src={inPhoto}
+                                    alt="Foto Masuk"
+                                    className="size-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Maximize2 className="size-3 text-white" />
+                                  </div>
+                                </button>
+                              )}
+                              {outPhoto && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setZoomedPhoto({
+                                      url: outPhoto,
+                                      title: `Foto Pulang - ${row.user.name}`,
+                                      subtitle: `Waktu Pulang: ${formatTime(row.checkOutTime)} ${row.checkOutDistance ? `• Jarak: ${row.checkOutDistance.toFixed(1)}m` : ""}`,
+                                    });
+                                  }}
+                                  className="relative size-8 rounded-lg overflow-hidden border border-border/80 hover:border-primary shadow-2xs hover:scale-110 transition-all cursor-pointer group/photo"
+                                  title="Klik untuk perbesar Foto Pulang"
+                                >
+                                  <img
+                                    src={outPhoto}
+                                    alt="Foto Pulang"
+                                    className="size-full object-cover"
+                                  />
+                                  <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center transition-opacity">
+                                    <Maximize2 className="size-3 text-white" />
+                                  </div>
+                                </button>
+                              )}
+                              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                                Ada Foto
+                              </span>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setSelectedLog(row);
+                            }}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-border/80 hover:border-primary/50 bg-muted/40 hover:bg-primary/5 text-foreground/80 hover:text-primary text-xs font-medium transition-colors cursor-pointer group/btn"
+                            title="Klik untuk memuat foto selfie & detail verifikasi guru"
+                          >
+                            <Camera className="size-3.5 text-primary group-hover/btn:scale-110 transition-transform" />
+                            <span>Lihat Foto</span>
+                          </button>
+                        );
+                      })()}
                     </td>
 
                     {/* Jarak Geofence */}
@@ -279,7 +488,10 @@ export function AttendanceTable({
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => setSelectedLog(row)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedLog(row);
+                        }}
                         className="text-xs"
                         leftIcon={<Eye className="size-3.5" />}
                       >
@@ -335,71 +547,410 @@ export function AttendanceTable({
         </div>
       </div>
 
-      {/* Detail Dialog Modal (If clicked) — portal ke body agar selalu di tengah viewport */}
+      {/* Detail Dialog Modal (When a teacher / row is clicked) */}
       {selectedLog && typeof document !== "undefined" && createPortal(
         <div 
-          className="fixed inset-0 z-[100] bg-transparent flex items-center justify-center p-4 overflow-y-auto animate-in fade-in duration-150"
+          className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-150"
           onClick={() => setSelectedLog(null)}
         >
           <div 
-            className="bg-card border border-border/80 rounded-2xl max-w-md w-full p-6 my-auto shadow-[0_25px_60px_-15px_rgba(0,0,0,0.35)] flex flex-col gap-5 animate-in zoom-in-95 duration-150"
+            className="bg-card border border-border/80 rounded-2xl max-w-2xl w-full p-5 sm:p-6 my-auto shadow-2xl flex flex-col gap-5 max-h-[90vh] overflow-y-auto animate-in zoom-in-95 duration-150"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between border-b border-border/60 pb-3">
-              <h3 className="font-bold text-base text-foreground flex items-center gap-2">
-                <MapPin className="size-4.5 text-primary" />
-                <span>Detail Verifikasi Presensi</span>
-              </h3>
-              <button
-                onClick={() => setSelectedLog(null)}
-                className="text-muted-foreground hover:text-foreground text-sm font-semibold p-1"
-              >
-                ✕
-              </button>
-            </div>
+            {/* Modal Header */}
+            <div className="flex items-center justify-between border-b border-border/60 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="size-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                  {selectedLog.user.avatarUrl ? (
+                    <img
+                      src={selectedLog.user.avatarUrl}
+                      alt={selectedLog.user.name}
+                      className="size-full rounded-xl object-cover"
+                    />
+                  ) : (
+                    selectedLog.user.name.charAt(0)
+                  )}
+                </div>
+                <div>
+                  <h3 className="font-bold text-base text-foreground flex items-center gap-2">
+                    <span>{selectedLog.user.name}</span>
+                  </h3>
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                    <span className="font-mono">NIP: {selectedLog.user.nip || "Belum diisi"}</span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Calendar className="size-3 text-primary" />
+                      {formatDateFull(selectedLog.date)}
+                    </span>
+                  </div>
+                </div>
+              </div>
 
-            <div className="flex flex-col gap-3 text-xs">
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">Nama Guru:</span>
-                <span className="font-bold text-foreground">{selectedLog.user.name}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">NIP:</span>
-                <span className="font-mono text-foreground">{selectedLog.user.nip || "-"}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">Status:</span>
+              <div className="flex items-center gap-2">
                 <div>{renderStatusBadge(selectedLog.status)}</div>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">Waktu Masuk:</span>
-                <span className="font-mono font-semibold text-foreground">{formatTime(selectedLog.checkInTime)}</span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">Jarak dari Titik Pusat:</span>
-                <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                  {selectedLog.checkInDistance ? `${selectedLog.checkInDistance.toFixed(1)} meter` : "-"}
-                </span>
-              </div>
-              <div className="flex justify-between py-1.5 border-b border-border/40">
-                <span className="text-muted-foreground">Koordinat GPS:</span>
-                <span className="font-mono text-muted-foreground">
-                  {selectedLog.checkInLat ? `${selectedLog.checkInLat}, ${selectedLog.checkInLng}` : "-"}
-                </span>
-              </div>
-              <div className="flex flex-col gap-1 py-1.5">
-                <span className="text-muted-foreground">Catatan / Alasan:</span>
-                <span className="text-foreground bg-muted/40 p-2.5 rounded-lg border border-border/60">
-                  {selectedLog.notes || "Tidak ada catatan tambahan."}
-                </span>
+                <button
+                  onClick={() => setSelectedLog(null)}
+                  className="size-8 rounded-lg border border-border/80 hover:bg-muted text-muted-foreground hover:text-foreground flex items-center justify-center transition-colors cursor-pointer"
+                  title="Tutup (ESC)"
+                >
+                  <X className="size-4" />
+                </button>
               </div>
             </div>
 
-            <div className="flex justify-end pt-2">
+            {/* Attendance Selfie Photo Verification Section */}
+            {(() => {
+              const selectedPhotos = photoCache[selectedLog.id] || {
+                checkInPhotoUrl: selectedLog.checkInPhotoUrl ?? null,
+                checkOutPhotoUrl: selectedLog.checkOutPhotoUrl ?? null,
+              };
+              const isPhotoLoading = Boolean(loadingPhotoLogId === selectedLog.id);
+
+              return (
+                <div>
+                  <div className="flex items-center justify-between mb-2.5">
+                    <h4 className="text-xs font-bold text-foreground uppercase tracking-wider flex items-center gap-1.5">
+                      <Camera className="size-4 text-primary" />
+                      <span>Foto Presensi Terverifikasi</span>
+                    </h4>
+                    <span className="text-[11px] text-muted-foreground">
+                      Klik foto untuk melihat ukuran penuh
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* 1. Foto Presensi Masuk */}
+                    <div className="rounded-xl border border-border/80 bg-muted/20 p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-foreground flex items-center gap-1.5">
+                          <Clock className="size-3.5 text-emerald-500" />
+                          <span>Presensi Masuk</span>
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                          {formatTime(selectedLog.checkInTime)}
+                        </span>
+                      </div>
+
+                      {isPhotoLoading ? (
+                        <div className="aspect-4/3 rounded-lg border border-border/60 bg-muted/20 flex flex-col items-center justify-center p-4 text-center gap-2">
+                          <Loader2 className="size-6 animate-spin text-primary" />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Mengambil foto verifikasi...
+                          </span>
+                        </div>
+                      ) : selectedPhotos.checkInPhotoUrl ? (
+                        <div className="space-y-2">
+                          <div
+                            onClick={() =>
+                              setZoomedPhoto({
+                                url: selectedPhotos.checkInPhotoUrl!,
+                                title: `Foto Selfie Masuk - ${selectedLog.user.name}`,
+                                subtitle: `Waktu Masuk: ${formatTime(selectedLog.checkInTime)} ${
+                                  selectedLog.checkInDistance
+                                    ? `• Jarak Radius: ${selectedLog.checkInDistance.toFixed(1)} m`
+                                    : ""
+                                }`,
+                              })
+                            }
+                            className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-xs"
+                          >
+                            <img
+                              src={selectedPhotos.checkInPhotoUrl}
+                              alt="Foto Presensi Masuk"
+                              className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {/* Google Drive indicator badge if saved in drive */}
+                            {(selectedPhotos.checkInPhotoUrl.includes("googleusercontent.com") ||
+                              selectedPhotos.checkInPhotoUrl.includes("drive.google.com")) && (
+                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/90 text-white backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                                <Cloud className="size-3" />
+                                <span>Google Drive</span>
+                              </span>
+                            )}
+                            {/* Hover Overlay */}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-2xs">
+                              <Maximize2 className="size-5" />
+                              <span className="text-[11px] font-bold">Perbesar Foto</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                            <span className="font-mono">
+                              {selectedLog.checkInDistance
+                                ? `Jarak: ${selectedLog.checkInDistance.toFixed(1)} m`
+                                : "Jarak tidak tercatat"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setZoomedPhoto({
+                                  url: selectedPhotos.checkInPhotoUrl!,
+                                  title: `Foto Selfie Masuk - ${selectedLog.user.name}`,
+                                  subtitle: `Waktu: ${formatTime(selectedLog.checkInTime)}`,
+                                })
+                              }
+                              className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Maximize2 className="size-3" />
+                              <span>Ukuran Penuh</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="aspect-4/3 rounded-lg border border-dashed border-border flex flex-col items-center justify-center p-4 text-center bg-muted/10">
+                          <CameraOff className="size-7 text-muted-foreground/40 mb-1.5" />
+                          <span className="text-xs font-semibold text-foreground">
+                            Tidak Ada Foto Masuk
+                          </span>
+                          <span className="text-[11px] text-muted-foreground mt-0.5">
+                            Presensi via fingerprint atau manual tanpa selfie.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 2. Foto Presensi Pulang */}
+                    <div className="rounded-xl border border-border/80 bg-muted/20 p-3 flex flex-col gap-2.5">
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="font-bold text-foreground flex items-center gap-1.5">
+                          <Clock className="size-3.5 text-blue-500" />
+                          <span>Presensi Pulang</span>
+                        </span>
+                        <span className="font-mono text-[11px] font-semibold text-blue-600 dark:text-blue-400">
+                          {selectedLog.checkOutTime ? formatTime(selectedLog.checkOutTime) : "Belum Pulang"}
+                        </span>
+                      </div>
+
+                      {isPhotoLoading ? (
+                        <div className="aspect-4/3 rounded-lg border border-border/60 bg-muted/20 flex flex-col items-center justify-center p-4 text-center gap-2">
+                          <Loader2 className="size-6 animate-spin text-primary" />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Mengambil foto verifikasi...
+                          </span>
+                        </div>
+                      ) : selectedPhotos.checkOutPhotoUrl ? (
+                        <div className="space-y-2">
+                          <div
+                            onClick={() =>
+                              setZoomedPhoto({
+                                url: selectedPhotos.checkOutPhotoUrl!,
+                                title: `Foto Selfie Pulang - ${selectedLog.user.name}`,
+                                subtitle: `Waktu Pulang: ${formatTime(selectedLog.checkOutTime)} ${
+                                  selectedLog.checkOutDistance
+                                    ? `• Jarak Radius: ${selectedLog.checkOutDistance.toFixed(1)} m`
+                                    : ""
+                                }`,
+                              })
+                            }
+                            className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-xs"
+                          >
+                            <img
+                              src={selectedPhotos.checkOutPhotoUrl}
+                              alt="Foto Presensi Pulang"
+                              className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                            />
+                            {(selectedPhotos.checkOutPhotoUrl.includes("googleusercontent.com") ||
+                              selectedPhotos.checkOutPhotoUrl.includes("drive.google.com")) && (
+                              <span className="absolute top-2 left-2 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-blue-600/90 text-white backdrop-blur-xs flex items-center gap-1 shadow-xs">
+                                <Cloud className="size-3" />
+                                <span>Google Drive</span>
+                              </span>
+                            )}
+                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-white gap-1 backdrop-blur-2xs">
+                              <Maximize2 className="size-5" />
+                              <span className="text-[11px] font-bold">Perbesar Foto</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                            <span className="font-mono">
+                              {selectedLog.checkOutDistance
+                                ? `Jarak: ${selectedLog.checkOutDistance.toFixed(1)} m`
+                                : "Jarak tidak tercatat"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setZoomedPhoto({
+                                  url: selectedPhotos.checkOutPhotoUrl!,
+                                  title: `Foto Selfie Pulang - ${selectedLog.user.name}`,
+                                  subtitle: `Waktu: ${formatTime(selectedLog.checkOutTime)}`,
+                                })
+                              }
+                              className="text-primary hover:underline font-semibold flex items-center gap-1 cursor-pointer"
+                            >
+                              <Maximize2 className="size-3" />
+                              <span>Ukuran Penuh</span>
+                            </button>
+                          </div>
+                        </div>
+                      ) : selectedLog.checkOutTime ? (
+                        <div className="aspect-4/3 rounded-lg border border-dashed border-border flex flex-col items-center justify-center p-4 text-center bg-muted/10">
+                          <CameraOff className="size-7 text-muted-foreground/40 mb-1.5" />
+                          <span className="text-xs font-semibold text-foreground">
+                            Pulang Tercatat: {formatTime(selectedLog.checkOutTime)}
+                          </span>
+                          <span className="text-[11px] text-muted-foreground mt-0.5">
+                            Presensi pulang dicatat tanpa foto selfie.
+                          </span>
+                        </div>
+                      ) : (
+                        <div className="aspect-4/3 rounded-lg border border-dashed border-border/60 flex flex-col items-center justify-center p-4 text-center bg-muted/5">
+                          <Clock className="size-7 text-muted-foreground/30 mb-1.5" />
+                          <span className="text-xs font-medium text-muted-foreground">
+                            Belum Presensi Pulang
+                          </span>
+                          <span className="text-[11px] text-muted-foreground/80 mt-0.5">
+                            Guru belum melakukan clock-out untuk hari ini.
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Detail Verification Metadata */}
+            <div className="border-t border-border/60 pt-4 flex flex-col gap-3 text-xs">
+              <h4 className="font-bold text-foreground uppercase tracking-wider text-[11px] flex items-center gap-1.5">
+                <MapPin className="size-3.5 text-primary" />
+                <span>Geolokasi & Catatan Kehadiran</span>
+              </h4>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex flex-col gap-1.5">
+                  <span className="text-muted-foreground font-medium">Jarak Radius Geofence:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono font-bold text-foreground text-sm">
+                      {selectedLog.checkInDistance ? `${selectedLog.checkInDistance.toFixed(1)} meter` : "-"}
+                    </span>
+                    {selectedLog.checkInDistance !== null && (
+                      <span
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                          selectedLog.checkInDistance <= maxRadiusMeters
+                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/20"
+                            : "bg-destructive/10 text-destructive border border-destructive/20"
+                        }`}
+                      >
+                        {selectedLog.checkInDistance <= maxRadiusMeters
+                          ? "Dalam Radius"
+                          : "Di Luar Radius"}
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground">
+                    Batas radius sekolah: {maxRadiusMeters} meter
+                  </span>
+                </div>
+
+                <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex flex-col gap-1.5">
+                  <span className="text-muted-foreground font-medium">Koordinat GPS Masuk:</span>
+                  <span className="font-mono font-semibold text-foreground text-xs">
+                    {selectedLog.checkInLat ? `${selectedLog.checkInLat}, ${selectedLog.checkInLng}` : "-"}
+                  </span>
+                  {selectedLog.checkInLat && selectedLog.checkInLng && (
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedLog.checkInLat},${selectedLog.checkInLng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline font-semibold mt-0.5"
+                    >
+                      <ExternalLink className="size-3" />
+                      <span>Buka Lokasi di Google Maps</span>
+                    </a>
+                  )}
+                </div>
+              </div>
+
+              {/* Catatan / Keterangan */}
+              <div className="p-3 rounded-xl bg-muted/30 border border-border/60 flex flex-col gap-1">
+                <span className="text-muted-foreground font-medium">Catatan / Alasan:</span>
+                <p className="text-foreground font-normal leading-relaxed">
+                  {selectedLog.notes || "Hadir reguler (tidak ada catatan tambahan)."}
+                </p>
+              </div>
+            </div>
+
+            {/* Modal Actions */}
+            <div className="flex justify-end pt-2 border-t border-border/60">
               <Button size="sm" variant="default" onClick={() => setSelectedLog(null)}>
-                Tutup
+                Tutup Detail
               </Button>
             </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* Fullscreen Photo Lightbox Modal */}
+      {zoomedPhoto && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-in fade-in duration-200 select-none"
+          onClick={() => setZoomedPhoto(null)}
+        >
+          {/* Lightbox Topbar */}
+          <div
+            className="flex items-center justify-between text-white border-b border-white/10 pb-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-white">
+                {zoomedPhoto.title}
+              </h3>
+              {zoomedPhoto.subtitle && (
+                <p className="text-xs text-white/70 mt-0.5">
+                  {zoomedPhoto.subtitle}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={zoomedPhoto.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Buka Foto Asli di Tab Baru"
+              >
+                <ExternalLink className="size-3.5" />
+                <span className="hidden sm:inline">Buka Asli</span>
+              </a>
+
+              <a
+                href={zoomedPhoto.url}
+                download={`presensi-${Date.now()}.jpg`}
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Unduh Gambar"
+              >
+                <Download className="size-3.5" />
+                <span className="hidden sm:inline">Unduh</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setZoomedPhoto(null)}
+                className="size-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer ml-1"
+                title="Tutup (ESC)"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lightbox Image Container */}
+          <div className="flex-1 flex items-center justify-center p-2 sm:p-6 overflow-hidden">
+            <img
+              src={zoomedPhoto.url}
+              alt={zoomedPhoto.title}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
+            />
+          </div>
+
+          {/* Lightbox Footer */}
+          <div className="text-center text-xs text-white/60 pt-2 border-t border-white/10">
+            Klik area gelap atau tekan tombol <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-mono">ESC</kbd> untuk menutup tampilan penuh.
           </div>
         </div>,
         document.body

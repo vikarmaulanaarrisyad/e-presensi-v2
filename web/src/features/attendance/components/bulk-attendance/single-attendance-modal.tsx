@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo } from "react";
+import { createPortal } from "react-dom";
 import { 
   User, 
   Clock, 
@@ -13,7 +14,12 @@ import {
   Calendar,
   MapPin,
   Zap,
-  Palmtree
+  Palmtree,
+  Camera,
+  Maximize2,
+  ExternalLink,
+  Download,
+  Cloud
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
@@ -71,6 +77,22 @@ export function SingleAttendanceModal({
   const [notes, setNotes] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [zoomedPhoto, setZoomedPhoto] = useState<{
+    url: string;
+    title: string;
+    subtitle?: string;
+  } | null>(null);
+
+  // Close lightbox on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && zoomedPhoto) {
+        setZoomedPhoto(null);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [zoomedPhoto]);
 
   useEffect(() => {
     setIsProcessing(false);
@@ -253,6 +275,105 @@ export function SingleAttendanceModal({
             </div>
           )}
 
+          {/* Foto Selfie Presensi Terverifikasi (Jika ada) */}
+          {Boolean(teacher.attendanceLog?.checkInPhotoUrl || teacher.attendanceLog?.checkOutPhotoUrl) && (
+            <div className="p-3.5 rounded-xl border border-border/80 bg-muted/20 space-y-2.5">
+              <div className="flex items-center justify-between text-xs">
+                <span className="font-bold text-foreground flex items-center gap-1.5">
+                  <Camera className="size-3.5 text-primary" />
+                  <span>Foto Presensi Terverifikasi</span>
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  Klik foto untuk melihat ukuran penuh
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                {/* Foto Masuk */}
+                {teacher.attendanceLog?.checkInPhotoUrl ? (
+                  <div
+                    onClick={() =>
+                      setZoomedPhoto({
+                        url: teacher.attendanceLog!.checkInPhotoUrl!,
+                        title: `Foto Selfie Masuk - ${teacher.name}`,
+                        subtitle: `Waktu Masuk: ${checkInTime} ${
+                          teacher.attendanceLog?.checkInDistance
+                            ? `• Jarak Radius: ${teacher.attendanceLog.checkInDistance.toFixed(1)} m`
+                            : ""
+                        }`,
+                      })
+                    }
+                    className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-2xs"
+                  >
+                    <img
+                      src={teacher.attendanceLog.checkInPhotoUrl}
+                      alt="Foto Masuk"
+                      className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-semibold text-white backdrop-blur-2xs">
+                      Masuk
+                    </div>
+                    {(teacher.attendanceLog.checkInPhotoUrl.includes("googleusercontent.com") ||
+                      teacher.attendanceLog.checkInPhotoUrl.includes("drive.google.com")) && (
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-blue-600/90 text-white backdrop-blur-xs flex items-center gap-0.5">
+                        <Cloud className="size-2.5" />
+                        <span>Drive</span>
+                      </span>
+                    )}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                      <Maximize2 className="size-4" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aspect-4/3 rounded-lg border border-dashed border-border flex flex-col items-center justify-center p-2 text-center bg-muted/10">
+                    <span className="text-[11px] text-muted-foreground">
+                      Tanpa Foto Masuk
+                    </span>
+                  </div>
+                )}
+
+                {/* Foto Pulang */}
+                {teacher.attendanceLog?.checkOutPhotoUrl ? (
+                  <div
+                    onClick={() =>
+                      setZoomedPhoto({
+                        url: teacher.attendanceLog!.checkOutPhotoUrl!,
+                        title: `Foto Selfie Pulang - ${teacher.name}`,
+                        subtitle: `Waktu Pulang: ${checkOutTime || "-"}`,
+                      })
+                    }
+                    className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-2xs"
+                  >
+                    <img
+                      src={teacher.attendanceLog.checkOutPhotoUrl}
+                      alt="Foto Pulang"
+                      className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-semibold text-white backdrop-blur-2xs">
+                      Pulang
+                    </div>
+                    {(teacher.attendanceLog.checkOutPhotoUrl.includes("googleusercontent.com") ||
+                      teacher.attendanceLog.checkOutPhotoUrl.includes("drive.google.com")) && (
+                      <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded-full text-[9px] font-semibold bg-blue-600/90 text-white backdrop-blur-xs flex items-center gap-0.5">
+                        <Cloud className="size-2.5" />
+                        <span>Drive</span>
+                      </span>
+                    )}
+                    <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white">
+                      <Maximize2 className="size-4" />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="aspect-4/3 rounded-lg border border-dashed border-border flex flex-col items-center justify-center p-2 text-center bg-muted/10">
+                    <span className="text-[11px] text-muted-foreground">
+                      {teacher.attendanceLog?.checkOutTime ? "Pulang Tanpa Foto" : "Belum Foto Pulang"}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
           {/* Status Selection */}
           <div className="space-y-1.5">
             <label className="text-xs font-bold text-foreground uppercase tracking-wider">
@@ -406,6 +527,79 @@ export function SingleAttendanceModal({
           </div>
         </form>
       </div>
+
+      {/* Fullscreen Photo Lightbox Modal */}
+      {zoomedPhoto && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[120] bg-black/95 backdrop-blur-md flex flex-col justify-between p-4 sm:p-6 animate-in fade-in duration-200 select-none"
+          onClick={() => setZoomedPhoto(null)}
+        >
+          {/* Lightbox Topbar */}
+          <div
+            className="flex items-center justify-between text-white border-b border-white/10 pb-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <h3 className="font-bold text-sm sm:text-base text-white">
+                {zoomedPhoto.title}
+              </h3>
+              {zoomedPhoto.subtitle && (
+                <p className="text-xs text-white/70 mt-0.5">
+                  {zoomedPhoto.subtitle}
+                </p>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <a
+                href={zoomedPhoto.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Buka Foto Asli di Tab Baru"
+              >
+                <ExternalLink className="size-3.5" />
+                <span className="hidden sm:inline">Buka Asli</span>
+              </a>
+
+              <a
+                href={zoomedPhoto.url}
+                download={`presensi-${Date.now()}.jpg`}
+                className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="Unduh Gambar"
+              >
+                <Download className="size-3.5" />
+                <span className="hidden sm:inline">Unduh</span>
+              </a>
+
+              <button
+                type="button"
+                onClick={() => setZoomedPhoto(null)}
+                className="size-8 rounded-lg bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer ml-1"
+                title="Tutup (ESC)"
+              >
+                <X className="size-5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Lightbox Image Container */}
+          <div className="flex-1 flex items-center justify-center p-2 sm:p-6 overflow-hidden">
+            <img
+              src={zoomedPhoto.url}
+              alt={zoomedPhoto.title}
+              onClick={(e) => e.stopPropagation()}
+              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
+            />
+          </div>
+
+          {/* Lightbox Footer */}
+          <div className="text-center text-xs text-white/60 pt-2 border-t border-white/10">
+            Klik area gelap atau tekan tombol <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white/90 font-mono">ESC</kbd> untuk menutup tampilan penuh.
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 }
