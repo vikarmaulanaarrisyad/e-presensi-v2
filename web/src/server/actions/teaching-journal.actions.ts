@@ -1,9 +1,9 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
-import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
-import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
+import { requireAuth, requireMadrasahAdmin } from "@/server/utils/auth-guard";
+import { toUtcMidnight } from "@/lib/date-utils";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -36,21 +36,30 @@ export async function getTeacherJournalsAction(
   pageSize: number = 20
 ) {
   try {
-    let sessionUser: { id: string; role?: string } | undefined;
-    try {
-      const session = await auth();
-      sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
-    } catch {
-      // Allow fallback
-    }
+    const user = await requireAuth();
 
-    const userId = explicitUserId || sessionUser?.id;
-    if (!userId) {
-      return { error: "Sesi tidak valid. Silakan login kembali." };
+    let targetUserId = user.id;
+    if (user.role === "TEACHER") {
+      targetUserId = user.id; // strictly self
+    } else if (user.role === "ADMIN_MADRASAH") {
+      if (explicitUserId && explicitUserId.trim()) {
+        const check = await prisma.user.findFirst({
+          where: { id: explicitUserId.trim(), madrasahId: user.madrasahId },
+          select: { id: true },
+        });
+        if (!check) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        targetUserId = check.id;
+      }
+    } else if (user.role === "SUPERADMIN") {
+      if (explicitUserId && explicitUserId.trim()) {
+        targetUserId = explicitUserId.trim();
+      }
     }
 
     const teacher = await prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: targetUserId },
       select: { id: true, madrasahId: true, name: true },
     });
 
@@ -58,18 +67,7 @@ export async function getTeacherJournalsAction(
       return { error: "Data guru atau madrasah tidak ditemukan." };
     }
 
-    const now = new Date();
-    let targetDateStart: Date;
-    let targetDateEnd: Date;
-
-    if (dateStr) {
-      const [y, m, d] = dateStr.split("-").map(Number);
-      targetDateStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-      targetDateEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
-    } else {
-      targetDateStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      targetDateEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
-    }
+    const targetDateUtc = toUtcMidnight(dateStr);
 
     const db = prisma as any;
 
@@ -83,10 +81,7 @@ export async function getTeacherJournalsAction(
         where: {
           userId: teacher.id,
           madrasahId: teacher.madrasahId,
-          date: {
-            gte: targetDateStart,
-            lte: targetDateEnd,
-          },
+          date: targetDateUtc,
         },
         orderBy: { createdAt: "desc" },
       }),
@@ -153,38 +148,55 @@ export async function getTeacherJournalsAction(
  */
 export async function createTeachingJournalAction(payload: TeachingJournalPayload) {
   try {
-    let sessionUser: { id: string; role?: string } | undefined;
-    try {
-      const session = await auth();
-      sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
-    } catch {
-      // Allow fallback
+    const user = await requireAuth();
+
+    let targetUserId = user.id;
+    let targetMadrasahId = user.madrasahId;
+
+    if (user.role === "TEACHER") {
+      targetUserId = user.id;
+      if (!user.madrasahId) {
+        return { error: "Akun Anda belum terhubung ke madrasah manapun." };
+      }
+      targetMadrasahId = user.madrasahId;
+    } else if (user.role === "ADMIN_MADRASAH") {
+      if (payload.userId && payload.userId !== user.id) {
+        const check = await prisma.user.findFirst({
+          where: { id: payload.userId, madrasahId: user.madrasahId },
+          select: { id: true, madrasahId: true },
+        });
+        if (!check || !check.madrasahId) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        targetUserId = check.id;
+        targetMadrasahId = check.madrasahId;
+      } else {
+        targetMadrasahId = user.madrasahId;
+      }
+    } else if (user.role === "SUPERADMIN") {
+      if (payload.userId) {
+        const check = await prisma.user.findUnique({
+          where: { id: payload.userId },
+          select: { id: true, madrasahId: true },
+        });
+        if (check && check.madrasahId) {
+          targetUserId = check.id;
+          targetMadrasahId = check.madrasahId;
+        }
+      }
     }
 
-    const isPrivileged = sessionUser?.role === "ADMIN_MADRASAH" || sessionUser?.role === "SUPERADMIN";
-    const userId = (isPrivileged && payload.userId) || sessionUser?.id || payload.userId;
-
-    if (!userId) {
-      return { error: "Sesi tidak valid. Silakan login kembali." };
+    if (!targetMadrasahId) {
+      return { error: "Data madrasah tidak ditemukan." };
     }
 
-    const teacher = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, madrasahId: true },
-    });
-
-    if (!teacher || !teacher.madrasahId) {
-      return { error: "Data guru atau madrasah tidak ditemukan." };
-    }
-
-    const [y, m, d] = payload.date.split("-").map(Number);
-    const dateObj = new Date(y, m - 1, d, 0, 0, 0, 0);
+    const dateObj = toUtcMidnight(payload.date);
 
     const db = prisma as any;
     const newJournal = await db.teachingJournal.create({
       data: {
-        madrasahId: teacher.madrasahId,
-        userId: teacher.id,
+        madrasahId: targetMadrasahId,
+        userId: targetUserId,
         date: dateObj,
         className: payload.className.trim(),
         subjectName: payload.subjectName.trim(),
@@ -220,6 +232,7 @@ export async function updateTeachingJournalAction(
   payload: Partial<TeachingJournalPayload>
 ) {
   try {
+    const user = await requireAuth();
     const db = prisma as any;
     const existing = await db.teachingJournal.findUnique({
       where: { id: journalId },
@@ -229,10 +242,17 @@ export async function updateTeachingJournalAction(
       return { error: "Jurnal tidak ditemukan." };
     }
 
+    // Authorization: guru hanya boleh ubah milik sendiri, admin hanya boleh madrasahnya
+    if (user.role === "TEACHER" && existing.userId !== user.id) {
+      return { error: "Akses ditolak: Anda hanya dapat mengubah jurnal Anda sendiri." };
+    }
+    if (user.role === "ADMIN_MADRASAH" && existing.madrasahId !== user.madrasahId) {
+      return { error: "Akses ditolak: Jurnal tidak ditemukan di madrasah Anda." };
+    }
+
     const updateData: any = {};
     if (payload.date) {
-      const [y, m, d] = payload.date.split("-").map(Number);
-      updateData.date = new Date(y, m - 1, d, 0, 0, 0, 0);
+      updateData.date = toUtcMidnight(payload.date);
     }
     if (payload.className) updateData.className = payload.className.trim();
     if (payload.subjectName) updateData.subjectName = payload.subjectName.trim();
@@ -268,6 +288,7 @@ export async function updateTeachingJournalAction(
  */
 export async function getTeachingJournalByIdAction(journalId: string) {
   try {
+    const user = await requireAuth();
     const db = prisma as any;
     const journal = await db.teachingJournal.findUnique({
       where: { id: journalId },
@@ -275,6 +296,13 @@ export async function getTeachingJournalByIdAction(journalId: string) {
 
     if (!journal) {
       return { error: "Catatan jurnal pembelajaran tidak ditemukan." };
+    }
+
+    if (user.role === "TEACHER" && journal.userId !== user.id) {
+      return { error: "Akses ditolak: Anda tidak memiliki akses ke jurnal ini." };
+    }
+    if (user.role === "ADMIN_MADRASAH" && journal.madrasahId !== user.madrasahId) {
+      return { error: "Akses ditolak: Jurnal tidak ditemukan di madrasah Anda." };
     }
 
     return {
@@ -306,7 +334,23 @@ export async function getTeachingJournalByIdAction(journalId: string) {
  */
 export async function deleteTeachingJournalAction(journalId: string) {
   try {
+    const user = await requireAuth();
     const db = prisma as any;
+    const existing = await db.teachingJournal.findUnique({
+      where: { id: journalId },
+    });
+
+    if (!existing) {
+      return { error: "Jurnal tidak ditemukan." };
+    }
+
+    if (user.role === "TEACHER" && existing.userId !== user.id) {
+      return { error: "Akses ditolak: Anda hanya dapat menghapus jurnal Anda sendiri." };
+    }
+    if (user.role === "ADMIN_MADRASAH" && existing.madrasahId !== user.madrasahId) {
+      return { error: "Akses ditolak: Jurnal tidak ditemukan di madrasah Anda." };
+    }
+
     await db.teachingJournal.delete({
       where: { id: journalId },
     });
@@ -330,29 +374,16 @@ export async function deleteTeachingJournalAction(journalId: string) {
  */
 export async function fetchJournalsInitialData(madrasahId?: string) {
   try {
-    let targetMadrasahId = madrasahId;
-    try {
-      const { madrasahId: authMadrasahId } = await requireMadrasahAdmin(madrasahId);
-      targetMadrasahId = authMadrasahId;
-    } catch {
-      // Fallback
-    }
-
-    if (!targetMadrasahId || targetMadrasahId === "default") {
-      const firstMadrasah = await prisma.madrasah.findFirst({
-        select: { id: true, name: true, nsm: true, address: true },
-      });
-      targetMadrasahId = firstMadrasah?.id || "";
-    }
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
 
     const madrasah = await prisma.madrasah.findUnique({
-      where: { id: targetMadrasahId || "unknown" },
+      where: { id: targetMadrasahId },
       select: { id: true, name: true, nsm: true, address: true },
     });
 
     const teachers = await prisma.user.findMany({
       where: {
-        madrasahId: targetMadrasahId || undefined,
+        madrasahId: targetMadrasahId,
         role: "TEACHER",
         isActive: true,
       },
@@ -363,7 +394,7 @@ export async function fetchJournalsInitialData(madrasahId?: string) {
     return {
       data: {
         madrasah: madrasah || {
-          id: targetMadrasahId || "default",
+          id: targetMadrasahId,
           name: "Madrasah",
           nsm: "-",
           address: "-",
@@ -374,10 +405,7 @@ export async function fetchJournalsInitialData(madrasahId?: string) {
   } catch (error: any) {
     console.error("Gagal memuat initial data jurnal admin:", error);
     return {
-      data: {
-        madrasah: { id: "default", name: "Madrasah", nsm: "-", address: "-" },
-        teachers: [],
-      },
+      error: error?.message || "Gagal memuat data awal jurnal madrasah.",
     };
   }
 }
@@ -395,32 +423,22 @@ export async function getMadrasahJournalsAdminAction(madrasahId: string, filters
   pageSize?: number;
 }) {
   try {
+    const { madrasahId: targetMadrasahId } = await requireMadrasahAdmin(madrasahId);
     const db = prisma as any;
-    let targetMadrasahId = madrasahId;
-    if (!targetMadrasahId || targetMadrasahId === "default") {
-      const first = await prisma.madrasah.findFirst({ select: { id: true } });
-      targetMadrasahId = first?.id || "";
-    }
     const where: any = { madrasahId: targetMadrasahId };
 
     if (filters?.dateStr) {
-      const [sy, sm, sd] = filters.dateStr.split("-").map(Number);
-      where.date = {
-        gte: new Date(sy, sm - 1, sd, 0, 0, 0, 0),
-        lte: new Date(sy, sm - 1, sd, 23, 59, 59, 999),
-      };
+      where.date = toUtcMidnight(filters.dateStr);
     } else if (filters?.startDate && filters?.endDate) {
-      const [sy, sm, sd] = filters.startDate.split("-").map(Number);
-      const [ey, em, ed] = filters.endDate.split("-").map(Number);
+      const startUtc = toUtcMidnight(filters.startDate);
+      const endUtc = new Date(toUtcMidnight(filters.endDate).getTime() + 24 * 60 * 60 * 1000 - 1);
       where.date = {
-        gte: new Date(sy, sm - 1, sd, 0, 0, 0, 0),
-        lte: new Date(ey, em - 1, ed, 23, 59, 59, 999),
+        gte: startUtc,
+        lte: endUtc,
       };
     } else if (filters?.startDate) {
-      const [sy, sm, sd] = filters.startDate.split("-").map(Number);
       where.date = {
-        gte: new Date(sy, sm - 1, sd, 0, 0, 0, 0),
-        lte: new Date(sy, sm - 1, sd, 23, 59, 59, 999),
+        gte: toUtcMidnight(filters.startDate),
       };
     }
 

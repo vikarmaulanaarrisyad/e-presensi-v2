@@ -7,6 +7,7 @@ import { prisma } from "@/lib/prisma";
 const loginSchema = z.object({
   email: z.string().min(3, "Masukkan email atau NIP valid"),
   password: z.string().min(1, "Password wajib diisi"),
+  madrasahId: z.string().optional(),
 });
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -17,6 +18,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       credentials: {
         email: { label: "Email / NIP", type: "text" },
         password: { label: "Password", type: "password" },
+        madrasahId: { label: "Madrasah ID", type: "text" },
       },
       async authorize(credentials) {
         const parsed = loginSchema.safeParse(credentials);
@@ -25,40 +27,56 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         }
 
         const identifier = parsed.data.email.trim();
-        const user = await prisma.user.findFirst({
-          where: {
-            OR: [
-              { email: { equals: identifier, mode: "insensitive" } },
-              { nip: identifier },
-              { nuptk: identifier },
-              { pegId: identifier },
-              { nik: identifier },
-            ],
-          },
+        const baseWhere: any = {
+          OR: [
+            { email: { equals: identifier, mode: "insensitive" } },
+            { nip: identifier },
+            { nuptk: identifier },
+            { pegId: identifier },
+            { nik: identifier },
+          ],
+          isActive: true,
+        };
+
+        if (parsed.data.madrasahId && parsed.data.madrasahId.trim().length > 0) {
+          baseWhere.madrasahId = parsed.data.madrasahId.trim();
+        }
+
+        // Multi-tenant scoped candidate resolution
+        const candidateUsers = await prisma.user.findMany({
+          where: baseWhere,
           include: { madrasah: true },
         });
 
-        if (!user || !user.isActive) {
+        if (!candidateUsers || candidateUsers.length === 0) {
           return null;
         }
 
-        const isValid = await bcrypt.compare(
-          parsed.data.password,
-          user.passwordHash
-        );
+        // Match against candidates by comparing password hash
+        let matchedUser = null;
+        for (const candidate of candidateUsers) {
+          const isValid = await bcrypt.compare(
+            parsed.data.password,
+            candidate.passwordHash
+          );
+          if (isValid) {
+            matchedUser = candidate;
+            break;
+          }
+        }
 
-        if (!isValid) {
+        if (!matchedUser) {
           return null;
         }
 
         return {
-          id: user.id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          nip: user.nip,
-          madrasahId: user.madrasahId,
-          madrasahName: user.madrasah?.name ?? null,
+          id: matchedUser.id,
+          name: matchedUser.name,
+          email: matchedUser.email,
+          role: matchedUser.role,
+          nip: matchedUser.nip,
+          madrasahId: matchedUser.madrasahId,
+          madrasahName: matchedUser.madrasah?.name ?? null,
         };
       },
     }),

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getKemenagHolidaysByYear } from "@/lib/kemenag-holidays";
+import { toUtcMidnight } from "@/lib/date-utils";
 
 export interface AttendanceSettingsInput {
   workStartTime: string;
@@ -117,8 +118,8 @@ export async function createHoliday(madrasahId: string, input: HolidayInput) {
     data: {
       madrasahId,
       name: input.name,
-      date: new Date(input.date),
-      endDate: input.endDate ? new Date(input.endDate) : null,
+      date: toUtcMidnight(input.date),
+      endDate: input.endDate ? toUtcMidnight(input.endDate) : null,
       isNational: input.isNational ?? false,
       description: input.description || null,
     },
@@ -159,8 +160,8 @@ export async function syncKemenagHolidays(madrasahId: string, year: number | "al
         data: {
           madrasahId,
           name: item.name,
-          date: new Date(item.date),
-          endDate: item.endDate ? new Date(item.endDate) : null,
+          date: toUtcMidnight(item.date),
+          endDate: item.endDate ? toUtcMidnight(item.endDate) : null,
           isNational: item.isNational,
           description: item.description,
         },

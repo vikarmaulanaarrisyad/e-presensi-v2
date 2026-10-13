@@ -12,9 +12,19 @@ export async function GET(request: NextRequest) {
     }
 
     const searchParams = request.nextUrl.searchParams;
-    const madrasahId = searchParams.get("madrasahId") || user.madrasahId;
+    let targetMadrasahId = user.madrasahId;
 
-    if (!madrasahId) {
+    if (user.role === "SUPERADMIN") {
+      const queryMadrasahId = searchParams.get("madrasahId");
+      if (queryMadrasahId && queryMadrasahId.trim().length > 0) {
+        targetMadrasahId = queryMadrasahId.trim();
+      }
+    } else if (user.role === "ADMIN_MADRASAH") {
+      // BOLA/IDOR protection: Admin Madrasah hanya boleh menghubungkan madrasah miliknya sendiri
+      targetMadrasahId = user.madrasahId;
+    }
+
+    if (!targetMadrasahId) {
       return NextResponse.json(
         { error: "Madrasah ID diperlukan." },
         { status: 400 }
@@ -28,7 +38,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const authUrl = getGoogleDriveAuthUrl(madrasahId);
+    const authUrl = getGoogleDriveAuthUrl(targetMadrasahId, user.id);
     return NextResponse.redirect(authUrl);
   } catch (error: any) {
     console.error("Google Drive Auth Route Error:", error);

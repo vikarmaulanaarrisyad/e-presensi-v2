@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { toUtcMidnight } from "@/lib/date-utils";
 
 export interface AttendanceFilters {
   date?: Date;
@@ -7,18 +8,16 @@ export interface AttendanceFilters {
 }
 
 export async function getMadrasahDashboardData(madrasahId: string) {
-  const now = new Date();
-  const today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0));
-  const tomorrow = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 1, 0, 0, 0, 0));
+  const today = toUtcMidnight();
 
   // Calculate week range for weekly trend
-  const dayOfWeek = now.getDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
+  const dayOfWeek = today.getUTCDay(); // 0 = Sun, 1 = Mon, ..., 6 = Sat
   const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() + mondayOffset);
+  const monday = new Date(today);
+  monday.setUTCDate(today.getUTCDate() + mondayOffset);
 
-  const startOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate(), 0, 0, 0, 0));
-  const endOfWeek = new Date(Date.UTC(monday.getFullYear(), monday.getMonth(), monday.getDate() + 6, 23, 59, 59, 999));
+  const startOfWeek = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate(), 0, 0, 0, 0));
+  const endOfWeek = new Date(Date.UTC(monday.getUTCFullYear(), monday.getUTCMonth(), monday.getUTCDate() + 6, 23, 59, 59, 999));
 
   // Concurrent SQL queries execution with Promise.all for high performance
   const [madrasah, totalTeachers, statusAggregates, todayLogs, weeklyLogs] = await Promise.all([
@@ -44,10 +43,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
       by: ["status"],
       where: {
         madrasahId,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+        date: today,
       },
       _count: {
         status: true,
@@ -58,10 +54,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
     prisma.attendanceLog.findMany({
       where: {
         madrasahId,
-        date: {
-          gte: today,
-          lt: tomorrow,
-        },
+        date: today,
       },
       select: {
         id: true,
@@ -365,10 +358,7 @@ export async function getTeachersAttendanceByDate(
     prisma.attendanceLog.findMany({
       where: {
         madrasahId,
-        date: {
-          gte: startOfDay,
-          lte: endOfDay,
-        },
+        date: startOfDay,
       },
       select: {
         id: true,

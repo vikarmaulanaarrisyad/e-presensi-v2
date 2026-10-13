@@ -6,6 +6,8 @@ import { isWithinGeofence } from "@/lib/geo";
 import { revalidatePath } from "next/cache";
 import { AttendanceStatus } from "@prisma/client";
 import { uploadAttendancePhotoToDrive } from "@/lib/google-drive";
+import { requireAuth } from "@/server/utils/auth-guard";
+import { toUtcMidnight, getMonthUtcRange } from "@/lib/date-utils";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -29,7 +31,7 @@ export interface MobileAttendancePayload {
 }
 
 /**
- * Bulletproof helper to save attendanceLog without Unique constraint failed on (user_id, date)
+ * Standardized upsert for attendance logs using strict UTC midnight for @db.Date
  */
 async function upsertAttendanceRecord({
   logId,
@@ -44,6 +46,8 @@ async function upsertAttendanceRecord({
   date: Date;
   data: any;
 }) {
+  const dateUtc = toUtcMidnight(date);
+
   if (logId) {
     try {
       return await prisma.attendanceLog.update({
@@ -55,43 +59,21 @@ async function upsertAttendanceRecord({
     }
   }
 
-  try {
-    return await prisma.attendanceLog.upsert({
-      where: {
-        userId_date: {
-          userId,
-          date,
-        },
-      },
-      create: {
-        madrasahId,
+  return await prisma.attendanceLog.upsert({
+    where: {
+      userId_date: {
         userId,
-        date,
-        ...data,
+        date: dateUtc,
       },
-      update: data,
-    });
-  } catch (err: any) {
-    const dStart = new Date(date.getFullYear(), date.getMonth(), date.getDate() - 1, 0, 0, 0);
-    const dEnd = new Date(date.getFullYear(), date.getMonth(), date.getDate() + 1, 23, 59, 59);
-
-    const existing = await prisma.attendanceLog.findFirst({
-      where: {
-        userId,
-        date: { gte: dStart, lte: dEnd },
-      },
-      orderBy: { createdAt: "desc" },
-    });
-
-    if (existing) {
-      return await prisma.attendanceLog.update({
-        where: { id: existing.id },
-        data,
-      });
-    }
-
-    throw err;
-  }
+    },
+    create: {
+      madrasahId,
+      userId,
+      date: dateUtc,
+      ...data,
+    },
+    update: data,
+  });
 }
 
 /**
@@ -99,16 +81,29 @@ async function upsertAttendanceRecord({
  */
 export async function getTeacherMobileDashboardData(explicitUserId?: string) {
   try {
-    let userId = explicitUserId;
+    const user = await requireAuth();
 
-    if (!userId) {
-      const session = await auth();
-      userId = session?.user?.id;
+    let targetUserId = user.id;
+    if (user.role === "TEACHER") {
+      targetUserId = user.id;
+    } else if (user.role === "ADMIN_MADRASAH") {
+      if (explicitUserId && explicitUserId.trim()) {
+        const check = await prisma.user.findFirst({
+          where: { id: explicitUserId.trim(), madrasahId: user.madrasahId },
+          select: { id: true },
+        });
+        if (!check) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        targetUserId = check.id;
+      }
+    } else if (user.role === "SUPERADMIN") {
+      if (explicitUserId && explicitUserId.trim()) {
+        targetUserId = explicitUserId.trim();
+      }
     }
 
-    if (!userId) {
-      return { error: "Belum login atau sesi telah berakhir." };
-    }
+    const userId = targetUserId;
 
     let teacher: any = null;
     try {
@@ -216,20 +211,19 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
       requireSelfie: true,
     };
 
-    // Calculate today's midnight UTC and range
-    const now = new Date();
-    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    // Standardized today UTC midnight and monthly range
+    const todayUtc = toUtcMidnight();
+    const { startDate: startOfMonth, endDate: endOfMonth } = getMonthUtcRange(
+      todayUtc.getUTCFullYear(),
+      todayUtc.getUTCMonth() + 1
+    );
 
-    // 1. Fetch Today's Attendance Log
+    // 1. Fetch Today's Attendance Log (exact UTC midnight match for @db.Date)
     const todayLog = await prisma.attendanceLog.findFirst({
       where: {
         userId: teacher.id,
         madrasahId,
-        date: {
-          gte: todayStart,
-          lte: todayEnd,
-        },
+        date: todayUtc,
       },
     });
 
@@ -239,27 +233,21 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
         madrasahId,
         OR: [
           {
-            date: {
-              gte: todayStart,
-              lte: todayEnd,
-            },
+            endDate: null,
+            date: todayUtc,
           },
           {
-            date: { lte: todayEnd },
-            endDate: { gte: todayStart },
+            date: { lte: todayUtc },
+            endDate: { gte: todayUtc },
           },
         ],
       },
     });
 
     // 3. Check day of week (0 = Sunday, 1 = Monday, etc.)
-    const dayOfWeek = now.getDay().toString();
+    const dayOfWeek = todayUtc.getUTCDay().toString();
     const activeWorkDays = (settings.workDays || "1,2,3,4,5,6").split(",");
     const isWeekend = !activeWorkDays.includes(dayOfWeek);
-
-    // 4. Calculate real monthly statistics for this teacher from database
-    const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
-    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
     const monthlyLogs = await prisma.attendanceLog.findMany({
       where: {
@@ -371,23 +359,27 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
  */
 export async function recordMobileAttendanceAction(payload: MobileAttendancePayload) {
   try {
-    let sessionUser: { id: string; role?: string } | undefined;
-    try {
-      const session = await auth();
-      sessionUser = session?.user as unknown as { id: string; role?: string } | undefined;
-    } catch {
-      // Allow fallback if outside Next.js request context (e.g. testing)
-    }
+    const sessionUser = await requireAuth();
 
-    if (!sessionUser?.id && !payload.userId) {
-      return { error: "Sesi pengguna tidak valid. Silakan login kembali." };
+    let userId = sessionUser.id;
+    if (sessionUser.role === "TEACHER") {
+      userId = sessionUser.id; // Regular teachers can ONLY record attendance for themselves
+    } else if (sessionUser.role === "ADMIN_MADRASAH") {
+      if (payload.userId && payload.userId !== sessionUser.id) {
+        const check = await prisma.user.findFirst({
+          where: { id: payload.userId, madrasahId: sessionUser.madrasahId },
+          select: { id: true },
+        });
+        if (!check) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        userId = check.id;
+      }
+    } else if (sessionUser.role === "SUPERADMIN") {
+      if (payload.userId) {
+        userId = payload.userId;
+      }
     }
-
-    // Proxy Attendance Prevention:
-    // Regular teachers MUST only record attendance for themselves.
-    // Only Admin/Superadmin may explicitly specify a different userId.
-    const isPrivileged = sessionUser?.role === "ADMIN_MADRASAH" || sessionUser?.role === "SUPERADMIN";
-    const userId = (isPrivileged && payload.userId) || sessionUser?.id || payload.userId!;
 
     const teacher = await prisma.user.findUnique({
       where: { id: userId },
@@ -411,22 +403,19 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
 
     // 1. Check Target Date & Backdated / Retroactive Mode
     const now = new Date();
-    const todayMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    const todayUtc = toUtcMidnight();
 
-    let targetDateStart: Date = todayMidnight;
-    let targetDateEnd: Date = todayEnd;
+    let targetDateUtc: Date = todayUtc;
     let isBackdated = false;
 
     if (payload.dateStr) {
-      const [y, m, d] = payload.dateStr.split("-").map(Number);
-      const targetDate = new Date(y, m - 1, d, 0, 0, 0, 0);
+      const targetDate = toUtcMidnight(payload.dateStr);
 
-      if (targetDate > todayMidnight) {
+      if (targetDate > todayUtc) {
         return { error: "Tidak dapat melakukan presensi untuk tanggal di masa depan." };
       }
 
-      if (targetDate < todayMidnight) {
+      if (targetDate < todayUtc) {
         isBackdated = true;
         const allowBackdated = (settings as any).allowBackdatedAttendance ?? false;
         if (!allowBackdated) {
@@ -436,8 +425,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
         }
       }
 
-      targetDateStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-      targetDateEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+      targetDateUtc = targetDate;
     }
 
     // 2. Check Selfie Requirement (only enforced for live real-time attendance)
@@ -483,19 +471,12 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
       }
     }
 
-    // Find existing log on the target date (broad timezone check)
+    // Find existing log on the target date (exact UTC midnight match for @db.Date)
     let log = await prisma.attendanceLog.findFirst({
       where: {
         userId: teacher.id,
-        OR: [
-          {
-            date: {
-              gte: new Date(targetDateStart.getFullYear(), targetDateStart.getMonth(), targetDateStart.getDate() - 1, 0, 0, 0),
-              lte: new Date(targetDateStart.getFullYear(), targetDateStart.getMonth(), targetDateStart.getDate() + 1, 23, 59, 59),
-            },
-          },
-          { date: targetDateStart },
-        ],
+        madrasahId: teacher.madrasah.id,
+        date: targetDateUtc,
       },
       orderBy: { createdAt: "desc" },
     });
@@ -530,7 +511,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
           logId: log?.id,
           madrasahId: teacher.madrasah.id,
           userId: teacher.id,
-          date: targetDateStart,
+          date: targetDateUtc,
           data: {
             checkInTime: checkInTimestamp,
             checkInLat: effectiveLat,
@@ -580,7 +561,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
           logId: log?.id,
           madrasahId: teacher.madrasah.id,
           userId: teacher.id,
-          date: targetDateStart,
+          date: targetDateUtc,
           data: {
             checkInTime: checkInTimestamp,
             checkInLat: effectiveLat,
@@ -634,7 +615,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
           log = await upsertAttendanceRecord({
             madrasahId: teacher.madrasah.id,
             userId: teacher.id,
-            date: targetDateStart,
+            date: targetDateUtc,
             data: {
               checkInTime: checkInTimestamp,
               checkInLat: effectiveLat,
@@ -685,7 +666,7 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
         logId: log?.id,
         madrasahId: teacher.madrasah.id,
         userId: teacher.id,
-        date: targetDateStart,
+        date: targetDateUtc,
         data: {
           checkInTime: now,
           checkInLat: payload.lat,
@@ -748,34 +729,45 @@ export async function getTeacherAttendanceForDateAction(
   explicitUserId?: string
 ) {
   try {
-    let userId = explicitUserId;
-    if (!userId) {
-      const session = await auth();
-      userId = session?.user?.id;
-    }
-    if (!userId) {
-      return { error: "Sesi tidak valid." };
+    const user = await requireAuth();
+    let targetUserId = user.id;
+
+    if (user.role === "TEACHER") {
+      targetUserId = user.id;
+    } else if (user.role === "ADMIN_MADRASAH") {
+      if (explicitUserId && explicitUserId.trim()) {
+        const check = await prisma.user.findFirst({
+          where: { id: explicitUserId.trim(), madrasahId: user.madrasahId },
+          select: { id: true },
+        });
+        if (!check) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        targetUserId = check.id;
+      }
+    } else if (user.role === "SUPERADMIN") {
+      if (explicitUserId && explicitUserId.trim()) {
+        targetUserId = explicitUserId.trim();
+      }
     }
 
-    const [y, m, d] = dateStr.split("-").map(Number);
-    const dateStart = new Date(y, m - 1, d, 0, 0, 0, 0);
-    const dateEnd = new Date(y, m - 1, d, 23, 59, 59, 999);
+    const userId = targetUserId;
+
+    const targetDateUtc = toUtcMidnight(dateStr);
 
     const log = await prisma.attendanceLog.findFirst({
       where: {
         userId,
-        date: {
-          gte: dateStart,
-          lte: dateEnd,
-        },
+        date: targetDateUtc,
       },
     });
 
     const holiday = await prisma.holiday.findFirst({
       where: {
+        madrasahId: user.madrasahId || undefined,
         OR: [
-          { date: { gte: dateStart, lte: dateEnd } },
-          { date: { lte: dateEnd }, endDate: { gte: dateStart } },
+          { endDate: null, date: targetDateUtc },
+          { date: { lte: targetDateUtc }, endDate: { gte: targetDateUtc } },
         ],
       },
     });
@@ -809,8 +801,22 @@ export async function getTeacherMonthlyHistoryAction(
   pageSize?: number
 ) {
   try {
-    const startDate = new Date(year, month - 1, 1, 0, 0, 0, 0);
-    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+    const sessionUser = await requireAuth();
+
+    if (sessionUser.role === "TEACHER" && userId !== sessionUser.id) {
+      return { error: "Akses ditolak: Anda hanya dapat melihat riwayat kehadiran Anda sendiri." };
+    }
+
+    if (sessionUser.role === "ADMIN_MADRASAH") {
+      const check = await prisma.user.findFirst({
+        where: { id: userId, madrasahId: sessionUser.madrasahId },
+        select: { id: true },
+      });
+      if (!check) {
+        return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+      }
+    }
+    const { startDate, endDate } = getMonthUtcRange(year, month);
 
     const teacher = await prisma.user.findUnique({
       where: { id: userId },
@@ -954,8 +960,30 @@ export async function submitTeacherPermitAction(payload: {
   attachmentBase64?: string;
 }) {
   try {
+    const sessionUser = await requireAuth();
+
+    let targetUserId = sessionUser.id;
+    if (sessionUser.role === "TEACHER") {
+      targetUserId = sessionUser.id; // teacher cannot submit on behalf of others
+    } else if (sessionUser.role === "ADMIN_MADRASAH") {
+      if (payload.userId && payload.userId !== sessionUser.id) {
+        const check = await prisma.user.findFirst({
+          where: { id: payload.userId, madrasahId: sessionUser.madrasahId },
+          select: { id: true },
+        });
+        if (!check) {
+          return { error: "Akses ditolak: Guru tidak terdaftar di madrasah Anda." };
+        }
+        targetUserId = check.id;
+      }
+    } else if (sessionUser.role === "SUPERADMIN") {
+      if (payload.userId) {
+        targetUserId = payload.userId;
+      }
+    }
+
     const teacher = await prisma.user.findUnique({
-      where: { id: payload.userId },
+      where: { id: targetUserId },
       select: { id: true, madrasahId: true },
     });
 
@@ -963,35 +991,92 @@ export async function submitTeacherPermitAction(payload: {
       return { error: "Guru tidak ditemukan." };
     }
 
-    const start = new Date(payload.startDate);
-    const end = payload.endDate ? new Date(payload.endDate) : start;
+    const start = toUtcMidnight(payload.startDate);
+    const end = payload.endDate ? toUtcMidnight(payload.endDate) : start;
 
-    // Loop through date range and create/update logs
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return { error: "Format tanggal tidak valid." };
+    }
+    if (start > end) {
+      return { error: "Tanggal mulai harus sebelum atau sama dengan tanggal selesai." };
+    }
+    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    if (diffDays > 30) {
+      return { error: "Rentang pengajuan izin/sakit maksimal 30 hari dalam satu permohonan." };
+    }
+
+    // 1. Kumpulkan seluruh tanggal UTC midnight dalam rentang izin
+    const datesToProcess: Date[] = [];
     const cur = new Date(start);
     while (cur <= end) {
-      const curDate = new Date(cur.getFullYear(), cur.getMonth(), cur.getDate(), 0, 0, 0, 0);
+      datesToProcess.push(new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate(), 0, 0, 0, 0)));
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
 
-      const existing = await prisma.attendanceLog.findFirst({
-        where: {
-          userId: teacher.id,
-          madrasahId: teacher.madrasahId,
-          date: curDate,
-        },
-      });
-
-      await upsertAttendanceRecord({
-        logId: existing?.id,
-        madrasahId: teacher.madrasahId,
+    // 2. Ambil log yang sudah ada secara batch dalam 1 query efisien
+    const existingLogs = await prisma.attendanceLog.findMany({
+      where: {
         userId: teacher.id,
-        date: curDate,
-        data: {
-          status: payload.status as AttendanceStatus,
-          notes: payload.notes,
-          checkInPhotoUrl: payload.attachmentBase64 || existing?.checkInPhotoUrl || null,
-        },
-      });
+        madrasahId: teacher.madrasahId,
+        date: { in: datesToProcess },
+      },
+      select: {
+        id: true,
+        date: true,
+        checkInPhotoUrl: true,
+      },
+    });
 
-      cur.setDate(cur.getDate() + 1);
+    const existingMap = new Map<string, (typeof existingLogs)[0]>();
+    for (const log of existingLogs) {
+      existingMap.set(log.date.toISOString().slice(0, 10), log);
+    }
+
+    // 3. Susun operasi batch upsert/update dalam 1 transaksi database atomik
+    const permitStatus = payload.status as AttendanceStatus;
+    const notes = payload.notes || `Pengajuan ${payload.status === "SICK" ? "Sakit" : "Izin"} Mandiri`;
+
+    const batchOperations = datesToProcess.map((d) => {
+      const dateKey = d.toISOString().slice(0, 10);
+      const existing = existingMap.get(dateKey);
+      const checkInPhotoUrl = payload.attachmentBase64 || existing?.checkInPhotoUrl || null;
+
+      if (existing) {
+        return prisma.attendanceLog.update({
+          where: { id: existing.id },
+          data: {
+            status: permitStatus,
+            notes,
+            checkInPhotoUrl,
+          },
+        });
+      } else {
+        return prisma.attendanceLog.upsert({
+          where: {
+            userId_date: {
+              userId: teacher.id,
+              date: d,
+            },
+          },
+          create: {
+            madrasahId: teacher.madrasahId!,
+            userId: teacher.id,
+            date: d,
+            status: permitStatus,
+            notes,
+            checkInPhotoUrl,
+          },
+          update: {
+            status: permitStatus,
+            notes,
+            checkInPhotoUrl,
+          },
+        });
+      }
+    });
+
+    if (batchOperations.length > 0) {
+      await prisma.$transaction(batchOperations);
     }
 
     safeRevalidatePath("/guru");

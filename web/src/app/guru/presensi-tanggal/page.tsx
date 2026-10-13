@@ -12,24 +12,9 @@ export const metadata = {
   description: "Form khusus pengisian presensi susulan mandiri guru madrasah.",
 };
 
-export default async function GuruPresensiTanggalPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ nip?: string }>;
-}) {
-  const params = await searchParams;
+export default async function GuruPresensiTanggalPage() {
   const session = await auth();
-
-  let targetUserId = session?.user?.id;
-  if (params?.nip) {
-    const userByNip = await prisma.user.findFirst({
-      where: { nip: params.nip },
-      select: { id: true },
-    });
-    if (userByNip) {
-      targetUserId = userByNip.id;
-    }
-  }
+  const targetUserId = session?.user?.id;
 
   if (!targetUserId) {
     redirect("/guru/login");

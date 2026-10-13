@@ -11,7 +11,7 @@ import {
 } from "@/server/repositories/attendance.repo";
 import { prisma } from "@/lib/prisma";
 import { revalidatePath } from "next/cache";
-import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
+import { requireMadrasahAdmin, requireAuth } from "@/server/utils/auth-guard";
 
 export async function fetchAdminDashboardData(madrasahId?: string) {
   try {
@@ -363,22 +363,41 @@ export async function bulkRecordAttendanceRangeAction(
  */
 export async function fetchAttendancePhotoAction(logId: string) {
   try {
+    const user = await requireAuth();
+
     const log = await prisma.attendanceLog.findUnique({
       where: { id: logId },
       select: {
         id: true,
+        userId: true,
+        madrasahId: true,
         checkInPhotoUrl: true,
         checkOutPhotoUrl: true,
       },
     });
 
+    if (!log) {
+      return { error: "Data presensi tidak ditemukan." };
+    }
+
+    // Authorization: Guru hanya boleh melihat foto miliknya sendiri
+    if (user.role === "TEACHER" && log.userId !== user.id) {
+      return { error: "Akses ditolak: Anda tidak memiliki akses ke foto presensi ini." };
+    }
+
+    // Admin hanya boleh melihat foto dari madrasahnya
+    if (user.role === "ADMIN_MADRASAH" && log.madrasahId !== user.madrasahId) {
+      return { error: "Akses ditolak: Foto presensi tidak ditemukan di madrasah Anda." };
+    }
+
     return {
       success: true,
-      checkInPhotoUrl: log?.checkInPhotoUrl || null,
-      checkOutPhotoUrl: log?.checkOutPhotoUrl || null,
+      checkInPhotoUrl: log.checkInPhotoUrl || null,
+      checkOutPhotoUrl: log.checkOutPhotoUrl || null,
     };
   } catch (error: any) {
     console.error("Gagal mengambil foto presensi:", error);
     return { error: error.message || "Gagal memuat foto presensi." };
   }
 }
+

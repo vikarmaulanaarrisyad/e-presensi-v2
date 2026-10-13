@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { revalidatePath } from "next/cache";
 import { formatTeacherName, stripLeadingQuote, maskNik } from "@/lib/excel-helpers";
 import { requireMadrasahAdmin } from "@/server/utils/auth-guard";
+import { toUtcMidnight } from "@/lib/date-utils";
 
 export interface DailyReportRow {
   date: string; // YYYY-MM-DD
@@ -157,12 +158,15 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
 
     const madrasahName = madrasah?.name || "Madrasah";
 
-    // Resolve Teacher strictly from Database
+    // Resolve Teacher strictly from Database (scoped to caller's madrasah)
     let teacher: any = null;
     if (params.teacherId && params.teacherId !== "sample-wariah") {
       try {
-        teacher = await prisma.user.findUnique({
-          where: { id: params.teacherId },
+        teacher = await prisma.user.findFirst({
+          where: { 
+            id: params.teacherId,
+            madrasahId: targetMadrasahId,
+          },
           select: {
             id: true,
             name: true,
@@ -183,8 +187,11 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
           },
         });
       } catch (err) {
-        teacher = await prisma.user.findUnique({
-          where: { id: params.teacherId },
+        teacher = await prisma.user.findFirst({
+          where: { 
+            id: params.teacherId,
+            madrasahId: targetMadrasahId,
+          },
           select: {
             id: true,
             name: true,
@@ -712,8 +719,8 @@ export async function saveSemesterHolidayAction(params: {
       data: {
         madrasahId: targetMadrasahId,
         name: params.name.trim(),
-        date: new Date(params.startDate),
-        endDate: new Date(params.endDate),
+        date: toUtcMidnight(params.startDate),
+        endDate: toUtcMidnight(params.endDate),
         isNational: false,
         description: params.description || "Libur Semester Kalender Pendidikan Madrasah",
       },

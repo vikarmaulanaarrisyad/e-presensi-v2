@@ -25,10 +25,6 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // Developer testing override via query param ?nip=
-  if (searchParams.has("nip")) {
-    return NextResponse.next();
-  }
 
   // If visiting protected admin/superadmin page without any session cookie, redirect to /login
   if (isProtectedAdminPage && !sessionToken) {

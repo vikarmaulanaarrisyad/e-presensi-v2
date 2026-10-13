@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { toUtcMidnight } from "@/lib/date-utils";
 
 export async function getAllMadrasahs() {
   return await prisma.madrasah.findMany({
@@ -25,9 +26,7 @@ export async function getSuperadminStats() {
       prisma.user.count({ where: { role: "TEACHER" } }),
       prisma.attendanceLog.count({
         where: {
-          date: {
-            gte: new Date(new Date().setHours(0, 0, 0, 0)),
-          },
+          date: toUtcMidnight(),
         },
       }),
     ]);

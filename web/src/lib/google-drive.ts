@@ -1,6 +1,70 @@
 import { google } from "googleapis";
 import { Readable } from "stream";
 import { prisma } from "@/lib/prisma";
+import crypto from "crypto";
+
+const OAUTH_STATE_SECRET = process.env.NEXTAUTH_SECRET || "epresensi-drive-oauth-hmac-secret-key-2026";
+
+/**
+ * Sign OAuth state token using HMAC-SHA256 to prevent CSRF and session tampering
+ */
+export function signOAuthState(madrasahId: string, userId: string): string {
+  const payload = JSON.stringify({
+    madrasahId,
+    userId,
+    timestamp: Date.now(),
+  });
+  const encodedPayload = Buffer.from(payload).toString("base64url");
+  const signature = crypto
+    .createHmac("sha256", OAUTH_STATE_SECRET)
+    .update(encodedPayload)
+    .digest("base64url");
+
+  return `${encodedPayload}.${signature}`;
+}
+
+/**
+ * Verify signed OAuth state token
+ */
+export function verifyOAuthState(stateString: string): { madrasahId: string; userId: string } | null {
+  try {
+    if (!stateString || !stateString.includes(".")) return null;
+    const [encodedPayload, signature] = stateString.split(".");
+    if (!encodedPayload || !signature) return null;
+
+    const expectedSignature = crypto
+      .createHmac("sha256", OAUTH_STATE_SECRET)
+      .update(encodedPayload)
+      .digest("base64url");
+
+    if (
+      signature.length !== expectedSignature.length ||
+      !crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expectedSignature))
+    ) {
+      return null;
+    }
+
+    const payloadJson = Buffer.from(encodedPayload, "base64url").toString("utf8");
+    const payload = JSON.parse(payloadJson);
+
+    // State expires after 15 minutes
+    const FIFTEEN_MINUTES = 15 * 60 * 1000;
+    if (!payload.timestamp || Date.now() - payload.timestamp > FIFTEEN_MINUTES) {
+      return null;
+    }
+
+    if (!payload.madrasahId || !payload.userId) {
+      return null;
+    }
+
+    return {
+      madrasahId: payload.madrasahId,
+      userId: payload.userId,
+    };
+  } catch {
+    return null;
+  }
+}
 
 export function getGoogleOAuth2Client() {
   const clientId = process.env.GOOGLE_CLIENT_ID || "";
@@ -12,15 +76,16 @@ export function getGoogleOAuth2Client() {
 }
 
 /**
- * Generate URL otentikasi Google OAuth 2.0 untuk Admin Madrasah
+ * Generate URL otentikasi Google OAuth 2.0 untuk Admin Madrasah dengan token CSRF bertanda tangan
  */
-export function getGoogleDriveAuthUrl(madrasahId: string) {
+export function getGoogleDriveAuthUrl(madrasahId: string, userId: string) {
   const oauth2Client = getGoogleOAuth2Client();
+  const stateToken = signOAuthState(madrasahId, userId);
 
   return oauth2Client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent", // Wajib agar Google selalu mengirimkan refresh_token
-    state: madrasahId,
+    state: stateToken,
     scope: [
       "https://www.googleapis.com/auth/drive.file", // Izin aman: Hanya file/folder yang dibuat aplikasi ini
       "https://www.googleapis.com/auth/userinfo.email",

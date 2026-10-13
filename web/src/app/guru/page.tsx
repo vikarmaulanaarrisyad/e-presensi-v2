@@ -15,24 +15,13 @@ export const metadata = {
 export default async function GuruMobilePage({
   searchParams,
 }: {
-  searchParams: Promise<{ nip?: string; tab?: string }>;
+  searchParams: Promise<{ tab?: string }>;
 }) {
   const params = await searchParams;
   const session = await auth();
+  const targetUserId = session?.user?.id;
 
-  // If query param ?nip=... is provided, prioritize that teacher (great for instant testing)
-  let targetUserId = session?.user?.id;
-  if (params?.nip) {
-    const userByNip = await prisma.user.findFirst({
-      where: { nip: params.nip },
-      select: { id: true },
-    });
-    if (userByNip) {
-      targetUserId = userByNip.id;
-    }
-  }
-
-  // If not logged in and no test NIP provided, redirect to login page
+  // Jika belum login, redirect ke halaman login
   if (!targetUserId) {
     redirect("/guru/login");
   }
