@@ -5,6 +5,7 @@ import { auth } from "@/lib/auth";
 import { isWithinGeofence } from "@/lib/geo";
 import { revalidatePath } from "next/cache";
 import { AttendanceStatus } from "@prisma/client";
+import { uploadAttendancePhotoToDrive } from "@/lib/google-drive";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -457,6 +458,25 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
       }
     }
 
+    // Upload foto selfie ke Google Drive Madrasah jika madrasah mengaktifkan Google Drive
+    let processedPhotoUrl: string | null = payload.photoBase64 || null;
+    if (payload.photoBase64 && teacher?.madrasah?.id) {
+      try {
+        const driveUrl = await uploadAttendancePhotoToDrive({
+          madrasahId: teacher.madrasah.id,
+          photoBase64: payload.photoBase64,
+          teacherName: teacher.name || "Guru",
+          dateStr: payload.dateStr || new Date().toISOString().slice(0, 10),
+          type: payload.type === "CHECK_OUT" ? "CHECK_OUT" : "CHECK_IN",
+        });
+        if (driveUrl) {
+          processedPhotoUrl = driveUrl;
+        }
+      } catch (driveErr) {
+        console.warn("Upload Google Drive gagal, menggunakan foto langsung:", driveErr);
+      }
+    }
+
     // Find existing log on the target date (broad timezone check)
     let log = await prisma.attendanceLog.findFirst({
       where: {
@@ -510,25 +530,30 @@ export async function recordMobileAttendanceAction(payload: MobileAttendancePayl
             checkInLat: effectiveLat,
             checkInLng: effectiveLng,
             checkInDistance: effectiveDistance,
-            checkInPhotoUrl: payload.photoBase64 || log?.checkInPhotoUrl || null,
+            checkInPhotoUrl: processedPhotoUrl || log?.checkInPhotoUrl || null,
             checkOutTime: checkOutTimestamp,
             checkOutLat: effectiveLat,
             checkOutLng: effectiveLng,
             checkOutDistance: effectiveDistance,
-            checkOutPhotoUrl: payload.photoBase64 || log?.checkOutPhotoUrl || null,
+            checkOutPhotoUrl: processedPhotoUrl || log?.checkOutPhotoUrl || null,
             status,
             notes: defaultNote,
           },
         });
 
         safeRevalidatePath("/guru");
-safeRevalidatePath("/admin");
-safeRevalidatePath("/admin/reports");
+        safeRevalidatePath("/admin");
 
         return {
           success: true,
           message: `Presensi Lengkap susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
-          log,
+          log: {
+            id: log.id,
+            date: log.date,
+            checkInTime: log.checkInTime,
+            checkOutTime: log.checkOutTime,
+            status: log.status,
+          },
         };
       }
 
@@ -555,20 +580,24 @@ safeRevalidatePath("/admin/reports");
             checkInLat: effectiveLat,
             checkInLng: effectiveLng,
             checkInDistance: effectiveDistance,
-            checkInPhotoUrl: payload.photoBase64 || log?.checkInPhotoUrl || null,
+            checkInPhotoUrl: processedPhotoUrl || log?.checkInPhotoUrl || null,
             status,
             notes: payload.notes || log?.notes || defaultNote,
           },
         });
 
         safeRevalidatePath("/guru");
-safeRevalidatePath("/admin");
-safeRevalidatePath("/admin/reports");
+        safeRevalidatePath("/admin");
 
         return {
           success: true,
           message: `Presensi Masuk susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
-          log,
+          log: {
+            id: log.id,
+            date: log.date,
+            checkInTime: log.checkInTime,
+            status: log.status,
+          },
         };
       } else if (payload.type === "CHECK_OUT") {
         const outTimeStr = payload.customCheckOutTime || settings.workEndTime || "14:00";
@@ -585,7 +614,7 @@ safeRevalidatePath("/admin/reports");
               checkOutLat: effectiveLat,
               checkOutLng: effectiveLng,
               checkOutDistance: effectiveDistance,
-              checkOutPhotoUrl: payload.photoBase64 || log.checkOutPhotoUrl,
+              checkOutPhotoUrl: processedPhotoUrl || log.checkOutPhotoUrl,
               notes: payload.notes || log.notes || `Presensi pulang susulan tanggal terlewat (${outTimeStr} WIB)`,
             },
           });
@@ -605,12 +634,12 @@ safeRevalidatePath("/admin/reports");
               checkInLat: effectiveLat,
               checkInLng: effectiveLng,
               checkInDistance: effectiveDistance,
-              checkInPhotoUrl: payload.photoBase64 || null,
+              checkInPhotoUrl: processedPhotoUrl || null,
               checkOutTime: checkOutTimestamp,
               checkOutLat: effectiveLat,
               checkOutLng: effectiveLng,
               checkOutDistance: effectiveDistance,
-              checkOutPhotoUrl: payload.photoBase64 || null,
+              checkOutPhotoUrl: processedPhotoUrl || null,
               status: AttendanceStatus.PRESENT,
               notes: payload.notes || `Presensi susulan tanggal terlewat (${inTimeStr} - ${outTimeStr} WIB)`,
             },
@@ -618,13 +647,17 @@ safeRevalidatePath("/admin/reports");
         }
 
         safeRevalidatePath("/guru");
-safeRevalidatePath("/admin");
-safeRevalidatePath("/admin/reports");
+        safeRevalidatePath("/admin");
 
         return {
           success: true,
           message: `Presensi Pulang susulan untuk tanggal ${payload.dateStr} berhasil dicatat!`,
-          log,
+          log: {
+            id: log.id,
+            date: log.date,
+            checkOutTime: log.checkOutTime,
+            status: log.status,
+          },
         };
       }
     }
@@ -652,7 +685,7 @@ safeRevalidatePath("/admin/reports");
           checkInLat: payload.lat,
           checkInLng: payload.lng,
           checkInDistance: payload.distance,
-          checkInPhotoUrl: payload.photoBase64 || null,
+          checkInPhotoUrl: processedPhotoUrl || null,
           status,
           notes: payload.notes || (isLate ? "Terlambat hadir" : "Hadir tepat waktu"),
         },
@@ -673,14 +706,13 @@ safeRevalidatePath("/admin/reports");
           checkOutLat: payload.lat,
           checkOutLng: payload.lng,
           checkOutDistance: payload.distance,
-          checkOutPhotoUrl: payload.photoBase64 || null,
+          checkOutPhotoUrl: processedPhotoUrl || null,
         },
       });
     }
 
     safeRevalidatePath("/guru");
     safeRevalidatePath("/admin");
-    safeRevalidatePath("/admin/reports");
 
     return {
       success: true,
@@ -688,7 +720,13 @@ safeRevalidatePath("/admin/reports");
         payload.type === "CHECK_IN"
           ? "Presensi Masuk berhasil dicatat!"
           : "Presensi Pulang berhasil dicatat!",
-      log,
+      log: {
+        id: log.id,
+        date: log.date,
+        checkInTime: log.checkInTime,
+        checkOutTime: log.checkOutTime,
+        status: log.status,
+      },
     };
   } catch (error: any) {
     console.error("Gagal merekam presensi:", error);

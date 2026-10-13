@@ -1,11 +1,17 @@
 import React from "react";
 import { AttendanceSettingsView } from "@/features/madrasah/components/attendance-settings-view";
+import { GoogleDriveSettingsCard } from "@/features/madrasah/components/google-drive-settings-card";
 import { fetchSettingsData } from "@/server/actions/settings.actions";
+import { getGoogleDriveStatusAction } from "@/server/actions/google-drive.actions";
 
 export const dynamic = "force-dynamic";
 
 export default async function SettingsPage() {
-  const res = await fetchSettingsData();
+  const [res, driveRes] = await Promise.all([
+    fetchSettingsData(),
+    getGoogleDriveStatusAction(),
+  ]);
+
   const data = res?.data;
   const settings = data?.settings;
   const holidays = data?.holidays || [];
@@ -35,5 +41,23 @@ export default async function SettingsPage() {
     })),
   };
 
-  return <AttendanceSettingsView initialData={initialData} />;
+  const driveInitialData = driveRes.data || {
+    isSystemConfigured: false,
+    isConnected: false,
+    email: null,
+    folderId: null,
+    folderName: null,
+    connectedAt: null,
+    isEnabled: false,
+  };
+
+  return (
+    <div className="space-y-6">
+      <AttendanceSettingsView initialData={initialData} />
+      <GoogleDriveSettingsCard
+        madrasahId={initialData.madrasahId}
+        initialData={driveInitialData}
+      />
+    </div>
+  );
 }

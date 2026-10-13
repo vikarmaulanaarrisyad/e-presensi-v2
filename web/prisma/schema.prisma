@@ -48,6 +48,14 @@ model Madrasah {
   fingerprintPort     Int?      @default(4370) @map("fingerprint_port")
   fingerprintLastSync DateTime? @map("fingerprint_last_sync")
 
+  // Google Drive Storage Integration (Per-Lembaga Gmail/Workspace)
+  googleDriveEmail        String?   @map("google_drive_email")
+  googleDriveRefreshToken String?   @db.Text @map("google_drive_refresh_token")
+  googleDriveFolderId     String?   @map("google_drive_folder_id")
+  googleDriveFolderName   String?   @map("google_drive_folder_name")
+  googleDriveConnectedAt  DateTime? @map("google_drive_connected_at")
+  googleDriveEnabled      Boolean   @default(false) @map("google_drive_enabled")
+
   // Relations
   settings            MadrasahSetting?
   users               User[]
