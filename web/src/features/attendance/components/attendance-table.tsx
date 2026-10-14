@@ -28,6 +28,7 @@ import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { Input } from "@/components/atoms/input";
 import { fetchAttendancePhotoAction } from "@/server/actions/attendance.actions";
+import { getOptimizedPhotoUrl, getPhotoDownloadUrl } from "@/features/attendance/lib/photo-helper";
 
 export interface AttendanceRowData {
   id: string;
@@ -72,10 +73,16 @@ export function AttendanceTable({
     title: string;
     subtitle?: string;
   } | null>(null);
+  const [lightboxImgError, setLightboxImgError] = useState(false);
   const [photoCache, setPhotoCache] = useState<
     Record<string, { checkInPhotoUrl: string | null; checkOutPhotoUrl: string | null }>
   >({});
   const [loadingPhotoLogId, setLoadingPhotoLogId] = useState<string | null>(null);
+
+  // Reset lightbox error when photo changes
+  useEffect(() => {
+    setLightboxImgError(false);
+  }, [zoomedPhoto]);
 
   // Close lightbox on Escape key
   useEffect(() => {
@@ -331,8 +338,9 @@ export function AttendanceTable({
                         <div className="size-9 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-xs shrink-0 group-hover:scale-105 transition-transform">
                           {row.user.avatarUrl ? (
                             <img
-                              src={row.user.avatarUrl}
+                              src={getOptimizedPhotoUrl(row.user.avatarUrl)}
                               alt={row.user.name}
+                              referrerPolicy="no-referrer"
                               className="size-full rounded-xl object-cover"
                             />
                           ) : (
@@ -400,8 +408,9 @@ export function AttendanceTable({
                                   title="Klik untuk perbesar Foto Masuk"
                                 >
                                   <img
-                                    src={inPhoto}
+                                    src={getOptimizedPhotoUrl(inPhoto)}
                                     alt="Foto Masuk"
+                                    referrerPolicy="no-referrer"
                                     className="size-full object-cover"
                                   />
                                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center transition-opacity">
@@ -424,8 +433,9 @@ export function AttendanceTable({
                                   title="Klik untuk perbesar Foto Pulang"
                                 >
                                   <img
-                                    src={outPhoto}
+                                    src={getOptimizedPhotoUrl(outPhoto)}
                                     alt="Foto Pulang"
+                                    referrerPolicy="no-referrer"
                                     className="size-full object-cover"
                                   />
                                   <div className="absolute inset-0 bg-black/30 opacity-0 group-hover/photo:opacity-100 flex items-center justify-center transition-opacity">
@@ -563,8 +573,9 @@ export function AttendanceTable({
                 <div className="size-11 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
                   {selectedLog.user.avatarUrl ? (
                     <img
-                      src={selectedLog.user.avatarUrl}
+                      src={getOptimizedPhotoUrl(selectedLog.user.avatarUrl)}
                       alt={selectedLog.user.name}
+                      referrerPolicy="no-referrer"
                       className="size-full rounded-xl object-cover"
                     />
                   ) : (
@@ -655,8 +666,9 @@ export function AttendanceTable({
                             className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-xs"
                           >
                             <img
-                              src={selectedPhotos.checkInPhotoUrl}
+                              src={getOptimizedPhotoUrl(selectedPhotos.checkInPhotoUrl)}
                               alt="Foto Presensi Masuk"
+                              referrerPolicy="no-referrer"
                               className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
                             {/* Google Drive indicator badge if saved in drive */}
@@ -745,8 +757,9 @@ export function AttendanceTable({
                             className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-xs"
                           >
                             <img
-                              src={selectedPhotos.checkOutPhotoUrl}
+                              src={getOptimizedPhotoUrl(selectedPhotos.checkOutPhotoUrl)}
                               alt="Foto Presensi Pulang"
+                              referrerPolicy="no-referrer"
                               className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
                             />
                             {(selectedPhotos.checkOutPhotoUrl.includes("googleusercontent.com") ||
@@ -907,7 +920,7 @@ export function AttendanceTable({
 
             <div className="flex items-center gap-2">
               <a
-                href={zoomedPhoto.url}
+                href={getOptimizedPhotoUrl(zoomedPhoto.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -918,7 +931,7 @@ export function AttendanceTable({
               </a>
 
               <a
-                href={zoomedPhoto.url}
+                href={getPhotoDownloadUrl(zoomedPhoto.url)}
                 download={`presensi-${Date.now()}.jpg`}
                 className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Unduh Gambar"
@@ -940,12 +953,36 @@ export function AttendanceTable({
 
           {/* Lightbox Image Container */}
           <div className="flex-1 flex items-center justify-center p-2 sm:p-6 overflow-hidden">
-            <img
-              src={zoomedPhoto.url}
-              alt={zoomedPhoto.title}
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
-            />
+            {lightboxImgError ? (
+              <div 
+                className="flex flex-col items-center justify-center p-8 bg-white/5 border border-white/10 rounded-2xl max-w-md text-center gap-3 animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <AlertTriangle className="size-10 text-amber-400" />
+                <h4 className="text-white font-bold text-sm">Gagal Menampilkan Foto</h4>
+                <p className="text-white/70 text-xs leading-relaxed">
+                  Gambar tidak dapat dimuat secara langsung karena pembatasan akses atau kendala jaringan.
+                </p>
+                <a
+                  href={getOptimizedPhotoUrl(zoomedPhoto.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 mt-2"
+                >
+                  <ExternalLink className="size-3.5" />
+                  <span>Buka Gambar di Tab Baru</span>
+                </a>
+              </div>
+            ) : (
+              <img
+                src={getOptimizedPhotoUrl(zoomedPhoto.url)}
+                alt={zoomedPhoto.title}
+                referrerPolicy="no-referrer"
+                onError={() => setLightboxImgError(true)}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
+              />
+            )}
           </div>
 
           {/* Lightbox Footer */}

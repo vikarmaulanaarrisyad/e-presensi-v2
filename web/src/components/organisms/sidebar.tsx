@@ -19,7 +19,8 @@ import {
   UserCheck,
   Briefcase,
   BookOpen,
-  Fingerprint
+  Fingerprint,
+  ClipboardCheck
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { signOut } from "next-auth/react";
@@ -93,6 +94,12 @@ export function Sidebar({
               href: "/admin/bulk-attendance",
               icon: UserCheck,
               badge: "Baru",
+            },
+            {
+              title: "Persetujuan Izin",
+              href: "/admin/permits",
+              icon: ClipboardCheck,
+              badge: "Approval",
             },
             {
               title: "Kelola Data Guru",

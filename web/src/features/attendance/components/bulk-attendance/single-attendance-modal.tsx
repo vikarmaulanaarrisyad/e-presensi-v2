@@ -28,6 +28,7 @@ import {
   parseDailySchedules, 
   getDayScheduleForDate 
 } from "@/features/attendance/lib/daily-schedule-helper";
+import { getOptimizedPhotoUrl, getPhotoDownloadUrl } from "@/features/attendance/lib/photo-helper";
 import { 
   swalLoading, 
   swalSuccess, 
@@ -51,7 +52,7 @@ interface SingleAttendanceModalProps {
   holidayName?: string | null;
 }
 
-type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
 
 export function SingleAttendanceModal({
   isOpen,
@@ -82,6 +83,12 @@ export function SingleAttendanceModal({
     title: string;
     subtitle?: string;
   } | null>(null);
+  const [lightboxImgError, setLightboxImgError] = useState(false);
+
+  // Reset lightbox error when photo changes
+  useEffect(() => {
+    setLightboxImgError(false);
+  }, [zoomedPhoto]);
 
   // Close lightbox on Escape key
   useEffect(() => {
@@ -306,8 +313,9 @@ export function SingleAttendanceModal({
                     className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-2xs"
                   >
                     <img
-                      src={teacher.attendanceLog.checkInPhotoUrl}
+                      src={getOptimizedPhotoUrl(teacher.attendanceLog.checkInPhotoUrl)}
                       alt="Foto Masuk"
+                      referrerPolicy="no-referrer"
                       className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-semibold text-white backdrop-blur-2xs">
@@ -345,8 +353,9 @@ export function SingleAttendanceModal({
                     className="relative aspect-4/3 rounded-lg overflow-hidden border border-border/80 bg-black/5 dark:bg-white/5 group cursor-pointer shadow-2xs"
                   >
                     <img
-                      src={teacher.attendanceLog.checkOutPhotoUrl}
+                      src={getOptimizedPhotoUrl(teacher.attendanceLog.checkOutPhotoUrl)}
                       alt="Foto Pulang"
+                      referrerPolicy="no-referrer"
                       className="size-full object-cover group-hover:scale-105 transition-transform duration-300"
                     />
                     <div className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/60 text-[10px] font-semibold text-white backdrop-blur-2xs">
@@ -386,7 +395,8 @@ export function SingleAttendanceModal({
             >
               <option value="PRESENT">Hadir Tepat Waktu (PRESENT)</option>
               <option value="LATE">Terlambat (LATE)</option>
-              <option value="PERMIT">Izin Dinas / Cuti (PERMIT)</option>
+              <option value="DUTY">💼 Dinas Luar / Perjalanan Dinas (DUTY)</option>
+              <option value="PERMIT">Izin Keperluan / Cuti (PERMIT)</option>
               <option value="SICK">Sakit (SICK)</option>
               <option value="ABSENT">Alpa / Tanpa Keterangan (ABSENT)</option>
             </select>
@@ -552,7 +562,7 @@ export function SingleAttendanceModal({
 
             <div className="flex items-center gap-2">
               <a
-                href={zoomedPhoto.url}
+                href={getOptimizedPhotoUrl(zoomedPhoto.url)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
@@ -563,7 +573,7 @@ export function SingleAttendanceModal({
               </a>
 
               <a
-                href={zoomedPhoto.url}
+                href={getPhotoDownloadUrl(zoomedPhoto.url)}
                 download={`presensi-${Date.now()}.jpg`}
                 className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-white text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
                 title="Unduh Gambar"
@@ -585,12 +595,36 @@ export function SingleAttendanceModal({
 
           {/* Lightbox Image Container */}
           <div className="flex-1 flex items-center justify-center p-2 sm:p-6 overflow-hidden">
-            <img
-              src={zoomedPhoto.url}
-              alt={zoomedPhoto.title}
-              onClick={(e) => e.stopPropagation()}
-              className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
-            />
+            {lightboxImgError ? (
+              <div 
+                className="flex flex-col items-center justify-center p-8 bg-white/5 border border-white/10 rounded-2xl max-w-md text-center gap-3 animate-in zoom-in-95 duration-200"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <AlertTriangle className="size-10 text-amber-400" />
+                <h4 className="text-white font-bold text-sm">Gagal Menampilkan Foto</h4>
+                <p className="text-white/70 text-xs leading-relaxed">
+                  Gambar tidak dapat dimuat secara langsung karena pembatasan akses atau kendala jaringan.
+                </p>
+                <a
+                  href={getOptimizedPhotoUrl(zoomedPhoto.url)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-4 py-2 rounded-lg bg-primary text-primary-foreground text-xs font-semibold hover:opacity-90 transition-opacity flex items-center gap-2 mt-2"
+                >
+                  <ExternalLink className="size-3.5" />
+                  <span>Buka Gambar di Tab Baru</span>
+                </a>
+              </div>
+            ) : (
+              <img
+                src={getOptimizedPhotoUrl(zoomedPhoto.url)}
+                alt={zoomedPhoto.title}
+                referrerPolicy="no-referrer"
+                onError={() => setLightboxImgError(true)}
+                onClick={(e) => e.stopPropagation()}
+                className="max-w-full max-h-[78vh] object-contain rounded-xl shadow-2xl border border-white/10 animate-in zoom-in-95 duration-200"
+              />
+            )}
           </div>
 
           {/* Lightbox Footer */}

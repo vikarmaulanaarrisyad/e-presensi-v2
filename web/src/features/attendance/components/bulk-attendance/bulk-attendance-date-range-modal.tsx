@@ -52,7 +52,7 @@ interface BulkAttendanceDateRangeModalProps {
   dailySchedules?: string | null;
 }
 
-type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
 
 const STATUS_OPTIONS: Array<{
   value: AttendanceStatusType;
@@ -81,9 +81,18 @@ const STATUS_OPTIONS: Array<{
       "border-amber-500 bg-amber-500/10 text-amber-950 dark:text-amber-200 ring-2 ring-amber-500/30",
   },
   {
+    value: "DUTY",
+    label: "Dinas Luar",
+    description: "Tugas resmi luar madrasah (dihitung 100% Hadir)",
+    icon: FileText,
+    colorClass: "text-indigo-500",
+    activeBorderClass:
+      "border-indigo-500 bg-indigo-500/10 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/30",
+  },
+  {
     value: "PERMIT",
-    label: "Izin Dinas / Cuti",
-    description: "Tugas dinas luar madrasah, workshop, atau izin resmi",
+    label: "Izin / Cuti",
+    description: "Izin keperluan pribadi / cuti pegawai",
     icon: FileText,
     colorClass: "text-blue-500",
     activeBorderClass:

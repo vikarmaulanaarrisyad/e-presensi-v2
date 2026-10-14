@@ -32,7 +32,7 @@ export interface DailyReportRow {
   istirahatLebih2: string;
   keterangan: string; // "Libur", "libur rutin", etc.
   isHoliday: boolean; // Highlights yellow
-  status: "PRESENT" | "LATE" | "HOLIDAY" | "PERMIT" | "SICK" | "ABSENT";
+  status: "PRESENT" | "LATE" | "HOLIDAY" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
 }
 
 export interface AttendanceReportData {
@@ -487,14 +487,20 @@ export async function fetchAttendanceReportData(params: ReportFilterParams) {
             }
           }
 
-          const isPresent = existingLog.status === "PRESENT" || existingLog.status === "LATE";
+          const isPresent =
+            existingLog.status === "PRESENT" ||
+            existingLog.status === "LATE" ||
+            existingLog.status === "DUTY";
           if (isPresent) totalPresentDays++;
           if (existingLog.status === "LATE") totalLate++;
 
           let status: DailyReportRow["status"] = "PRESENT";
           let defaultNotes = "";
 
-          if (existingLog.status === "LATE") {
+          if (existingLog.status === "DUTY") {
+            status = "DUTY";
+            defaultNotes = "Dinas Luar";
+          } else if (existingLog.status === "LATE") {
             status = "LATE";
             defaultNotes = "Terlambat";
           } else if (existingLog.status === "SICK") {
@@ -738,4 +744,318 @@ export async function saveSemesterHolidayAction(params: {
     return { error: error.message || "Gagal menyimpan jadwal libur semester." };
   }
 }
+
+export interface BapTeacherRow {
+  userId: string;
+  no: number;
+  name: string;
+  gelarDepan?: string | null;
+  gelarBelakang?: string | null;
+  nip: string | null;
+  nuptk: string | null;
+  pegId: string | null;
+  jabatan: string;
+  statusKepegawaian: string;
+  workDays: number;
+  hadir: number;
+  dinasLuar: number;
+  terlambat: number;
+  izin: number;
+  sakit: number;
+  alpa: number;
+  totalHadir: number;
+  attendancePercentage: number;
+  isEligibleTpg: boolean;
+}
+
+export interface BapSptjmData {
+  madrasah: {
+    id: string;
+    name: string;
+    nsm: string;
+    npsn?: string | null;
+    address: string | null;
+    phone?: string | null;
+    email?: string | null;
+  };
+  headmaster: {
+    id: string;
+    name: string;
+    gelarDepan?: string | null;
+    gelarBelakang?: string | null;
+    nip: string | null;
+    pangkatGol?: string | null;
+    jabatan: string;
+  } | null;
+  operator: {
+    id: string;
+    name: string;
+    nip?: string | null;
+    jabatan: string;
+  } | null;
+  period: {
+    month: number;
+    monthName: string;
+    year: number;
+    totalEffectiveDays: number;
+    startDateStr: string;
+    endDateStr: string;
+  };
+  rows: BapTeacherRow[];
+  summary: {
+    totalTeachers: number;
+    totalEligible: number;
+    totalIneligible: number;
+    averageAttendance: number;
+  };
+}
+
+const MONTH_NAMES_ID = [
+  "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+  "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+];
+
+/**
+ * Fetch BAP (Berita Acara Pembayaran / Pemeriksaan) & SPTJM Rekapitulasi Kolektif Kemenag
+ */
+export async function fetchBapSptjmDataAction(params: {
+  madrasahId?: string;
+  month?: number;
+  year?: number;
+}) {
+  try {
+    const now = new Date();
+    const month = params.month ?? now.getMonth() + 1;
+    const year = params.year ?? now.getFullYear();
+
+    const guard = await requireMadrasahAdmin(
+      params.madrasahId === "default" || !params.madrasahId ? undefined : params.madrasahId
+    );
+    const targetMadrasahId = guard.madrasahId;
+
+    const madrasah = await prisma.madrasah.findUnique({
+      where: { id: targetMadrasahId },
+      include: { settings: true },
+    });
+
+    if (!madrasah) {
+      return { error: "Data madrasah tidak ditemukan." };
+    }
+
+    const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    const startOfMonth = new Date(Date.UTC(year, month - 1, 1, 0, 0, 0, 0));
+    const endOfMonth = new Date(Date.UTC(year, month - 1, daysInMonth, 23, 59, 59, 999));
+
+    // Fetch overlapping holidays for this month
+    const holidays = await prisma.holiday.findMany({
+      where: {
+        madrasahId: targetMadrasahId,
+        OR: [
+          { endDate: null, date: { gte: startOfMonth, lte: endOfMonth } },
+          { date: { lte: endOfMonth }, endDate: { gte: startOfMonth } },
+        ],
+      },
+    });
+
+    // Effective work days calculation (matching madrasah settings)
+    const workDaysList = madrasah?.settings?.workDays
+      ? madrasah.settings.workDays.split(",").map((s) => Number(s.trim()))
+      : [1, 2, 3, 4, 5, 6]; // Default Senin-Sabtu
+
+    let totalEffectiveDays = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      const curDate = new Date(year, month - 1, d);
+      const dow = curDate.getDay();
+      if (!workDaysList.includes(dow)) continue;
+
+      const dayStart = new Date(year, month - 1, d, 0, 0, 0, 0);
+      const dayEnd = new Date(year, month - 1, d, 23, 59, 59, 999);
+
+      let isHoliday = false;
+      for (const h of holidays) {
+        const hStart = new Date(h.date);
+        hStart.setHours(0, 0, 0, 0);
+        const hEnd = h.endDate ? new Date(h.endDate) : new Date(h.date);
+        hEnd.setHours(23, 59, 59, 999);
+        if (dayStart <= hEnd && dayEnd >= hStart) {
+          isHoliday = true;
+          break;
+        }
+      }
+
+      if (!isHoliday) {
+        totalEffectiveDays++;
+      }
+    }
+
+    // Fetch teachers with their positions
+    const teachers = await prisma.user.findMany({
+      where: {
+        madrasahId: targetMadrasahId,
+        role: "TEACHER",
+        isActive: true,
+      },
+      include: {
+        position: true,
+      },
+      orderBy: [
+        { position: { order: "asc" } },
+        { name: "asc" },
+      ],
+    });
+
+    // Find Headmaster (Kepala Madrasah)
+    const headmasterUser = await prisma.user.findFirst({
+      where: {
+        madrasahId: targetMadrasahId,
+        isActive: true,
+        OR: [
+          { position: { isHeadmaster: true } },
+          { position: { name: { contains: "Kepala", mode: "insensitive" } } },
+          { position: { code: "KAMAD" } },
+          { role: "ADMIN_MADRASAH" },
+        ],
+      },
+      include: { position: true },
+      orderBy: { createdAt: "asc" },
+    });
+
+    // Operator from current session
+    const operator = {
+      id: guard.user.id,
+      name: guard.user.name || "Operator Madrasah",
+      nip: guard.user.nip || "-",
+      jabatan: "Operator Simpatika / Presensi",
+    };
+
+    // Attendance logs for all teachers in this month
+    const attendanceLogs = await prisma.attendanceLog.findMany({
+      where: {
+        madrasahId: targetMadrasahId,
+        date: {
+          gte: startOfMonth,
+          lte: endOfMonth,
+        },
+      },
+      select: {
+        userId: true,
+        status: true,
+        date: true,
+      },
+    });
+
+    // Group logs by teacher ID
+    const logsByUser = new Map<string, typeof attendanceLogs>();
+    for (const log of attendanceLogs) {
+      const userLogs = logsByUser.get(log.userId) || [];
+      userLogs.push(log);
+      logsByUser.set(log.userId, userLogs);
+    }
+
+    let totalAttendancePercentageSum = 0;
+
+    const rows: BapTeacherRow[] = teachers.map((teacher, index) => {
+      const teacherLogs = logsByUser.get(teacher.id) || [];
+
+      const hadir = teacherLogs.filter((l) => l.status === "PRESENT").length;
+      const dinasLuar = teacherLogs.filter((l) => l.status === "DUTY").length;
+      const terlambat = teacherLogs.filter((l) => l.status === "LATE").length;
+      const izin = teacherLogs.filter((l) => l.status === "PERMIT").length;
+      const sakit = teacherLogs.filter((l) => l.status === "SICK").length;
+      const alpa = teacherLogs.filter((l) => l.status === "ABSENT").length;
+
+      const totalHadir = hadir + dinasLuar + terlambat;
+      const attendancePercentage =
+        totalEffectiveDays > 0
+          ? Math.min(100, Math.round((totalHadir / totalEffectiveDays) * 100))
+          : 100;
+
+      totalAttendancePercentageSum += attendancePercentage;
+
+      // Standar Kemenag Simpatika: Kehadiran >= 85% dan tanpa alpa
+      const isEligibleTpg = attendancePercentage >= 85 && alpa === 0;
+
+      return {
+        userId: teacher.id,
+        no: index + 1,
+        name: formatTeacherName(teacher.name, teacher.gelarDepan, teacher.gelarBelakang),
+        gelarDepan: teacher.gelarDepan,
+        gelarBelakang: teacher.gelarBelakang,
+        nip: teacher.nip || "-",
+        nuptk: teacher.nuptk || "-",
+        pegId: teacher.pegId || "-",
+        jabatan: teacher.position?.name || teacher.jenisGtk || "Guru",
+        statusKepegawaian: teacher.statusKepegawaian || "Non-PNS",
+        workDays: totalEffectiveDays,
+        hadir,
+        dinasLuar,
+        terlambat,
+        izin,
+        sakit,
+        alpa,
+        totalHadir,
+        attendancePercentage,
+        isEligibleTpg,
+      };
+    });
+
+    const totalEligible = rows.filter((r) => r.isEligibleTpg).length;
+    const totalIneligible = rows.length - totalEligible;
+    const averageAttendance =
+      rows.length > 0 ? Math.round(totalAttendancePercentageSum / rows.length) : 100;
+
+    const monthStr = String(month).padStart(2, "0");
+    const startDateStr = `01/${monthStr}/${year}`;
+    const endDateStr = `${String(daysInMonth).padStart(2, "0")}/${monthStr}/${year}`;
+
+    const data: BapSptjmData = {
+      madrasah: {
+        id: madrasah.id,
+        name: madrasah.name,
+        nsm: madrasah.nsm,
+        npsn: madrasah.npsn,
+        address: madrasah.address,
+        phone: madrasah.phone,
+        email: madrasah.email,
+      },
+      headmaster: headmasterUser
+        ? {
+            id: headmasterUser.id,
+            name: formatTeacherName(
+              headmasterUser.name,
+              headmasterUser.gelarDepan,
+              headmasterUser.gelarBelakang
+            ),
+            gelarDepan: headmasterUser.gelarDepan,
+            gelarBelakang: headmasterUser.gelarBelakang,
+            nip: headmasterUser.nip || "-",
+            pangkatGol: headmasterUser.statusKepegawaian || "-",
+            jabatan: (headmasterUser as any).position?.name || "Kepala Madrasah",
+          }
+        : null,
+      operator,
+      period: {
+        month,
+        monthName: MONTH_NAMES_ID[month - 1],
+        year,
+        totalEffectiveDays,
+        startDateStr,
+        endDateStr,
+      },
+      rows,
+      summary: {
+        totalTeachers: rows.length,
+        totalEligible,
+        totalIneligible,
+        averageAttendance,
+      },
+    };
+
+    return { success: true, data };
+  } catch (error: any) {
+    console.error("Gagal mengambil data BAP & SPTJM:", error);
+    return { error: error.message || "Gagal memproses data BAP dan SPTJM Kemenag." };
+  }
+}
+
 

@@ -108,7 +108,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
     statusCountMap.set(item.status, item._count.status);
   });
 
-  const presentCount = statusCountMap.get("PRESENT") ?? 0;
+  const presentCount = (statusCountMap.get("PRESENT") ?? 0) + (statusCountMap.get("DUTY") ?? 0);
   const lateCount = statusCountMap.get("LATE") ?? 0;
   const permitCount = statusCountMap.get("PERMIT") ?? 0;
   const sickCount = statusCountMap.get("SICK") ?? 0;
@@ -128,7 +128,7 @@ export async function getMadrasahDashboardData(madrasahId: string) {
       return logDateStr === curDateStr;
     });
 
-    const hadir = logsForDay.filter((l) => l.status === "PRESENT").length;
+    const hadir = logsForDay.filter((l) => l.status === "PRESENT" || l.status === "DUTY").length;
     const terlambat = logsForDay.filter((l) => l.status === "LATE").length;
     const izin = logsForDay.filter((l) => l.status === "PERMIT" || l.status === "SICK").length;
 
@@ -220,7 +220,7 @@ export interface TeacherWithAttendance {
   isActive: boolean;
   attendanceLog: {
     id: string;
-    status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+    status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
     checkInTime: Date | null;
     checkInDistance: number | null;
     checkInLat: number | null;
@@ -420,6 +420,9 @@ export async function getTeachersAttendanceByDate(
         case "PRESENT":
           presentCount++;
           break;
+        case "DUTY":
+          presentCount++; // Dinas Luar dihitung HADIR
+          break;
         case "LATE":
           lateCount++;
           break;
@@ -471,7 +474,7 @@ export interface BulkAttendanceInput {
   madrasahId: string;
   teacherIds: string[];
   dateStr: string; // YYYY-MM-DD
-  status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+  status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
   checkInTime?: string | null; // e.g. "07:00"
   checkOutTime?: string | null; // e.g. "14:00"
   setCheckOut?: boolean;
@@ -880,7 +883,7 @@ export async function singleRecordAttendance(input: {
   madrasahId: string;
   userId: string;
   dateStr: string;
-  status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+  status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
   checkInTime?: string | null;
   checkOutTime?: string | null;
   notes?: string | null;

@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/atoms/badge";
 import { Button } from "@/components/atoms/button";
 import { getTeacherMonthlyHistoryAction } from "@/server/actions/mobile-attendance.actions";
+import { getOptimizedPhotoUrl } from "@/features/attendance/lib/photo-helper";
 
 interface MobileHistoryViewProps {
   userId: string;
@@ -202,6 +203,7 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
           historyData?.logs.map((log) => {
             const isLate = log.status === "LATE";
             const isPresent = log.status === "PRESENT";
+            const isDuty = log.status === "DUTY";
             const isPermit = log.status === "PERMIT";
             const isSick = log.status === "SICK";
 
@@ -219,7 +221,9 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
                   </div>
 
                   <Badge className={`text-[9px] px-2 py-0.5 font-semibold ${
-                    isLate
+                    isDuty
+                      ? "bg-indigo-100 text-indigo-800 border-indigo-200"
+                      : isLate
                       ? "bg-amber-100 text-amber-800 border-amber-200"
                       : isPresent
                       ? "bg-emerald-100 text-emerald-800 border-emerald-200"
@@ -227,7 +231,7 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
                       ? "bg-blue-100 text-blue-800 border-blue-200"
                       : "bg-purple-100 text-purple-800 border-purple-200"
                   }`}>
-                    {isLate ? "Terlambat" : isPresent ? "Tepat Waktu" : isPermit ? "Izin" : "Sakit"}
+                    {isDuty ? "Dinas Luar" : isLate ? "Terlambat" : isPresent ? "Tepat Waktu" : isPermit ? "Izin" : "Sakit"}
                   </Badge>
                 </div>
 
@@ -301,8 +305,9 @@ export function MobileHistoryView({ userId }: MobileHistoryViewProps) {
             </div>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={previewPhoto.url}
+              src={getOptimizedPhotoUrl(previewPhoto.url)}
               alt="Bukti Selfie"
+              referrerPolicy="no-referrer"
               className="w-full h-auto rounded-2xl border border-slate-800"
             />
           </div>

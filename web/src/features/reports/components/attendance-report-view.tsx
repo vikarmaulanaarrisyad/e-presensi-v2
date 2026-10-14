@@ -19,11 +19,13 @@ import {
   Clock,
   CalendarPlus,
   Palmtree,
+  ScrollText,
   X
 } from "lucide-react";
 import { Button } from "@/components/atoms/button";
 import { Badge } from "@/components/atoms/badge";
 import { AttendancePrintSheet } from "./attendance-print-sheet";
+import { BapSptjmView } from "./bap-sptjm-view";
 import { 
   fetchAttendanceReportData, 
   saveSemesterHolidayAction,
@@ -101,6 +103,9 @@ function buildMonthRange(
 }
 
 export function AttendanceReportView({ initialData }: AttendanceReportViewProps) {
+  // Mode switcher: Daily Report vs BAP & SPTJM Kemenag
+  const [mainReportMode, setMainReportMode] = useState<"DAILY" | "BAP_SPTJM">("DAILY");
+
   // State for filters - default to real database teacher if available
   const now = new Date();
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>(
@@ -351,7 +356,49 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
 
   return (
     <div className="flex flex-col gap-6 w-full select-none">
-      {/* 1. Executive Page Header (Hidden when printing) */}
+      {/* Top Mode Navigation: Daily Report vs BAP & SPTJM */}
+      <div className="no-print flex items-center gap-1.5 p-1 rounded-2xl bg-muted/70 border border-border/80 w-fit">
+        <button
+          type="button"
+          onClick={() => setMainReportMode("DAILY")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            mainReportMode === "DAILY"
+              ? "bg-card text-foreground shadow-xs border border-border/60"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+          }`}
+        >
+          <FileText className="size-3.5 text-primary" />
+          <span>Laporan Rincian Harian (Per-Guru)</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMainReportMode("BAP_SPTJM")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+            mainReportMode === "BAP_SPTJM"
+              ? "bg-emerald-600 text-white shadow-sm"
+              : "text-muted-foreground hover:text-foreground hover:bg-card/50"
+          }`}
+        >
+          <ScrollText className="size-3.5" />
+          <span>SPTJM & BAP Kemenag</span>
+          <span
+            className={`text-[9px] px-1.5 py-0.2 rounded-full font-extrabold uppercase ${
+              mainReportMode === "BAP_SPTJM"
+                ? "bg-white/20 text-white"
+                : "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+            }`}
+          >
+            Syarat TPG
+          </span>
+        </button>
+      </div>
+
+      {mainReportMode === "BAP_SPTJM" ? (
+        <BapSptjmView madrasahId={initialData.madrasah.id} />
+      ) : (
+        <>
+          {/* 1. Executive Page Header (Hidden when printing) */}
       <div className="no-print flex flex-col xl:flex-row xl:items-center justify-between gap-4 pb-3 border-b border-border/80">
         <div className="flex flex-col gap-1 min-w-0">
           <div className="flex items-center gap-2.5 flex-wrap">
@@ -973,6 +1020,8 @@ export function AttendanceReportView({ initialData }: AttendanceReportViewProps)
             </form>
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );

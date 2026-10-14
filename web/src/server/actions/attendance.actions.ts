@@ -105,7 +105,7 @@ export async function singleRecordAttendanceAction(
     madrasahId?: string;
     userId: string;
     dateStr: string;
-    status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+    status: "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
     checkInTime?: string | null;
     checkOutTime?: string | null;
     notes?: string | null;

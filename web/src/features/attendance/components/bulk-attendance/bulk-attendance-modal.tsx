@@ -58,7 +58,7 @@ interface BulkAttendanceModalProps {
   holidayName?: string | null;
 }
 
-type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT";
+type AttendanceStatusType = "PRESENT" | "LATE" | "PERMIT" | "SICK" | "ABSENT" | "DUTY";
 
 const STATUS_OPTIONS: Array<{
   value: AttendanceStatusType;
@@ -88,9 +88,18 @@ const STATUS_OPTIONS: Array<{
     accentBg: "bg-amber-500/15 text-amber-600 dark:text-amber-400",
   },
   {
+    value: "DUTY",
+    label: "Dinas Luar",
+    shortDesc: "Tugas resmi luar madrasah (100% Hadir)",
+    icon: FileText,
+    colorClass: "text-indigo-500",
+    activeBorderClass: "border-indigo-500 bg-indigo-500/10 text-indigo-950 dark:text-indigo-200 ring-2 ring-indigo-500/30 shadow-xs",
+    accentBg: "bg-indigo-500/15 text-indigo-600 dark:text-indigo-400",
+  },
+  {
     value: "PERMIT",
     label: "Izin / Cuti",
-    shortDesc: "Tugas dinas atau izin",
+    shortDesc: "Izin keperluan pribadi",
     icon: FileText,
     colorClass: "text-blue-500",
     activeBorderClass: "border-blue-500 bg-blue-500/10 text-blue-950 dark:text-blue-200 ring-2 ring-blue-500/30 shadow-xs",

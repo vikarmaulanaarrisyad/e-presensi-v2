@@ -8,6 +8,7 @@ import { AttendanceStatus } from "@prisma/client";
 import { uploadAttendancePhotoToDrive } from "@/lib/google-drive";
 import { requireAuth } from "@/server/utils/auth-guard";
 import { toUtcMidnight, getMonthUtcRange } from "@/lib/date-utils";
+import { createPermitRequest } from "@/server/repositories/permit.repo";
 
 function safeRevalidatePath(path: string) {
   try {
@@ -266,7 +267,7 @@ export async function getTeacherMobileDashboardData(explicitUserId?: string) {
       },
     });
 
-    const presentMonth = monthlyLogs.filter((l) => l.status === "PRESENT").length;
+    const presentMonth = monthlyLogs.filter((l) => l.status === "PRESENT" || l.status === "DUTY").length;
     const lateMonth = monthlyLogs.filter((l) => l.status === "LATE").length;
     const permitMonth = monthlyLogs.filter((l) => l.status === "PERMIT").length;
     const sickMonth = monthlyLogs.filter((l) => l.status === "SICK").length;
@@ -905,7 +906,8 @@ export async function getTeacherMonthlyHistoryAction(
     });
 
     const stats = {
-      present: statusCountMap.get("PRESENT") ?? 0,
+      present: (statusCountMap.get("PRESENT") ?? 0) + (statusCountMap.get("DUTY") ?? 0),
+      duty: statusCountMap.get("DUTY") ?? 0,
       late: statusCountMap.get("LATE") ?? 0,
       permit: statusCountMap.get("PERMIT") ?? 0,
       sick: statusCountMap.get("SICK") ?? 0,
@@ -953,7 +955,7 @@ export async function getTeacherMonthlyHistoryAction(
  */
 export async function submitTeacherPermitAction(payload: {
   userId: string;
-  status: "PERMIT" | "SICK";
+  status: "PERMIT" | "SICK" | "DUTY";
   startDate: string; // YYYY-MM-DD
   endDate?: string;
   notes: string;
@@ -991,103 +993,39 @@ export async function submitTeacherPermitAction(payload: {
       return { error: "Guru tidak ditemukan." };
     }
 
-    const start = toUtcMidnight(payload.startDate);
-    const end = payload.endDate ? toUtcMidnight(payload.endDate) : start;
+    const isTeacher = sessionUser.role === "TEACHER";
+    const typeLabel =
+      payload.status === "DUTY"
+        ? "Dinas Luar"
+        : payload.status === "SICK"
+        ? "Sakit"
+        : "Izin";
 
-    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
-      return { error: "Format tanggal tidak valid." };
-    }
-    if (start > end) {
-      return { error: "Tanggal mulai harus sebelum atau sama dengan tanggal selesai." };
-    }
-    const diffDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-    if (diffDays > 30) {
-      return { error: "Rentang pengajuan izin/sakit maksimal 30 hari dalam satu permohonan." };
-    }
-
-    // 1. Kumpulkan seluruh tanggal UTC midnight dalam rentang izin
-    const datesToProcess: Date[] = [];
-    const cur = new Date(start);
-    while (cur <= end) {
-      datesToProcess.push(new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth(), cur.getUTCDate(), 0, 0, 0, 0)));
-      cur.setUTCDate(cur.getUTCDate() + 1);
-    }
-
-    // 2. Ambil log yang sudah ada secara batch dalam 1 query efisien
-    const existingLogs = await prisma.attendanceLog.findMany({
-      where: {
-        userId: teacher.id,
-        madrasahId: teacher.madrasahId,
-        date: { in: datesToProcess },
-      },
-      select: {
-        id: true,
-        date: true,
-        checkInPhotoUrl: true,
-      },
+    const permit = await createPermitRequest({
+      madrasahId: teacher.madrasahId,
+      userId: teacher.id,
+      type: payload.status,
+      startDate: payload.startDate,
+      endDate: payload.endDate,
+      notes: payload.notes || `Pengajuan ${typeLabel} Mandiri`,
+      attachmentUrl: payload.attachmentBase64 || null,
+      autoApprove: !isTeacher,
+      approvedById: !isTeacher ? sessionUser.id : undefined,
     });
-
-    const existingMap = new Map<string, (typeof existingLogs)[0]>();
-    for (const log of existingLogs) {
-      existingMap.set(log.date.toISOString().slice(0, 10), log);
-    }
-
-    // 3. Susun operasi batch upsert/update dalam 1 transaksi database atomik
-    const permitStatus = payload.status as AttendanceStatus;
-    const notes = payload.notes || `Pengajuan ${payload.status === "SICK" ? "Sakit" : "Izin"} Mandiri`;
-
-    const batchOperations = datesToProcess.map((d) => {
-      const dateKey = d.toISOString().slice(0, 10);
-      const existing = existingMap.get(dateKey);
-      const checkInPhotoUrl = payload.attachmentBase64 || existing?.checkInPhotoUrl || null;
-
-      if (existing) {
-        return prisma.attendanceLog.update({
-          where: { id: existing.id },
-          data: {
-            status: permitStatus,
-            notes,
-            checkInPhotoUrl,
-          },
-        });
-      } else {
-        return prisma.attendanceLog.upsert({
-          where: {
-            userId_date: {
-              userId: teacher.id,
-              date: d,
-            },
-          },
-          create: {
-            madrasahId: teacher.madrasahId!,
-            userId: teacher.id,
-            date: d,
-            status: permitStatus,
-            notes,
-            checkInPhotoUrl,
-          },
-          update: {
-            status: permitStatus,
-            notes,
-            checkInPhotoUrl,
-          },
-        });
-      }
-    });
-
-    if (batchOperations.length > 0) {
-      await prisma.$transaction(batchOperations);
-    }
 
     safeRevalidatePath("/guru");
     safeRevalidatePath("/admin");
+    safeRevalidatePath("/admin/permits");
 
     return {
       success: true,
-      message: `Pengajuan ${payload.status === "SICK" ? "Sakit" : "Izin"} berhasil dikirim!`,
+      message: isTeacher
+        ? `Pengajuan ${typeLabel} berhasil dikirim ke pimpinan madrasah untuk persetujuan.`
+        : `${typeLabel} untuk guru berhasil dicatat dan disetujui.`,
+      data: permit,
     };
   } catch (error: any) {
-    console.error("Gagal mengirim izin:", error);
-    return { error: error.message || "Gagal memproses pengajuan izin." };
+    console.error("Gagal mengirim permohonan izin/dinas:", error);
+    return { error: error.message || "Gagal memproses permohonan." };
   }
 }
