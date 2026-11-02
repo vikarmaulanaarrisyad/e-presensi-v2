@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTeacherMobileDashboardData } from "@/server/actions/mobile-attendance.actions";
 import { MobileAppShellClient } from "./components/mobile-app-shell-client";
+import { SessionTimeoutWatcher } from "@/components/auth/session-timeout-watcher";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -34,8 +35,13 @@ export default async function GuruMobilePage({
     redirect("/guru/login");
   }
 
+  const expiresAt =
+    (session?.user as any)?.expiresAt ||
+    (session?.expires ? new Date(session.expires).getTime() : Date.now() + 2 * 60 * 60 * 1000);
+
   return (
     <div className="min-h-screen w-full flex justify-center" style={{ background: "#f0f2ff" }}>
+      <SessionTimeoutWatcher expiresAt={expiresAt} redirectUrl="/guru/login" />
       {/* Full-screen on mobile, centered phone card on desktop */}
       <div
         className="w-full sm:max-w-md min-h-screen relative overflow-hidden"

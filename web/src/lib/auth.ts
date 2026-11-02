@@ -89,10 +89,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.nip = (user as unknown as { nip: string | null }).nip;
         token.madrasahId = (user as unknown as { madrasahId: string | null }).madrasahId;
         token.madrasahName = (user as unknown as { madrasahName: string | null }).madrasahName;
+        token.loginAt = Math.floor(Date.now() / 1000);
       }
+
+      // Validasi ketat batas waktu sesi 2 jam (7.200 detik) sejak saat login
+      const loginTimestamp = (token.loginAt as number) || (token.iat as number);
+      if (loginTimestamp) {
+        const elapsed = Math.floor(Date.now() / 1000) - loginTimestamp;
+        if (elapsed > 2 * 60 * 60) {
+          // Token kedaluwarsa setelah 2 jam
+          return null;
+        }
+      }
+
       return token;
     },
     async session({ session, token }) {
+      if (!token) {
+        return null as any;
+      }
       if (session.user) {
         session.user.id = token.id as string;
         (session.user as unknown as { role: string }).role = token.role as string;
@@ -101,6 +116,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           token.madrasahId as string | null;
         (session.user as unknown as { madrasahName: string | null }).madrasahName =
           token.madrasahName as string | null;
+
+        const loginSec = (token.loginAt as number) || (token.iat as number) || Math.floor(Date.now() / 1000);
+        session.user.loginAt = loginSec;
+        session.user.expiresAt = (loginSec + 2 * 60 * 60) * 1000;
       }
       return session;
     },
@@ -124,6 +143,11 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: "jwt",
+    maxAge: 2 * 60 * 60, // 2 jam = 7.200 detik
+    updateAge: 24 * 60 * 60, // Mencegah sliding session agar sesi tetap hangus tepat 2 jam sejak login
+  },
+  jwt: {
+    maxAge: 2 * 60 * 60, // 2 jam = 7.200 detik
   },
   secret: process.env.NEXTAUTH_SECRET,
 });

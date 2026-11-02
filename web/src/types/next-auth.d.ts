@@ -8,6 +8,8 @@ declare module "next-auth" {
       nip?: string | null;
       madrasahId?: string | null;
       madrasahName?: string | null;
+      loginAt?: number | null;
+      expiresAt?: number | null;
     } & DefaultSession["user"];
   }
 
@@ -17,5 +19,7 @@ declare module "next-auth" {
     nip?: string | null;
     madrasahId?: string | null;
     madrasahName?: string | null;
+    loginAt?: number | null;
+    expiresAt?: number | null;
   }
 }

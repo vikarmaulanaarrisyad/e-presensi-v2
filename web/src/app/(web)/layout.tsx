@@ -4,6 +4,7 @@ import { HeaderNavbar } from "@/components/organisms/header-navbar";
 import { Footer } from "@/components/organisms/footer";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { SessionTimeoutWatcher } from "@/components/auth/session-timeout-watcher";
 import { redirect } from "next/navigation";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +21,10 @@ export default async function WebLayout({
     redirect("/login");
   }
 
+  const expiresAt =
+    (user as any)?.expiresAt ||
+    (session?.expires ? new Date(session.expires).getTime() : Date.now() + 2 * 60 * 60 * 1000);
+
   let madrasahName = user?.madrasahName ?? undefined;
   if (!madrasahName && user?.madrasahId) {
     const m = await prisma.madrasah.findUnique({
@@ -31,6 +36,7 @@ export default async function WebLayout({
 
   return (
     <div className="min-h-screen flex bg-slate-50/70 dark:bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-900 print:min-h-0 print:bg-white">
+      <SessionTimeoutWatcher expiresAt={expiresAt} redirectUrl="/login" />
       {/* Sticky Executive Sidebar */}
       <div className="print:hidden">
         <Sidebar
